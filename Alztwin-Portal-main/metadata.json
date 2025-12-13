@@ -1,0 +1,5 @@
+{
+  "name": "AlzTwin Clinician Portal",
+  "description": "A Digital Twin-based platform for Alzheimer's care, empowering clinicians with MRI-derived 3D modeling, IoT monitoring, and AI-driven predictive analytics.",
+  "requestFramePermissions": []
+}

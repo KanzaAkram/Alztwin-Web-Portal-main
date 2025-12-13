@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/jpeg" href="/logo.jpeg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AlzTwin - Clinician Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "sans-serif"],
+            },
+            colors: {
+              brand: {
+                50: "#eff6ff",
+                100: "#dbeafe",
+                200: "#bfdbfe",
+                300: "#93c5fd",
+                400: "#60a5fa",
+                500: "#3b82f6",
+                600: "#2563eb",
+                700: "#1d4ed8",
+                800: "#1e40af",
+                900: "#1e3a8a",
+                950: "#0f172a",
+              },
+              slate: {
+                850: "#151f32", // Custom shade
+                950: "#020617",
+              },
+            },
+            animation: {
+              float: "float 6s ease-in-out infinite",
+              "float-slow": "float 8s ease-in-out infinite",
+              "float-medium": "float 5s ease-in-out infinite",
+              "float-fast": "float 4s ease-in-out infinite",
+              "pulse-slow": "pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+              "fade-in-up": "fadeInUp 0.8s ease-out forwards",
+              "fade-in": "fadeIn 1s ease-out forwards",
+              "pop-in": "popIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+              "spin-slow": "spin 12s linear infinite",
+              shimmer: "shimmer 3s linear infinite",
+              scan: "scan 4s ease-in-out infinite",
+            },
+            keyframes: {
+              float: {
+                "0%, 100%": { transform: "translateY(0)" },
+                "50%": { transform: "translateY(-20px)" },
+              },
+              fadeInUp: {
+                "0%": { opacity: "0", transform: "translateY(20px)" },
+                "100%": { opacity: "1", transform: "translateY(0)" },
+              },
+              fadeIn: {
+                "0%": { opacity: "0" },
+                "100%": { opacity: "1" },
+              },
+              popIn: {
+                "0%": {
+                  opacity: "0",
+                  transform: "scale(0.9) translateY(20px)",
+                },
+                "100%": { opacity: "1", transform: "scale(1) translateY(0)" },
+              },
+              shimmer: {
+                "0%": { backgroundPosition: "200% 0" },
+                "100%": { backgroundPosition: "-200% 0" },
+              },
+              scan: {
+                "0%": { top: "-5%", opacity: "0" },
+                "10%": { opacity: "1" },
+                "90%": { opacity: "1" },
+                "100%": { top: "105%", opacity: "0" },
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #0f172a; /* slate-950 */
+        color: #f8fafc;
+      }
+      .glass-panel {
+        background: rgba(30, 41, 59, 0.4); /* slate-800 with opacity */
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      /* 3D Transform Utilities */
+      .perspective-1000 {
+        perspective: 1000px;
+      }
+      .rotate-y-[-5deg] {
+        transform: rotateY(-5deg);
+      }
+      .rotate-y-0 {
+        transform: rotateY(0deg);
+      }
+      .rotate-y-12 {
+        transform: rotateY(12deg) rotateX(5deg);
+      }
+
+      /* Grid Background */
+      .bg-grid-slate-900 {
+        background-size: 40px 40px;
+        background-image: linear-gradient(
+            to right,
+            rgba(30, 41, 59, 0.5) 1px,
+            transparent 1px
+          ),
+          linear-gradient(to bottom, rgba(30, 41, 59, 0.5) 1px, transparent 1px);
+      }
+
+      /* Custom scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f172a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+          "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+          "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+          "react/": "https://aistudiocdn.com/react@^19.2.0/",
+          "react": "https://aistudiocdn.com/react@^19.2.0"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.jsx"></script>
+  </body>
+</html>
