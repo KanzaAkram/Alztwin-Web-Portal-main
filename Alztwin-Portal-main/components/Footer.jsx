@@ -74,7 +74,6 @@ export const Footer = () => {
           <div>
             <h4 className="font-semibold text-white mb-4">Contact</h4>
             <ul className="space-y-2 text-sm text-slate-500">
-              <li>Department of Software Engineering</li>
               <li>contact@alztwin.med</li>
               <li className="flex space-x-4 mt-4">
                 <a

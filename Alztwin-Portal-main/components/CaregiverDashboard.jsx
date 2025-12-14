@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Bell,
   Settings,
@@ -12,10 +12,65 @@ import {
   MessageSquare,
   CheckCircle,
   Clock,
+  UserPlus,
+  Send,
+  X,
 } from "lucide-react";
+import {
+  getAllClinicians,
+  createPatientAccessRequest,
+} from "../services/userService";
 
 export const CaregiverDashboard = ({ user, onLogout }) => {
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [clinicians, setClinicians] = useState([]);
+  const [selectedClinician, setSelectedClinician] = useState(null);
+  const [requestingPatient, setRequestingPatient] = useState(null);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [requestSuccess, setRequestSuccess] = useState(false);
+
+  // Fetch clinicians on component mount
+  useEffect(() => {
+    const fetchClinicians = async () => {
+      const clinicianList = await getAllClinicians();
+      setClinicians(clinicianList);
+    };
+    fetchClinicians();
+  }, []);
+
+  const handleRequestClinicianAccess = (patient) => {
+    setRequestingPatient(patient);
+    setShowRequestModal(true);
+    setRequestSuccess(false);
+    setSelectedClinician(null);
+  };
+
+  const handleSubmitRequest = async () => {
+    if (!selectedClinician || !requestingPatient) return;
+
+    setRequestLoading(true);
+    try {
+      await createPatientAccessRequest(
+        user.uid,
+        requestingPatient.id, // This would be the actual patient ID from Firebase
+        selectedClinician.id,
+        {
+          patientName: requestingPatient.name,
+          caregiverName: user.displayName || user.email,
+          relationship: requestingPatient.relationship,
+        }
+      );
+      setRequestSuccess(true);
+      setTimeout(() => {
+        setShowRequestModal(false);
+        setRequestSuccess(false);
+      }, 2000);
+    } catch (error) {
+      console.error("Error submitting request:", error);
+    }
+    setRequestLoading(false);
+  };
 
   // Mock caregiver data
   const patients = [
@@ -232,6 +287,20 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
                     </span>
                   </div>
                 )}
+
+                {/* Request Clinician Access Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRequestClinicianAccess(patient);
+                  }}
+                  className="mt-4 w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 rounded-lg transition-colors"
+                >
+                  <UserPlus size={16} />
+                  <span className="text-sm font-medium">
+                    Request Clinician Access
+                  </span>
+                </button>
               </div>
             ))}
           </div>
@@ -318,6 +387,116 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
           </div>
         </div>
       </main>
+
+      {/* Request Clinician Access Modal */}
+      {showRequestModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white">
+                Request Clinician Access
+              </h2>
+              <button
+                onClick={() => setShowRequestModal(false)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {requestSuccess ? (
+              <div className="p-8 text-center">
+                <CheckCircle
+                  size={48}
+                  className="mx-auto text-green-400 mb-4"
+                />
+                <h3 className="text-lg font-semibold text-white mb-2">
+                  Request Sent!
+                </h3>
+                <p className="text-slate-400">
+                  The clinician will review your request shortly.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <p className="text-sm text-slate-400 mb-2">
+                      Requesting access for:
+                    </p>
+                    <div className="bg-slate-800/50 rounded-lg p-3 flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium">
+                        {requestingPatient?.name?.charAt(0) || "P"}
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">
+                          {requestingPatient?.name}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {requestingPatient?.relationship}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-slate-400 mb-2">
+                      Select a Clinician:
+                    </p>
+                    {clinicians.length === 0 ? (
+                      <div className="bg-slate-800/50 rounded-lg p-4 text-center">
+                        <p className="text-slate-400 text-sm">
+                          No clinicians available
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {clinicians.map((clinician) => (
+                          <button
+                            key={clinician.id}
+                            onClick={() => setSelectedClinician(clinician)}
+                            className={`w-full p-3 rounded-lg border transition-colors text-left ${
+                              selectedClinician?.id === clinician.id
+                                ? "bg-blue-500/20 border-blue-500/50"
+                                : "bg-slate-800/50 border-slate-700 hover:border-slate-600"
+                            }`}
+                          >
+                            <p className="text-white font-medium">
+                              Dr. {clinician.displayName || clinician.email}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {clinician.specialization ||
+                                "General Practitioner"}{" "}
+                              • {clinician.hospital || "Not specified"}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-6 border-t border-slate-800">
+                  <button
+                    onClick={handleSubmitRequest}
+                    disabled={!selectedClinician || requestLoading}
+                    className="w-full flex items-center justify-center space-x-2 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                  >
+                    {requestLoading ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    ) : (
+                      <>
+                        <Send size={18} />
+                        <span>Send Request</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

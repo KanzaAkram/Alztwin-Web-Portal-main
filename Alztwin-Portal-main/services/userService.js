@@ -10,6 +10,7 @@ import {
   where,
   getDocs,
   deleteDoc,
+  addDoc,
 } from "firebase/firestore";
 
 /**
@@ -338,6 +339,204 @@ export const getClinicianPatients = async (clinicianId) => {
   }
 };
 
+/**
+ * Create a patient access request from caregiver to clinician
+ * @param {string} caregiverId - Caregiver user ID
+ * @param {string} patientId - Patient user ID
+ * @param {string} clinicianId - Clinician user ID
+ * @param {Object} additionalData - Additional request information
+ */
+export const createPatientAccessRequest = async (
+  caregiverId,
+  patientId,
+  clinicianId,
+  additionalData = {}
+) => {
+  try {
+    const requestData = {
+      caregiverId,
+      patientId,
+      clinicianId,
+      status: "pending", // pending, accepted, rejected
+      requestedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...additionalData,
+    };
+
+    const docRef = await addDoc(
+      collection(db, "patientAccessRequests"),
+      requestData
+    );
+    return { id: docRef.id, ...requestData };
+  } catch (error) {
+    console.error("Error creating patient access request:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get all pending patient access requests for a clinician
+ * @param {string} clinicianId - Clinician user ID
+ */
+export const getClinicianPendingRequests = async (clinicianId) => {
+  try {
+    const q = query(
+      collection(db, "patientAccessRequests"),
+      where("clinicianId", "==", clinicianId),
+      where("status", "==", "pending")
+    );
+    const querySnapshot = await getDocs(q);
+    const requests = [];
+
+    for (const docSnapshot of querySnapshot.docs) {
+      const requestData = { id: docSnapshot.id, ...docSnapshot.data() };
+
+      // Get patient details
+      const patientDoc = await getDoc(
+        doc(db, "patients", requestData.patientId)
+      );
+      if (patientDoc.exists()) {
+        requestData.patientData = patientDoc.data();
+      }
+
+      // Get patient user details
+      const userDoc = await getDoc(doc(db, "users", requestData.patientId));
+      if (userDoc.exists()) {
+        requestData.patientUserData = userDoc.data();
+      }
+
+      // Get caregiver details
+      const caregiverDoc = await getDoc(
+        doc(db, "users", requestData.caregiverId)
+      );
+      if (caregiverDoc.exists()) {
+        requestData.caregiverData = caregiverDoc.data();
+      }
+
+      requests.push(requestData);
+    }
+
+    return requests;
+  } catch (error) {
+    console.error("Error getting clinician pending requests:", error);
+    return [];
+  }
+};
+
+/**
+ * Accept a patient access request
+ * @param {string} requestId - Request document ID
+ * @param {string} patientId - Patient user ID
+ * @param {string} clinicianId - Clinician user ID
+ */
+export const acceptPatientRequest = async (
+  requestId,
+  patientId,
+  clinicianId
+) => {
+  try {
+    // Update the request status
+    await updateDoc(doc(db, "patientAccessRequests", requestId), {
+      status: "accepted",
+      updatedAt: serverTimestamp(),
+    });
+
+    // Update the patient's clinicianId
+    await updateDoc(doc(db, "patients", patientId), {
+      clinicianId: clinicianId,
+      updatedAt: serverTimestamp(),
+    });
+
+    // Update clinician's patient count
+    const clinicianDoc = await getDoc(doc(db, "clinicians", clinicianId));
+    if (clinicianDoc.exists()) {
+      const currentCount = clinicianDoc.data().patientsCount || 0;
+      await updateDoc(doc(db, "clinicians", clinicianId), {
+        patientsCount: currentCount + 1,
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error accepting patient request:", error);
+    throw error;
+  }
+};
+
+/**
+ * Reject a patient access request
+ * @param {string} requestId - Request document ID
+ */
+export const rejectPatientRequest = async (requestId) => {
+  try {
+    await updateDoc(doc(db, "patientAccessRequests", requestId), {
+      status: "rejected",
+      updatedAt: serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error("Error rejecting patient request:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get all patients registered with a clinician (accepted)
+ * @param {string} clinicianId - Clinician user ID
+ */
+export const getAcceptedPatients = async (clinicianId) => {
+  try {
+    const q = query(
+      collection(db, "patients"),
+      where("clinicianId", "==", clinicianId)
+    );
+    const querySnapshot = await getDocs(q);
+    const patients = [];
+
+    for (const docSnapshot of querySnapshot.docs) {
+      const patientData = { id: docSnapshot.id, ...docSnapshot.data() };
+
+      // Get patient user details
+      const userDoc = await getDoc(doc(db, "users", docSnapshot.id));
+      if (userDoc.exists()) {
+        patientData.userData = userDoc.data();
+      }
+
+      patients.push(patientData);
+    }
+
+    return patients;
+  } catch (error) {
+    console.error("Error getting accepted patients:", error);
+    return [];
+  }
+};
+
+/**
+ * Get full patient details including health data
+ * @param {string} patientId - Patient user ID
+ */
+export const getPatientFullDetails = async (patientId) => {
+  try {
+    const patientDoc = await getDoc(doc(db, "patients", patientId));
+    const userDoc = await getDoc(doc(db, "users", patientId));
+
+    if (!patientDoc.exists()) {
+      return null;
+    }
+
+    return {
+      id: patientId,
+      ...patientDoc.data(),
+      userData: userDoc.exists() ? userDoc.data() : null,
+    };
+  } catch (error) {
+    console.error("Error getting patient full details:", error);
+    return null;
+  }
+};
+
 export default {
   USER_ROLES,
   getUserRole,
@@ -352,4 +551,10 @@ export default {
   updateLastLogin,
   getAllClinicians,
   getClinicianPatients,
+  createPatientAccessRequest,
+  getClinicianPendingRequests,
+  acceptPatientRequest,
+  rejectPatientRequest,
+  getAcceptedPatients,
+  getPatientFullDetails,
 };
