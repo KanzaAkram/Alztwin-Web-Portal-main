@@ -121,15 +121,17 @@ export const AuthModal = ({ isOpen, onClose, initialMode, onAuthSuccess }) => {
       case "auth/user-disabled":
         return "This account has been disabled.";
       case "auth/user-not-found":
-        return "No account found with this email.";
+        return "No account found with this email. Please sign up first.";
       case "auth/wrong-password":
         return "Incorrect password. Please try again.";
       case "auth/invalid-credential":
-        return "Invalid email or password. Please try again.";
+        return "Invalid email or password. Please check your credentials or sign up if you don't have an account.";
       case "auth/popup-closed-by-user":
         return "Sign-in was cancelled.";
       case "auth/cancelled-popup-request":
         return "Sign-in was cancelled.";
+      case "auth/too-many-requests":
+        return "Too many failed attempts. Please try again later.";
       default:
         return "An error occurred. Please try again.";
     }

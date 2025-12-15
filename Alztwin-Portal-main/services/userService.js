@@ -364,7 +364,7 @@ export const createPatientAccessRequest = async (
     };
 
     const docRef = await addDoc(
-      collection(db, "patientAccessRequests"),
+      collection(db, "consult_requests"),
       requestData
     );
     return { id: docRef.id, ...requestData };
@@ -381,7 +381,7 @@ export const createPatientAccessRequest = async (
 export const getClinicianPendingRequests = async (clinicianId) => {
   try {
     const q = query(
-      collection(db, "patientAccessRequests"),
+      collection(db, "consult_requests"),
       where("clinicianId", "==", clinicianId),
       where("status", "==", "pending")
     );
@@ -428,24 +428,57 @@ export const getClinicianPendingRequests = async (clinicianId) => {
  * @param {string} requestId - Request document ID
  * @param {string} patientId - Patient user ID
  * @param {string} clinicianId - Clinician user ID
+ * @param {Object} patientData - Patient data from the request (optional)
  */
 export const acceptPatientRequest = async (
   requestId,
   patientId,
-  clinicianId
+  clinicianId,
+  patientData = {}
 ) => {
   try {
+    // Get the request data first to extract patient info
+    const requestDoc = await getDoc(doc(db, "consult_requests", requestId));
+    const requestInfo = requestDoc.exists() ? requestDoc.data() : {};
+
     // Update the request status
-    await updateDoc(doc(db, "patientAccessRequests", requestId), {
+    await updateDoc(doc(db, "consult_requests", requestId), {
       status: "accepted",
+      acceptedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
 
-    // Update the patient's clinicianId
-    await updateDoc(doc(db, "patients", patientId), {
-      clinicianId: clinicianId,
-      updatedAt: serverTimestamp(),
-    });
+    // Check if patient document exists
+    const existingPatientDoc = await getDoc(doc(db, "patients", patientId));
+
+    if (existingPatientDoc.exists()) {
+      // Update existing patient document with clinicianId
+      await updateDoc(doc(db, "patients", patientId), {
+        clinicianId: clinicianId,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      // Create new patient document with data from request
+      const newPatientData = {
+        clinicianId: clinicianId,
+        caregiverId: requestInfo.caregiverId || null,
+        name: patientData.name || requestInfo.patientName || "Patient",
+        age: patientData.age || requestInfo.patientAge || null,
+        gender: patientData.gender || requestInfo.patientGender || null,
+        diagnosis:
+          patientData.diagnosis ||
+          requestInfo.diagnosis ||
+          "Pending Assessment",
+        summary: requestInfo.summary || "",
+        riskScore: patientData.riskScore || 0,
+        riskLevel: patientData.riskLevel || "low",
+        status: "active",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, "patients", patientId), newPatientData);
+    }
 
     // Update clinician's patient count
     const clinicianDoc = await getDoc(doc(db, "clinicians", clinicianId));
@@ -470,7 +503,7 @@ export const acceptPatientRequest = async (
  */
 export const rejectPatientRequest = async (requestId) => {
   try {
-    await updateDoc(doc(db, "patientAccessRequests", requestId), {
+    await updateDoc(doc(db, "consult_requests", requestId), {
       status: "rejected",
       updatedAt: serverTimestamp(),
     });
@@ -487,14 +520,17 @@ export const rejectPatientRequest = async (requestId) => {
  */
 export const getAcceptedPatients = async (clinicianId) => {
   try {
-    const q = query(
+    const patients = [];
+    const addedPatientIds = new Set();
+
+    // Method 1: Get patients from patients collection where clinicianId matches
+    const patientsQuery = query(
       collection(db, "patients"),
       where("clinicianId", "==", clinicianId)
     );
-    const querySnapshot = await getDocs(q);
-    const patients = [];
+    const patientsSnapshot = await getDocs(patientsQuery);
 
-    for (const docSnapshot of querySnapshot.docs) {
+    for (const docSnapshot of patientsSnapshot.docs) {
       const patientData = { id: docSnapshot.id, ...docSnapshot.data() };
 
       // Get patient user details
@@ -504,6 +540,54 @@ export const getAcceptedPatients = async (clinicianId) => {
       }
 
       patients.push(patientData);
+      addedPatientIds.add(docSnapshot.id);
+    }
+
+    // Method 2: Also get from accepted consult_requests (for patients not in patients collection)
+    const requestsQuery = query(
+      collection(db, "consult_requests"),
+      where("clinicianId", "==", clinicianId),
+      where("status", "==", "accepted")
+    );
+    const requestsSnapshot = await getDocs(requestsQuery);
+
+    for (const docSnapshot of requestsSnapshot.docs) {
+      const requestData = docSnapshot.data();
+      const patientId = requestData.patientId;
+
+      // Skip if already added from patients collection
+      if (addedPatientIds.has(patientId)) {
+        continue;
+      }
+
+      // Create patient data from request
+      const patientData = {
+        id: patientId,
+        name: requestData.patientName || "Patient",
+        age: requestData.patientAge || null,
+        gender: requestData.patientGender || null,
+        diagnosis: requestData.diagnosis || "Pending Assessment",
+        summary: requestData.summary || "",
+        clinicianId: clinicianId,
+        caregiverId: requestData.caregiverId,
+        riskScore: requestData.riskScore || 0,
+        riskLevel: requestData.riskLevel || "low",
+        status: "active",
+        acceptedAt: requestData.acceptedAt,
+      };
+
+      // Try to get user details
+      const userDoc = await getDoc(doc(db, "users", patientId));
+      if (userDoc.exists()) {
+        patientData.userData = userDoc.data();
+        // Use user's displayName if patient name not set
+        if (!requestData.patientName && userDoc.data().displayName) {
+          patientData.name = userDoc.data().displayName;
+        }
+      }
+
+      patients.push(patientData);
+      addedPatientIds.add(patientId);
     }
 
     return patients;
@@ -537,6 +621,145 @@ export const getPatientFullDetails = async (patientId) => {
   }
 };
 
+/**
+ * Create a video consultation session
+ * @param {string} clinicianId - Clinician user ID
+ * @param {string} patientId - Patient user ID
+ * @param {string} caregiverId - Caregiver user ID (optional)
+ */
+export const createConsultationSession = async (
+  clinicianId,
+  patientId,
+  caregiverId = null
+) => {
+  try {
+    const sessionData = {
+      clinicianId,
+      patientId,
+      caregiverId,
+      status: "waiting", // waiting, active, ended
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      roomId: `consultation_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`,
+    };
+
+    const docRef = await addDoc(
+      collection(db, "consultation_sessions"),
+      sessionData
+    );
+    return { id: docRef.id, ...sessionData };
+  } catch (error) {
+    console.error("Error creating consultation session:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get active consultation session for a patient
+ * @param {string} patientId - Patient user ID
+ */
+export const getActiveConsultation = async (patientId) => {
+  try {
+    const q = query(
+      collection(db, "consultation_sessions"),
+      where("patientId", "==", patientId),
+      where("status", "in", ["waiting", "active"])
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return { id: doc.id, ...doc.data() };
+    }
+    return null;
+  } catch (error) {
+    console.error("Error getting active consultation:", error);
+    return null;
+  }
+};
+
+/**
+ * Update consultation session status
+ * @param {string} sessionId - Session document ID
+ * @param {string} status - New status
+ */
+export const updateConsultationStatus = async (sessionId, status) => {
+  try {
+    await updateDoc(doc(db, "consultation_sessions", sessionId), {
+      status,
+      updatedAt: serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error("Error updating consultation status:", error);
+    throw error;
+  }
+};
+
+/**
+ * Store WebRTC signaling data for video calls
+ * @param {string} sessionId - Session ID
+ * @param {string} type - Signal type (offer, answer, ice-candidate)
+ * @param {Object} data - Signal data
+ * @param {string} fromUserId - Sender user ID
+ */
+export const sendSignalingData = async (sessionId, type, data, fromUserId) => {
+  try {
+    const signalData = {
+      sessionId,
+      type,
+      data: JSON.stringify(data),
+      fromUserId,
+      createdAt: serverTimestamp(),
+      processed: false,
+    };
+    await addDoc(collection(db, "webrtc_signals"), signalData);
+    return true;
+  } catch (error) {
+    console.error("Error sending signaling data:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get signaling data for a session
+ * @param {string} sessionId - Session ID
+ * @param {string} forUserId - User ID to get signals for (not from)
+ */
+export const getSignalingData = async (sessionId, forUserId) => {
+  try {
+    const q = query(
+      collection(db, "webrtc_signals"),
+      where("sessionId", "==", sessionId),
+      where("processed", "==", false)
+    );
+    const querySnapshot = await getDocs(q);
+    const signals = [];
+
+    for (const docSnapshot of querySnapshot.docs) {
+      const data = docSnapshot.data();
+      if (data.fromUserId !== forUserId) {
+        signals.push({
+          id: docSnapshot.id,
+          ...data,
+          data: JSON.parse(data.data),
+        });
+        // Mark as processed
+        await updateDoc(doc(db, "webrtc_signals", docSnapshot.id), {
+          processed: true,
+        });
+      }
+    }
+
+    return signals;
+  } catch (error) {
+    console.error("Error getting signaling data:", error);
+    return [];
+  }
+};
+
 export default {
   USER_ROLES,
   getUserRole,
@@ -557,4 +780,9 @@ export default {
   rejectPatientRequest,
   getAcceptedPatients,
   getPatientFullDetails,
+  createConsultationSession,
+  getActiveConsultation,
+  updateConsultationStatus,
+  sendSignalingData,
+  getSignalingData,
 };

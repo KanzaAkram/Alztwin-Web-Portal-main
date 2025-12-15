@@ -13,7 +13,7 @@ import { InteractiveBrainModel } from "./components/InteractiveBrainModel";
 import { Dashboard as ClinicianDashboard } from "./components/Dashboard";
 import { PatientDashboard } from "./components/PatientDashboard";
 import { CaregiverDashboard } from "./components/CaregiverDashboard";
-import { RoleSelector } from "./components/RoleSelector";
+import { ClinicianOnboardingForm } from "./components/ClinicianOnboardingForm";
 
 function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -22,7 +22,7 @@ function App() {
   const [userRole, setUserRole] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showRoleSelector, setShowRoleSelector] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -40,10 +40,10 @@ function App() {
             setUserRole(role);
             setUserData(data);
             setIsAuthOpen(false);
-            setShowRoleSelector(false);
+            setShowOnboarding(false);
           } else {
-            // New user, show role selector
-            setShowRoleSelector(true);
+            // New user, show clinician onboarding form
+            setShowOnboarding(true);
           }
         } catch (error) {
           console.error("Error checking user role:", error);
@@ -54,16 +54,16 @@ function App() {
             error.code === "permission-denied"
           ) {
             console.warn(
-              "Firestore unavailable, showing role selector for new user"
+              "Firestore unavailable, showing onboarding form for new user"
             );
-            setShowRoleSelector(true);
+            setShowOnboarding(true);
           }
         }
       } else {
         setUser(null);
         setUserRole(null);
         setUserData(null);
-        setShowRoleSelector(false);
+        setShowOnboarding(false);
       }
 
       setLoading(false);
@@ -87,16 +87,16 @@ function App() {
       await signOut(auth);
       setUserRole(null);
       setUserData(null);
-      setShowRoleSelector(false);
+      setShowOnboarding(false);
     } catch (error) {
       console.error("Error signing out:", error);
     }
   };
 
-  const handleRoleSelected = async (role) => {
-    // Role has been saved to Firestore by RoleSelector
+  const handleOnboardingComplete = async (role) => {
+    // Role and profile have been saved to Firestore by ClinicianOnboardingForm
     setUserRole(role);
-    setShowRoleSelector(false);
+    setShowOnboarding(false);
 
     // Get updated user data
     try {
@@ -119,9 +119,14 @@ function App() {
     );
   }
 
-  // Show role selector for new users
-  if (user && showRoleSelector) {
-    return <RoleSelector user={user} onRoleSelected={handleRoleSelected} />;
+  // Show clinician onboarding form for new users
+  if (user && showOnboarding) {
+    return (
+      <ClinicianOnboardingForm
+        user={user}
+        onComplete={handleOnboardingComplete}
+      />
+    );
   }
 
   // Route to appropriate dashboard based on role

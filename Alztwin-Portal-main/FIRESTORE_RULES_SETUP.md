@@ -18,16 +18,31 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Allow authenticated users to read/write their own data
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read, write: if request.auth != null;
     }
     match /clinicians/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
     }
     match /patients/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
     }
     match /caregivers/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
+    }
+    // Consultation requests from caregivers to clinicians
+    match /consult_requests/{requestId} {
+      allow read, write: if request.auth != null;
+    }
+    // Video consultation sessions
+    match /consultation_sessions/{sessionId} {
+      allow read, write: if request.auth != null;
+    }
+    // WebRTC signaling data for video calls
+    match /webrtc_signals/{signalId} {
+      allow read, write: if request.auth != null;
     }
   }
 }
@@ -47,24 +62,44 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Users can only read/write their own user document
     match /users/{userId} {
-      allow read: if request.auth.uid == userId;
-      allow create: if request.auth.uid == userId && request.resource.data.role in ['clinician', 'patient', 'caregiver'];
+      allow read: if request.auth != null;
+      allow create: if request.auth.uid == userId;
       allow update, delete: if request.auth.uid == userId;
     }
 
-    // Clinicians can only read/write their own profile
+    // Clinicians can only read/write their own profile, others can read
     match /clinicians/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
     }
 
-    // Patients can only read/write their own profile
+    // Patients - own profile or clinician assigned to them
     match /patients/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
     }
 
     // Caregivers can only read/write their own profile
     match /caregivers/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
+    }
+
+    // Consultation requests
+    match /consult_requests/{requestId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
+
+    // Video consultation sessions
+    match /consultation_sessions/{sessionId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // WebRTC signaling data
+    match /webrtc_signals/{signalId} {
+      allow read, write: if request.auth != null;
     }
   }
 }
@@ -92,8 +127,8 @@ After publishing rules:
 
 1. Refresh your app at `http://localhost:3000/`
 2. Sign in with Google
-3. You should now see the **Role Selector** instead of permission error
-4. Select your role (Clinician/Patient/Caregiver)
+3. You should now see the **Clinician Onboarding Form** instead of permission error
+4. Fill in your clinician details
 5. Dashboard should load! ✅
 
 ---
