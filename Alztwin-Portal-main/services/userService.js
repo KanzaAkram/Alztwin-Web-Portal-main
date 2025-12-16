@@ -424,6 +424,54 @@ export const getClinicianPendingRequests = async (clinicianId) => {
 };
 
 /**
+ * Get ALL patient access requests for a clinician (including accepted/rejected)
+ * @param {string} clinicianId - Clinician user ID
+ */
+export const getClinicianAllRequests = async (clinicianId) => {
+  try {
+    const q = query(
+      collection(db, "consult_requests"),
+      where("clinicianId", "==", clinicianId)
+    );
+    const querySnapshot = await getDocs(q);
+    const requests = [];
+
+    for (const docSnapshot of querySnapshot.docs) {
+      const requestData = { id: docSnapshot.id, ...docSnapshot.data() };
+
+      // Get patient details
+      const patientDoc = await getDoc(
+        doc(db, "patients", requestData.patientId)
+      );
+      if (patientDoc.exists()) {
+        requestData.patientData = patientDoc.data();
+      }
+
+      // Get patient user details
+      const userDoc = await getDoc(doc(db, "users", requestData.patientId));
+      if (userDoc.exists()) {
+        requestData.patientUserData = userDoc.data();
+      }
+
+      // Get caregiver details
+      const caregiverDoc = await getDoc(
+        doc(db, "users", requestData.caregiverId)
+      );
+      if (caregiverDoc.exists()) {
+        requestData.caregiverData = caregiverDoc.data();
+      }
+
+      requests.push(requestData);
+    }
+
+    return requests;
+  } catch (error) {
+    console.error("Error getting clinician all requests:", error);
+    return [];
+  }
+};
+
+/**
  * Accept a patient access request
  * @param {string} requestId - Request document ID
  * @param {string} patientId - Patient user ID
