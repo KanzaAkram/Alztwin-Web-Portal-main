@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import * as THREE from "three";
+import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import JSZip from "jszip";
 import {
   Search,
   Bell,
@@ -86,7 +90,6 @@ import {
   Bookmark,
   Tag,
 } from "lucide-react";
-
 // --- FIREBASE IMPORTS ---
 import { db } from "../firebase"; 
 import { collection, getDocs } from "firebase/firestore";
@@ -99,11 +102,10 @@ import {
 } from "../services/userService";
 
 // --- CONFIGURATION ---
-const API_STAGE_URL = "https://cors-anywhere.herokuapp.com/https://dfab51dbbacc.ngrok-free.app/predict"; 
+const API_STAGE_URL = "https://cors-anywhere.herokuapp.com/https://ce68-34-6-200-182.ngrok-free.app/predict"; 
 const API_PROGRESSION_URL =
-  "https://cors-anywhere.herokuapp.com/https://abee1187519c.ngrok-free.app/predict"; 
-
-// Helper for UI Colors
+  "https://cors-anywhere.herokuapp.com/https://cedd-34-73-45-27.ngrok-free.app/predict";
+const API_3D_MODEL_URL = "https://cors-anywhere.herokuapp.com/https://integrant-freeman-inscriptively.ngrok-free.dev";
 const getRiskColor = (level) => {
   switch (level?.toLowerCase()) {
     case "high": return "text-red-400 bg-red-500/10 border-red-500/20";
@@ -121,29 +123,19 @@ const getTrendIcon = (trend) => {
   }
 };
 
-// Helper to safely convert Firestore Timestamps
 const formatDate = (timestamp) => {
   if (!timestamp) return "N/A";
-  // If it's a Firestore Timestamp (has seconds)
   if (timestamp.seconds) {
     return new Date(timestamp.seconds * 1000).toLocaleDateString("en-US", {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+      year: 'numeric', month: 'short', day: 'numeric'
     });
   }
-  // If it's already a string or Date object
   return new Date(timestamp).toLocaleDateString();
 };
 
-// Helper: Convert Base64 String back to a Blob (File)
 const base64ToBlob = (base64Data, contentType = 'application/dicom') => {
   if (!base64Data) return null;
-  
-  // 1. Strip the "data:image..." prefix if it exists to get raw string
   const byteCharacters = atob(base64Data.split(',')[1] || base64Data);
-  
-  // 2. Convert to Byte Array
   const byteArrays = [];
   for (let offset = 0; offset < byteCharacters.length; offset += 512) {
     const slice = byteCharacters.slice(offset, offset + 512);
@@ -154,10 +146,228 @@ const base64ToBlob = (base64Data, contentType = 'application/dicom') => {
     const byteArray = new Uint8Array(byteNumbers);
     byteArrays.push(byteArray);
   }
-  
-  // 3. Create Blob
   return new Blob(byteArrays, { type: contentType });
 };
+
+// --- 3D VIEWER COMPONENT (MUST BE HERE) ---
+// --- 3D BRAIN VIEWER (Adapted from VTM Viewer) ---
+const ThreeBrainView = ({ plyUrl }) => {
+  const mountRef = useRef(null);
+
+  useEffect(() => {
+    if (!plyUrl || !mountRef.current) return;
+
+    // 1. Setup Scene
+    const container = mountRef.current;
+    container.innerHTML = ""; // Clean up previous renders
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020617); // Match Dashboard Dark Theme
+
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 5000);
+    camera.position.set(0, 0, 600); // Zoomed out slightly
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // 2. Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    keyLight.position.set(300, 300, 300);
+    scene.add(keyLight);
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    rimLight.position.set(-300, 0, -300);
+    scene.add(rimLight);
+
+    // 3. Labels Helper
+    const labels = [];
+    const lines = [];
+
+    const createLabelWithLine = (text, regionPos, offset, color = "#ffffff") => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      
+      // Label Background
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; 
+      ctx.roundRect(0, 20, 256, 60, 10);
+      ctx.fill();
+      
+      // Label Text
+      ctx.fillStyle = color;
+      ctx.font = "bold 24px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(text, 128, 60);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+      const sprite = new THREE.Sprite(material);
+
+      const labelPos = regionPos.clone().add(offset);
+      sprite.position.copy(labelPos);
+      sprite.scale.set(60, 30, 1); // Adjust label size
+      sprite.renderOrder = 999;
+      scene.add(sprite);
+
+      labels.push({ sprite, regionPos, offset });
+
+      // Line
+      const geometry = new THREE.BufferGeometry().setFromPoints([regionPos.clone(), labelPos.clone()]);
+      const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0x4ade80, linewidth: 2, transparent: true, opacity: 0.6 }));
+      scene.add(line);
+      lines.push({ line, regionPos, offset });
+    };
+
+    // 4. Load PLY & Generate Heatmap
+    const loader = new PLYLoader();
+    loader.load(plyUrl, (geo) => {
+      geo.computeVertexNormals();
+      const pos = geo.attributes.position;
+      
+      // Centering
+      geo.computeBoundingBox();
+      const box = geo.boundingBox;
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      geo.translate(-center.x, -center.y, -center.z);
+
+      // Scaling
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 350 / maxDim; // Fit inside the 600px container
+      
+      // Create Base Mesh
+      const material = new THREE.MeshStandardMaterial({
+        color: 0x64748b, // Slate-500
+        roughness: 0.4,
+        metalness: 0.1,
+        side: THREE.DoubleSide
+      });
+      const originalMesh = new THREE.Mesh(geo.clone(), material);
+      originalMesh.scale.setScalar(scale);
+      scene.add(originalMesh);
+
+      // Create Heatmap Overlay
+      const heatColors = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+
+        let r = 0, g = 0, b = 0; 
+        
+        // --- Heatmap Logic (Customize zones here) ---
+        if (z > 40) { r = 1; g = 0.2; b = 0.2; } // Frontal (Red)
+        else if (z < -40) { r = 0.2; g = 0.4; b = 1; } // Occipital (Blue)
+        else if (y < -30) { r = 1; g = 1; b = 0; } // Temporal (Yellow)
+        else { r = 0.1; g = 0.8; b = 0.1; } // Parietal/Other (Green)
+
+        heatColors[i * 3] = r;
+        heatColors[i * 3 + 1] = g;
+        heatColors[i * 3 + 2] = b;
+      }
+
+      const heatGeo = geo.clone();
+      heatGeo.setAttribute("color", new THREE.BufferAttribute(heatColors, 3));
+      const heatMaterial = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.3,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.5, // See-through overlay
+        side: THREE.DoubleSide
+      });
+      const heatMesh = new THREE.Mesh(heatGeo, heatMaterial);
+      heatMesh.scale.setScalar(scale);
+      scene.add(heatMesh);
+
+      // Add Labels
+      createLabelWithLine("Frontal Lobe", new THREE.Vector3(0, 60, 80).multiplyScalar(scale), new THREE.Vector3(0, 40, 40));
+      createLabelWithLine("Temporal Lobe", new THREE.Vector3(60, -20, 0).multiplyScalar(scale), new THREE.Vector3(50, 0, 0));
+      createLabelWithLine("Hippocampus", new THREE.Vector3(20, -30, 20).multiplyScalar(scale), new THREE.Vector3(40, 20, 0), "#fbbf24");
+    });
+
+    // 5. Animation
+    const animate = () => {
+      requestAnimationFrame(animate);
+      controls.update();
+
+      // Update lines to follow camera/rotation
+      labels.forEach(({ sprite, regionPos, offset }, i) => {
+        const newPos = regionPos.clone().add(offset);
+        // lines[i].line.geometry.setFromPoints([regionPos, newPos]); // Optional dynamic update
+        // sprite.position.copy(newPos);
+      });
+
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    // 6. Resize Handler
+    const handleResize = () => {
+        const newWidth = container.clientWidth;
+        const newHeight = container.clientHeight;
+        camera.aspect = newWidth / newHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(newWidth, newHeight);
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if(container) container.innerHTML = "";
+      renderer.dispose();
+    };
+  }, [plyUrl]);
+
+  return <div ref={mountRef} className="w-full h-full rounded-2xl overflow-hidden cursor-move" />;
+};
+// Helper to safely convert Firestore Timestamps
+// const formatDate = (timestamp) => {
+//   if (!timestamp) return "N/A";
+//   // If it's a Firestore Timestamp (has seconds)
+//   if (timestamp.seconds) {
+//     return new Date(timestamp.seconds * 1000).toLocaleDateString("en-US", {
+//       year: 'numeric',
+//       month: 'short',
+//       day: 'numeric'
+//     });
+//   }
+//   // If it's already a string or Date object
+//   return new Date(timestamp).toLocaleDateString();
+// };
+
+// Helper: Convert Base64 String back to a Blob (File)
+// const base64ToBlob = (base64Data, contentType = 'application/dicom') => {
+//   if (!base64Data) return null;
+  
+//   // 1. Strip the "data:image..." prefix if it exists to get raw string
+//   const byteCharacters = atob(base64Data.split(',')[1] || base64Data);
+  
+//   // 2. Convert to Byte Array
+//   const byteArrays = [];
+//   for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+//     const slice = byteCharacters.slice(offset, offset + 512);
+//     const byteNumbers = new Array(slice.length);
+//     for (let i = 0; i < slice.length; i++) {
+//       byteNumbers[i] = slice.charCodeAt(i);
+//     }
+//     const byteArray = new Uint8Array(byteNumbers);
+//     byteArrays.push(byteArray);
+//   }
+  
+//   // 3. Create Blob
+//   return new Blob(byteArrays, { type: contentType });
+// };
 export const Dashboard = ({ user, onLogout }) => {
   // ... existing state ...
   const fileInputRef = useRef(null); // Reference for hidden input
@@ -295,6 +505,86 @@ export const Dashboard = ({ user, onLogout }) => {
       console.error("Error fetching dashboard data:", error);
     }
     setLoading(false);
+  };
+  // === 3D FOLDER UPLOAD LOGIC ===
+  const handleFolderUpload = async (e) => {
+    if (!selectedPatientForDT) {
+      alert("Please select a patient first.");
+      return;
+    }
+    setAnalyzing(true);
+    
+    const zip = new JSZip();
+    let fileCount = 0;
+    
+    // Add files to zip
+    for (const file of e.target.files) {
+      if (file.name !== ".DS_Store") {
+        zip.file(file.webkitRelativePath || file.name, file);
+        fileCount++;
+      }
+    }
+
+    if (fileCount === 0) {
+      alert("No valid files found in folder.");
+      setAnalyzing(false);
+      return;
+    }
+    
+    try {
+      const blob = await zip.generateAsync({ type: "blob" });
+      const fd = new FormData();
+      fd.append("dicom_zip", blob, "dicom.zip");
+
+      console.log("Sending to 3D API...");
+      
+      // 1. Generate Mesh
+      // Make sure API_3D_MODEL_URL is defined at the top of your file
+      // ... inside handleFolderUpload ...
+const res = await fetch(`${API_3D_MODEL_URL}/generate_ply`, { 
+  method: "POST", 
+  body: fd 
+});
+
+if (!res.ok) throw new Error("3D Generation failed");
+
+// FIX: Read as Blob (Binary File), NOT JSON
+const blobResponse = await res.blob(); 
+const meshUrl = URL.createObjectURL(blobResponse);
+const inferenceText = res.headers.get("X-Gemini-Inference") || "Analysis complete.";
+// Update selected patient state with 3D data
+setSelectedPatientForDT(prev => ({
+  ...prev,
+  meshUrl: meshUrl,
+  // Since we are getting a file directly, we can't get inference text in the same response.
+  // You can set a default message or make a separate API call for text.
+  meshInference: inferenceText,
+  detectedRegions: ["Hippocampus", "Ventricles", "Cortex"] // Default active regions
+}));
+
+
+      
+      // 2. Download Mesh Blob
+      const meshRes = await fetch(`${API_3D_MODEL_URL}/download_mesh`);
+      const meshBlob = await meshBlobRes.blob();
+      // const meshUrl = URL.createObjectURL(meshBlob);
+
+
+      // 3. Update State
+      setSelectedPatientForDT(prev => ({
+        ...prev,
+        meshUrl: meshUrl,
+        meshInference: data.inference,
+        detectedRegions: data.detected_regions
+      }));
+
+      alert("Digital Twin Model Generated Successfully!");
+    } catch (err) {
+      console.error(err);
+      // alert("Failed to generate 3D model. Check API connection.");
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   // --- VIDEO CONSULTATION FUNCTIONS ---
@@ -543,7 +833,8 @@ const handleViewPatient = async (patientId) => {
       // A. Extract Current Stage from Stage API
       // Assuming Stage API returns: { "stage": "MCI", "confidence": 0.95 }
       const currentStage = stageRes.data.stage || "Unknown";
-
+      const inferenceText = stageRes.data.explanation;
+      const trajInference=progRes.data.explanation;
       // B. Extract Trajectory from Progression API
       // Python returns: { "next_stage_prediction": ["AD"] }
       const nextStagesList = progRes.data.next_stage_prediction || [];
@@ -568,6 +859,8 @@ const handleViewPatient = async (patientId) => {
         currentStage: currentStage, 
         stageLevel: stageLevelIndex, 
         predictedDecline: predictedDecline,
+        inferenceText: inferenceText,
+        trajInference:trajInference,
         
         // Progression API doesn't output time, so we keep the estimate
         trajectoryMonths: "12 (Est.)" 
@@ -579,7 +872,10 @@ const handleViewPatient = async (patientId) => {
       alert(`AI Analysis Failed: ${msg}`);
     }
     setAnalyzing(false);
+
   };
+
+
   // --- 5. RENDER HELPERS ---
   const filteredPatients = patients.filter((patient) => {
     const matchesSearch =
@@ -926,619 +1222,86 @@ const handleViewPatient = async (patientId) => {
               {selectedPatientForDT ? (
                 <>
                   {/* MRI-Based 3D Brain Visualization Hero */}
-                  <div className="relative bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-purple-500/20 rounded-2xl overflow-hidden">
-                    {/* Animated Background Grid */}
-                    <div className="absolute inset-0 opacity-20">
-                      <div className="absolute inset-0" style={{
-                        backgroundImage: 'linear-gradient(rgba(139,92,246,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(139,92,246,0.1) 1px, transparent 1px)',
-                        backgroundSize: '50px 50px'
-                      }} />
-                    </div>
-                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,0.1),transparent_70%)]" />
-                    
-                    {/* Header Controls */}
-                    <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex items-center space-x-2 bg-slate-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-green-500/30">
-                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                          <span className="text-xs text-green-400 font-medium">Live MRI Digital Twin</span>
-                        </div>
-                        <div className="bg-slate-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-700">
-                          <span className="text-xs text-slate-400">Volumetric Analysis</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button 
-                          onClick={() => setAutoRotate(!autoRotate)}
-                          className={`p-2 rounded-lg border transition-all ${autoRotate ? 'bg-purple-600/20 border-purple-500 text-purple-400' : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white'}`}
-                          title="Auto Rotate"
-                        >
-                          <RotateCcw size={16} className={autoRotate ? 'animate-spin' : ''} />
-                        </button>
-                        <button 
-                          onClick={() => setBrainZoom(Math.min(150, brainZoom + 10))}
-                          className="p-2 bg-slate-800/80 border border-slate-700 rounded-lg text-slate-400 hover:text-white transition-all"
-                          title="Zoom In"
-                        >
-                          <ZoomIn size={16} />
-                        </button>
-                        <button 
-                          onClick={() => setBrainZoom(Math.max(50, brainZoom - 10))}
-                          className="p-2 bg-slate-800/80 border border-slate-700 rounded-lg text-slate-400 hover:text-white transition-all"
-                          title="Zoom Out"
-                        >
-                          <ZoomOut size={16} />
-                        </button>
-                        <button 
-                          onClick={() => { setBrainRotation({ x: -20, y: 0 }); setBrainZoom(100); }}
-                          className="p-2 bg-slate-800/80 border border-slate-700 rounded-lg text-slate-400 hover:text-white transition-all"
-                          title="Reset View"
-                        >
-                          <Maximize2 size={16} />
-                        </button>
-                        <button 
-                          onClick={() => setShowExportModal(true)}
-                          className="flex items-center space-x-2 px-3 py-2 bg-purple-600/20 border border-purple-500/50 rounded-lg text-purple-400 hover:bg-purple-600/30 transition-all"
-                        >
-                          <Download size={14} />
-                          <span className="text-xs font-medium">Export 3D</span>
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <div className="relative p-8 pt-16">
-                      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                        {/* 3D Brain Visualization - Main Area */}
-                        <div className="lg:col-span-3 relative">
-                          <div 
-                            className="aspect-square max-w-lg mx-auto relative cursor-grab active:cursor-grabbing select-none"
-                            style={{ perspective: '1000px' }}
-                            onMouseDown={(e) => {
-                              setIsDragging(true);
-                              setDragStart({ x: e.clientX, y: e.clientY });
-                              setAutoRotate(false);
-                            }}
-                            onMouseMove={(e) => {
-                              if (isDragging) {
-                                const deltaX = e.clientX - dragStart.x;
-                                const deltaY = e.clientY - dragStart.y;
-                                setBrainRotation(prev => ({
-                                  x: Math.max(-60, Math.min(60, prev.x - deltaY * 0.5)),
-                                  y: prev.y + deltaX * 0.5
-                                }));
-                                setDragStart({ x: e.clientX, y: e.clientY });
-                              }
-                            }}
-                            onMouseUp={() => setIsDragging(false)}
-                            onMouseLeave={() => setIsDragging(false)}
-                          >
-                            {/* 3D Scene Container */}
-                            <div 
-                              className="w-full h-full relative transition-transform duration-100"
-                              style={{
-                                transform: `scale(${brainZoom / 100}) rotateX(${brainRotation.x}deg) rotateY(${brainRotation.y + (autoRotate ? Date.now() / 50 % 360 : 0)}deg)`,
-                                transformStyle: 'preserve-3d'
-                              }}
-                            >
-                              {/* Realistic 3D Brain Model */}
-                              <svg viewBox="0 0 400 400" className="w-full h-full" style={{ transform: 'translateZ(0)' }}>
-                                <defs>
-                                  {/* Brain Tissue Gradients */}
-                                  <radialGradient id="brainBase" cx="50%" cy="40%" r="60%">
-                                    <stop offset="0%" stopColor="#E8B4B8" />
-                                    <stop offset="40%" stopColor="#D4A0A4" />
-                                    <stop offset="70%" stopColor="#C08B8F" />
-                                    <stop offset="100%" stopColor="#A67377" />
-                                  </radialGradient>
-                                  <radialGradient id="brainShadow" cx="50%" cy="60%" r="50%">
-                                    <stop offset="0%" stopColor="transparent" />
-                                    <stop offset="100%" stopColor="rgba(0,0,0,0.3)" />
-                                  </radialGradient>
-                                  <linearGradient id="brainHighlight" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#F5D0D3" stopOpacity="0.8" />
-                                    <stop offset="50%" stopColor="#E8B4B8" stopOpacity="0.5" />
-                                    <stop offset="100%" stopColor="#C08B8F" stopOpacity="0.3" />
-                                  </linearGradient>
-                                  <filter id="brainTexture">
-                                    <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="noise"/>
-                                    <feDiffuseLighting in="noise" lightingColor="#E8B4B8" surfaceScale="2" result="light">
-                                      <feDistantLight azimuth="45" elevation="60"/>
-                                    </feDiffuseLighting>
-                                    <feComposite in="SourceGraphic" in2="light" operator="arithmetic" k1="1" k2="0" k3="0" k4="0"/>
-                                  </filter>
-                                  <filter id="innerShadow">
-                                    <feOffset dx="0" dy="2"/>
-                                    <feGaussianBlur stdDeviation="3" result="blur"/>
-                                    <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-                                  </filter>
-                                  {/* Affected Region Gradients */}
-                                  <radialGradient id="healthyRegion" cx="50%" cy="50%" r="50%">
-                                    <stop offset="0%" stopColor="#86EFAC" stopOpacity="0.6" />
-                                    <stop offset="100%" stopColor="#22C55E" stopOpacity="0.3" />
-                                  </radialGradient>
-                                  <radialGradient id="atRiskRegion" cx="50%" cy="50%" r="50%">
-                                    <stop offset="0%" stopColor="#FDE047" stopOpacity="0.7" />
-                                    <stop offset="100%" stopColor="#EAB308" stopOpacity="0.4" />
-                                  </radialGradient>
-                                  <radialGradient id="affectedRegion" cx="50%" cy="50%" r="50%">
-                                    <stop offset="0%" stopColor="#FCA5A5" stopOpacity="0.8" />
-                                    <stop offset="100%" stopColor="#EF4444" stopOpacity="0.5" />
-                                  </radialGradient>
-                                </defs>
-                                
-                                {/* Brain Shadow */}
-                                <ellipse cx="200" cy="360" rx="120" ry="20" fill="rgba(0,0,0,0.2)" filter="blur(10px)" />
-                                
-                                {/* Cerebellum (Back Bottom) */}
-                                <ellipse cx="200" cy="320" rx="70" ry="40" fill="#C9A0A4" stroke="#B08085" strokeWidth="1" />
-                                <path d="M140,320 Q150,300 160,320 Q170,300 180,320 Q190,300 200,320 Q210,300 220,320 Q230,300 240,320 Q250,300 260,320" fill="none" stroke="#A08085" strokeWidth="1.5" />
-                                
-                                {/* Brain Stem */}
-                                <path d="M185,340 Q190,370 200,380 Q210,370 215,340" fill="#D4A0A4" stroke="#B08085" strokeWidth="1" />
-                                
-                                {/* Main Brain Body - Left Hemisphere */}
-                                <path 
-                                  d="M200,60 
-                                     Q120,60 90,120 
-                                     Q60,180 70,240 
-                                     Q80,300 130,320 
-                                     Q180,340 200,300"
-                                  fill="url(#brainBase)" 
-                                  stroke="#A67377" 
-                                  strokeWidth="2"
-                                  className="transition-all duration-300"
-                                  style={{ filter: 'url(#innerShadow)' }}
-                                />
-                                
-                                {/* Main Brain Body - Right Hemisphere */}
-                                <path 
-                                  d="M200,60 
-                                     Q280,60 310,120 
-                                     Q340,180 330,240 
-                                     Q320,300 270,320 
-                                     Q220,340 200,300"
-                                  fill="url(#brainBase)" 
-                                  stroke="#A67377" 
-                                  strokeWidth="2"
-                                  className="transition-all duration-300"
-                                  style={{ filter: 'url(#innerShadow)' }}
-                                />
-                                
-                                {/* Central Fissure (Longitudinal) */}
-                                <path d="M200,65 Q198,150 200,200 Q202,250 200,295" fill="none" stroke="#8B6B6F" strokeWidth="3" strokeLinecap="round" />
-                                
-                                {/* Left Hemisphere Gyri (Folds) */}
-                                <g stroke="#9B7B7F" strokeWidth="1.5" fill="none" strokeLinecap="round">
-                                  {/* Frontal Lobe Folds */}
-                                  <path d="M120,100 Q140,95 155,105 Q170,115 180,100" />
-                                  <path d="M100,130 Q120,125 140,135 Q160,145 175,130" />
-                                  <path d="M90,165 Q110,160 130,170 Q150,180 170,165" />
-                                  {/* Parietal Lobe Folds */}
-                                  <path d="M95,200 Q115,195 135,205 Q155,215 170,200" />
-                                  <path d="M100,235 Q120,230 140,240 Q160,250 175,235" />
-                                  {/* Temporal Lobe Folds */}
-                                  <path d="M85,270 Q105,275 125,265 Q145,255 160,270" />
-                                  <path d="M110,295 Q130,290 150,300" />
-                                </g>
-                                
-                                {/* Right Hemisphere Gyri (Folds) */}
-                                <g stroke="#9B7B7F" strokeWidth="1.5" fill="none" strokeLinecap="round">
-                                  {/* Frontal Lobe Folds */}
-                                  <path d="M280,100 Q260,95 245,105 Q230,115 220,100" />
-                                  <path d="M300,130 Q280,125 260,135 Q240,145 225,130" />
-                                  <path d="M310,165 Q290,160 270,170 Q250,180 230,165" />
-                                  {/* Parietal Lobe Folds */}
-                                  <path d="M305,200 Q285,195 265,205 Q245,215 230,200" />
-                                  <path d="M300,235 Q280,230 260,240 Q240,250 225,235" />
-                                  {/* Temporal Lobe Folds */}
-                                  <path d="M315,270 Q295,275 275,265 Q255,255 240,270" />
-                                  <path d="M290,295 Q270,290 250,300" />
-                                </g>
-                                
-                                {/* Lateral Fissure (Sylvian) - Left */}
-                                <path d="M85,190 Q120,200 160,190 Q180,185 195,195" fill="none" stroke="#7B5B5F" strokeWidth="2.5" strokeLinecap="round" />
-                                
-                                {/* Lateral Fissure (Sylvian) - Right */}
-                                <path d="M315,190 Q280,200 240,190 Q220,185 205,195" fill="none" stroke="#7B5B5F" strokeWidth="2.5" strokeLinecap="round" />
-                                
-                                {/* Central Sulcus - Left */}
-                                <path d="M140,90 Q135,130 145,170 Q155,200 150,230" fill="none" stroke="#7B5B5F" strokeWidth="2" strokeLinecap="round" />
-                                
-                                {/* Central Sulcus - Right */}
-                                <path d="M260,90 Q265,130 255,170 Q245,200 250,230" fill="none" stroke="#7B5B5F" strokeWidth="2" strokeLinecap="round" />
-                                
-                                {/* Highlight on top */}
-                                <ellipse cx="200" cy="100" rx="80" ry="30" fill="url(#brainHighlight)" opacity="0.4" />
-                                
-                                {/* ====== INTERACTIVE AFFECTED REGIONS ====== */}
-                                
-                                {/* Hippocampus - Left (AFFECTED - Memory Center) */}
-                                <g 
-                                  className="cursor-pointer transition-all duration-300 hover:scale-110"
-                                  onClick={() => { setSelectedBrainRegion('hippocampus'); setShowRegionInfo(true); }}
-                                  style={{ transformOrigin: '130px 260px' }}
-                                >
-                                  <ellipse 
-                                    cx="130" cy="260" rx="25" ry="15" 
-                                    fill={selectedPatientForDT.riskLevel === 'high' ? 'url(#affectedRegion)' : selectedPatientForDT.riskLevel === 'medium' ? 'url(#atRiskRegion)' : 'url(#healthyRegion)'} 
-                                    stroke={selectedPatientForDT.riskLevel === 'high' ? '#EF4444' : selectedPatientForDT.riskLevel === 'medium' ? '#EAB308' : '#22C55E'}
-                                    strokeWidth="2"
-                                    className={selectedBrainRegion === 'hippocampus' ? 'animate-pulse' : ''}
-                                  />
-                                  <text x="130" y="263" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">L-HC</text>
-                                </g>
-                                
-                                {/* Hippocampus - Right (AFFECTED) */}
-                                <g 
-                                  className="cursor-pointer transition-all duration-300 hover:scale-110"
-                                  onClick={() => { setSelectedBrainRegion('hippocampus'); setShowRegionInfo(true); }}
-                                  style={{ transformOrigin: '270px 260px' }}
-                                >
-                                  <ellipse 
-                                    cx="270" cy="260" rx="25" ry="15" 
-                                    fill={selectedPatientForDT.riskLevel === 'high' ? 'url(#affectedRegion)' : selectedPatientForDT.riskLevel === 'medium' ? 'url(#atRiskRegion)' : 'url(#healthyRegion)'} 
-                                    stroke={selectedPatientForDT.riskLevel === 'high' ? '#EF4444' : selectedPatientForDT.riskLevel === 'medium' ? '#EAB308' : '#22C55E'}
-                                    strokeWidth="2"
-                                    className={selectedBrainRegion === 'hippocampus' ? 'animate-pulse' : ''}
-                                  />
-                                  <text x="270" y="263" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">R-HC</text>
-                                </g>
-                                
-                                {/* Frontal Lobe - Left (AT RISK) */}
-                                <g 
-                                  className="cursor-pointer transition-all duration-300 hover:scale-110"
-                                  onClick={() => { setSelectedBrainRegion('frontal'); setShowRegionInfo(true); }}
-                                  style={{ transformOrigin: '140px 120px' }}
-                                >
-                                  <ellipse 
-                                    cx="140" cy="120" rx="35" ry="25" 
-                                    fill={selectedPatientForDT.riskLevel !== 'low' ? 'url(#atRiskRegion)' : 'url(#healthyRegion)'} 
-                                    stroke={selectedPatientForDT.riskLevel !== 'low' ? '#EAB308' : '#22C55E'}
-                                    strokeWidth="2"
-                                    opacity="0.7"
-                                    className={selectedBrainRegion === 'frontal' ? 'animate-pulse' : ''}
-                                  />
-                                  <text x="140" y="123" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">L-FL</text>
-                                </g>
-                                
-                                {/* Frontal Lobe - Right */}
-                                <g 
-                                  className="cursor-pointer transition-all duration-300 hover:scale-110"
-                                  onClick={() => { setSelectedBrainRegion('frontal'); setShowRegionInfo(true); }}
-                                  style={{ transformOrigin: '260px 120px' }}
-                                >
-                                  <ellipse 
-                                    cx="260" cy="120" rx="35" ry="25" 
-                                    fill={selectedPatientForDT.riskLevel !== 'low' ? 'url(#atRiskRegion)' : 'url(#healthyRegion)'} 
-                                    stroke={selectedPatientForDT.riskLevel !== 'low' ? '#EAB308' : '#22C55E'}
-                                    strokeWidth="2"
-                                    opacity="0.7"
-                                    className={selectedBrainRegion === 'frontal' ? 'animate-pulse' : ''}
-                                  />
-                                  <text x="260" y="123" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">R-FL</text>
-                                </g>
-                                
-                                {/* Temporal Lobe - Left (SEVERELY AFFECTED) */}
-                                <g 
-                                  className="cursor-pointer transition-all duration-300 hover:scale-110"
-                                  onClick={() => { setSelectedBrainRegion('temporal'); setShowRegionInfo(true); }}
-                                  style={{ transformOrigin: '90px 220px' }}
-                                >
-                                  <ellipse 
-                                    cx="90" cy="220" rx="20" ry="35" 
-                                    fill={selectedPatientForDT.riskLevel === 'high' ? 'url(#affectedRegion)' : 'url(#atRiskRegion)'} 
-                                    stroke={selectedPatientForDT.riskLevel === 'high' ? '#EF4444' : '#EAB308'}
-                                    strokeWidth="2"
-                                    opacity="0.7"
-                                    className={selectedBrainRegion === 'temporal' ? 'animate-pulse' : ''}
-                                  />
-                                  <text x="90" y="223" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">L-TL</text>
-                                </g>
-                                
-                                {/* Temporal Lobe - Right */}
-                                <g 
-                                  className="cursor-pointer transition-all duration-300 hover:scale-110"
-                                  onClick={() => { setSelectedBrainRegion('temporal'); setShowRegionInfo(true); }}
-                                  style={{ transformOrigin: '310px 220px' }}
-                                >
-                                  <ellipse 
-                                    cx="310" cy="220" rx="20" ry="35" 
-                                    fill={selectedPatientForDT.riskLevel === 'high' ? 'url(#affectedRegion)' : 'url(#atRiskRegion)'} 
-                                    stroke={selectedPatientForDT.riskLevel === 'high' ? '#EF4444' : '#EAB308'}
-                                    strokeWidth="2"
-                                    opacity="0.7"
-                                    className={selectedBrainRegion === 'temporal' ? 'animate-pulse' : ''}
-                                  />
-                                  <text x="310" y="223" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">R-TL</text>
-                                </g>
-                                
-                                {/* Parietal Lobe - Left (HEALTHY) */}
-                                <g 
-                                  className="cursor-pointer transition-all duration-300 hover:scale-110"
-                                  onClick={() => { setSelectedBrainRegion('parietal'); setShowRegionInfo(true); }}
-                                  style={{ transformOrigin: '130px 180px' }}
-                                >
-                                  <ellipse 
-                                    cx="130" cy="180" rx="30" ry="20" 
-                                    fill="url(#healthyRegion)" 
-                                    stroke="#22C55E"
-                                    strokeWidth="2"
-                                    opacity="0.6"
-                                    className={selectedBrainRegion === 'parietal' ? 'animate-pulse' : ''}
-                                  />
-                                  <text x="130" y="183" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">L-PL</text>
-                                </g>
-                                
-                                {/* Parietal Lobe - Right */}
-                                <g 
-                                  className="cursor-pointer transition-all duration-300 hover:scale-110"
-                                  onClick={() => { setSelectedBrainRegion('parietal'); setShowRegionInfo(true); }}
-                                  style={{ transformOrigin: '270px 180px' }}
-                                >
-                                  <ellipse 
-                                    cx="270" cy="180" rx="30" ry="20" 
-                                    fill="url(#healthyRegion)" 
-                                    stroke="#22C55E"
-                                    strokeWidth="2"
-                                    opacity="0.6"
-                                    className={selectedBrainRegion === 'parietal' ? 'animate-pulse' : ''}
-                                  />
-                                  <text x="270" y="183" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold">R-PL</text>
-                                </g>
-                                
-                                {/* Occipital Lobe - Left (HEALTHY) */}
-                                <g 
-                                  className="cursor-pointer transition-all duration-300 hover:scale-110"
-                                  onClick={() => { setSelectedBrainRegion('occipital'); setShowRegionInfo(true); }}
-                                  style={{ transformOrigin: '160px 290px' }}
-                                >
-                                  <ellipse 
-                                    cx="160" cy="290" rx="20" ry="15" 
-                                    fill="url(#healthyRegion)" 
-                                    stroke="#22C55E"
-                                    strokeWidth="1.5"
-                                    opacity="0.6"
-                                    className={selectedBrainRegion === 'occipital' ? 'animate-pulse' : ''}
-                                  />
-                                  <text x="160" y="293" textAnchor="middle" fill="white" fontSize="7" fontWeight="bold">L-OL</text>
-                                </g>
-                                
-                                {/* Occipital Lobe - Right */}
-                                <g 
-                                  className="cursor-pointer transition-all duration-300 hover:scale-110"
-                                  onClick={() => { setSelectedBrainRegion('occipital'); setShowRegionInfo(true); }}
-                                  style={{ transformOrigin: '240px 290px' }}
-                                >
-                                  <ellipse 
-                                    cx="240" cy="290" rx="20" ry="15" 
-                                    fill="url(#healthyRegion)" 
-                                    stroke="#22C55E"
-                                    strokeWidth="1.5"
-                                    opacity="0.6"
-                                    className={selectedBrainRegion === 'occipital' ? 'animate-pulse' : ''}
-                                  />
-                                  <text x="240" y="293" textAnchor="middle" fill="white" fontSize="7" fontWeight="bold">R-OL</text>
-                                </g>
-                              </svg>
-                            </div>
-                            
-                            {/* Drag Instructions */}
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center space-x-2 bg-slate-900/80 backdrop-blur-sm px-4 py-2 rounded-full border border-slate-700">
-                              <Move size={14} className="text-slate-400" />
-                              <span className="text-xs text-slate-400">Click and drag to rotate • Click regions for details</span>
-                            </div>
-                          </div>
-                          
-                          {/* Volumetric Stats Below Brain */}
-                          <div className="mt-4 grid grid-cols-4 gap-2">
-                            {[
-                              { label: "Total Volume", value: "1,247 cm³", change: "-3.2%", status: "warning" },
-                              { label: "Hippocampus", value: "5.8 cm³", change: "-12%", status: "critical" },
-                              { label: "Ventricles", value: "38 cm³", change: "+8%", status: "warning" },
-                              { label: "Cortical", value: "487 cm³", change: "-2.1%", status: "normal" },
-                            ].map((stat, idx) => (
-                              <div key={idx} className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
-                                <p className="text-slate-400 text-[10px] uppercase">{stat.label}</p>
-                                <p className="text-white font-bold text-sm">{stat.value}</p>
-                                <p className={`text-[10px] font-medium ${stat.status === 'critical' ? 'text-red-400' : stat.status === 'warning' ? 'text-yellow-400' : 'text-green-400'}`}>
-                                  {stat.change}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                  {/* MRI-Based 3D Brain Visualization Hero - REPLACED */}
+{/* --- 3D BRAIN VISUALIZATION HERO --- */}
+<div className="lg:col-span-3">
+  <div className="relative bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden h-[600px] flex flex-col items-center justify-center">
+    
+    {/* Header Overlay */}
+    <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10 pointer-events-none">
+      <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 bg-slate-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-green-500/30">
+          <div className={`w-2 h-2 rounded-full ${selectedPatientForDT?.meshUrl ? 'bg-green-400 animate-pulse' : 'bg-slate-600'}`} />
+          <span className="text-xs text-white font-medium">
+            {selectedPatientForDT?.meshUrl ? 'Interactive VTM Model' : 'Waiting for DICOM'}
+          </span>
+        </div>
+        
+      </div>
+    </div>
 
-                        {/* Right Panel - Patient Info & Region Details */}
-                        <div className="lg:col-span-2 space-y-4">
-                          {/* Patient Card */}
-                          <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl p-4 border border-slate-700/50">
-                            <div className="flex items-center space-x-3 mb-4">
-                              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold shadow-lg">
-                                {selectedPatientForDT.avatar}
-                              </div>
-                              <div>
-                                <h3 className="text-white font-bold">{selectedPatientForDT.name}</h3>
-                                <p className="text-purple-400 text-sm">{selectedPatientForDT.diagnosis}</p>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="bg-slate-900/50 rounded-lg p-2 text-center">
-                                <p className="text-slate-500 text-[10px] uppercase">Stage</p>
-                                <p className="text-yellow-400 font-bold text-sm">{selectedPatientForDT.stage || "MCI"}</p>
-                              </div>
-                              <div className="bg-slate-900/50 rounded-lg p-2 text-center">
-                                <p className="text-slate-500 text-[10px] uppercase">Risk</p>
-                                <p className={`font-bold text-sm ${selectedPatientForDT.riskLevel === 'high' ? 'text-red-400' : selectedPatientForDT.riskLevel === 'medium' ? 'text-yellow-400' : 'text-green-400'}`}>
-                                  {selectedPatientForDT.riskScore || 68}%
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Region Analysis Panel */}
-                          <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl p-4 border border-slate-700/50">
-                            <h4 className="text-white font-semibold mb-3 flex items-center">
-                              <Target size={16} className="mr-2 text-purple-400" />
-                              Region Analysis
-                            </h4>
-                            {selectedBrainRegion ? (
-                              <div className="space-y-3">
-                                {(() => {
-                                  const regions = {
-                                    hippocampus: { 
-                                      name: "Hippocampus", 
-                                      status: selectedPatientForDT.riskLevel === 'high' ? "Severe Atrophy" : "Moderate Atrophy",
-                                      volume: "5.8 cm³", 
-                                      normal: "7.5 cm³",
-                                      change: "-22.6%",
-                                      color: selectedPatientForDT.riskLevel === 'high' ? "red" : "yellow",
-                                      desc: "Critical for memory formation. Significant volume loss detected affecting short-term memory consolidation.",
-                                      functions: ["Memory Formation", "Spatial Navigation", "Learning"]
-                                    },
-                                    frontal: { 
-                                      name: "Frontal Lobe", 
-                                      status: "Mild Changes",
-                                      volume: "178 cm³", 
-                                      normal: "185 cm³",
-                                      change: "-3.8%",
-                                      color: "yellow",
-                                      desc: "Executive function center showing early signs of cortical thinning.",
-                                      functions: ["Executive Function", "Decision Making", "Personality"]
-                                    },
-                                    temporal: { 
-                                      name: "Temporal Lobe", 
-                                      status: selectedPatientForDT.riskLevel === 'high' ? "Significant Atrophy" : "Moderate Changes",
-                                      volume: "132 cm³", 
-                                      normal: "155 cm³",
-                                      change: "-14.8%",
-                                      color: selectedPatientForDT.riskLevel === 'high' ? "red" : "yellow",
-                                      desc: "Language processing area with notable tissue loss affecting verbal abilities.",
-                                      functions: ["Language", "Hearing", "Memory Storage"]
-                                    },
-                                    parietal: { 
-                                      name: "Parietal Lobe", 
-                                      status: "Normal",
-                                      volume: "142 cm³", 
-                                      normal: "145 cm³",
-                                      change: "-2.1%",
-                                      color: "green",
-                                      desc: "Spatial processing intact. No significant abnormalities detected.",
-                                      functions: ["Spatial Awareness", "Sensory Integration", "Math"]
-                                    },
-                                    occipital: { 
-                                      name: "Occipital Lobe", 
-                                      status: "Normal",
-                                      volume: "68 cm³", 
-                                      normal: "70 cm³",
-                                      change: "-2.8%",
-                                      color: "green",
-                                      desc: "Visual processing center functioning within normal parameters.",
-                                      functions: ["Visual Processing", "Color Recognition", "Object Recognition"]
-                                    }
-                                  };
-                                  const region = regions[selectedBrainRegion];
-                                  return (
-                                    <>
-                                      <div className="flex items-center justify-between">
-                                        <h5 className="text-white font-medium">{region.name}</h5>
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                                          region.color === 'red' ? 'bg-red-500/20 text-red-400' :
-                                          region.color === 'yellow' ? 'bg-yellow-500/20 text-yellow-400' :
-                                          'bg-green-500/20 text-green-400'
-                                        }`}>
-                                          {region.status}
-                                        </span>
-                                      </div>
-                                      <p className="text-slate-400 text-xs">{region.desc}</p>
-                                      <div className="grid grid-cols-3 gap-2 mt-2">
-                                        <div className="bg-slate-900/50 rounded p-2 text-center">
-                                          <p className="text-slate-500 text-[9px]">Current</p>
-                                          <p className="text-white font-bold text-xs">{region.volume}</p>
-                                        </div>
-                                        <div className="bg-slate-900/50 rounded p-2 text-center">
-                                          <p className="text-slate-500 text-[9px]">Normal</p>
-                                          <p className="text-slate-300 font-bold text-xs">{region.normal}</p>
-                                        </div>
-                                        <div className="bg-slate-900/50 rounded p-2 text-center">
-                                          <p className="text-slate-500 text-[9px]">Change</p>
-                                          <p className={`font-bold text-xs ${region.color === 'red' ? 'text-red-400' : region.color === 'yellow' ? 'text-yellow-400' : 'text-green-400'}`}>
-                                            {region.change}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="mt-2">
-                                        <p className="text-slate-500 text-[9px] uppercase mb-1">Functions</p>
-                                        <div className="flex flex-wrap gap-1">
-                                          {region.functions.map((fn, i) => (
-                                            <span key={i} className="px-2 py-0.5 bg-slate-700/50 rounded text-[10px] text-slate-300">{fn}</span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            ) : (
-                              <div className="text-center py-4">
-                                <Brain size={32} className="mx-auto text-slate-600 mb-2" />
-                                <p className="text-slate-500 text-sm">Click on a brain region to view detailed analysis</p>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* View Options */}
-                          <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl p-4 border border-slate-700/50">
-                            <h4 className="text-white font-semibold mb-3 flex items-center">
-                              <Layers size={16} className="mr-2 text-blue-400" />
-                              MRI View Modes
-                            </h4>
-                            <div className="grid grid-cols-2 gap-2">
-                              {[
-                                { id: "3d", label: "3D Model", icon: Box },
-                                { id: "axial", label: "Axial", icon: Layers },
-                                { id: "sagittal", label: "Sagittal", icon: Layers },
-                                { id: "coronal", label: "Coronal", icon: Layers },
-                              ].map((view) => (
-                                <button
-                                  key={view.id}
-                                  onClick={() => setBrainViewMode(view.id)}
-                                  className={`flex items-center space-x-2 p-2 rounded-lg border transition-all ${
-                                    brainViewMode === view.id 
-                                      ? 'bg-purple-600/20 border-purple-500 text-purple-400' 
-                                      : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                                  }`}
-                                >
-                                  <view.icon size={14} />
-                                  <span className="text-xs font-medium">{view.label}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          {/* Legend */}
-                          <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl p-4 border border-slate-700/50">
-                            <h4 className="text-white font-semibold mb-3">Region Status</h4>
-                            <div className="space-y-2">
-                              {[
-                                { color: "bg-green-500", label: "Healthy", desc: "Within normal range" },
-                                { color: "bg-yellow-500", label: "At Risk", desc: "Early changes detected" },
-                                { color: "bg-red-500", label: "Affected", desc: "Significant atrophy" },
-                              ].map((item, idx) => (
-                                <div key={idx} className="flex items-center space-x-3">
-                                  <div className={`w-3 h-3 rounded-full ${item.color}`} />
-                                  <div>
-                                    <p className="text-white text-xs font-medium">{item.label}</p>
-                                    <p className="text-slate-500 text-[10px]">{item.desc}</p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+    {/* MAIN CONTENT */}
+    {analyzing ? (
+      <div className="flex flex-col items-center justify-center space-y-4">
+        <div className="w-16 h-16 border-4 border-slate-700 border-t-purple-500 rounded-full animate-spin"></div>
+        <p className="text-purple-400 font-semibold animate-pulse">Reconstructing 3D Neuro-Atlas...</p>
+      </div>
 
+    ) : selectedPatientForDT?.meshUrl ? (
+      // === SHOW 3D VIEWER ===
+      <div className="w-full h-full relative">
+        <ThreeBrainView plyUrl={selectedPatientForDT.meshUrl} />
+        
+        {/* Controls Overlay */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-slate-900/80 backdrop-blur-sm px-4 py-2 rounded-full border border-slate-700 pointer-events-none">
+           <span className="text-xs text-slate-400 flex items-center gap-2">
+             <Move size={12}/> Rotate • Zoom • Pan
+           </span>
+        </div>
+      </div>
+
+    ) : (
+      // === SHOW UPLOAD BUTTON ===
+      <div className="text-center p-8 z-10">
+        <div className="w-24 h-24 bg-slate-900 rounded-full border-2 border-dashed border-slate-700 flex items-center justify-center mx-auto mb-6">
+          <Brain size={40} className="text-slate-500" />
+        </div>
+        <h4 className="text-white font-bold text-xl mb-2">No Brain Reconstruction</h4>
+        <p className="text-slate-400 text-sm mb-8 max-w-md mx-auto">
+          Upload a patient's DICOM folder to generate the high-fidelity Digital Twin.
+        </p>
+        
+        <label className="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center space-x-2 w-max mx-auto">
+          <Upload size={20} />
+          <span>Upload DICOM Folder</span>
+          <input 
+            type="file" 
+            className="hidden" 
+            webkitdirectory="true" 
+            directory="true" 
+            multiple 
+            onChange={handleFolderUpload} 
+          />
+        </label>
+      </div>
+    )}
+  </div>
+</div>
+
+{/* 3D INFERENCE DISPLAY */}
+  {selectedPatientForDT?.meshInference && (
+    <div className="mt-6 bg-slate-800/50 border-l-4 border-purple-500 rounded-xl p-5 shadow-lg">
+      <div className="flex items-center space-x-2 mb-3">
+        <Zap size={18} className="text-purple-400" />
+        <h4 className="text-purple-400 font-bold text-xs uppercase tracking-widest">
+          Volumetric AI Assessment
+        </h4>
+      </div>
+      <p className="text-slate-300 text-sm italic leading-relaxed">
+        "{selectedPatientForDT.meshInference}"
+      </p>
+    </div>
+  )}
                   {/* Disease Progression Prediction */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
@@ -2284,46 +2047,100 @@ const handleViewPatient = async (patientId) => {
                        </div>
 
                        {/* AI Stage Result */}
-                       <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
-                          <h3 className="text-white font-semibold flex items-center mb-4"><Brain className="mr-2 text-blue-400" size={20}/> Disease Stage Assessment</h3>
+                     <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
+  <h3 className="text-white font-semibold flex items-center mb-4">
+    <Brain className="mr-2 text-blue-400" size={20}/> 
+    Disease Stage Assessment
+  </h3>
+  
+  {/* Progress Bar */}
+  <div className="h-2 bg-slate-700 rounded-full flex mb-2">
+    {[0, 1, 2, 3].map(step => (
+      <div 
+        key={step} 
+        className={`flex-1 h-full border-r border-slate-900 last:border-0 ${step <= (selectedPatientDetails.stageLevel || 0) ? 'bg-blue-500' : 'bg-transparent'}`}
+      />
+    ))}
+  </div>
+  
+  <div className="flex justify-between text-xs text-slate-500 uppercase font-medium mb-4">
+    <span>Normal</span><span>MCI</span><span>Mild</span><span>Severe</span>
+  </div>
+
+  {/* Top Row: Stage Info & Status Badge */}
+  <div className="p-4 bg-slate-800 rounded-t-xl border-x border-t border-slate-700 flex justify-between items-center">
+    <div>
+      <p className="text-xs text-slate-400 uppercase">Current Stage</p>
+      <p className="text-xl font-bold text-white leading-tight">
+        {selectedPatientDetails.currentStage || "Mild Cognitive Impairment"}
+      </p>
+    </div>
+    
+    {(selectedPatientDetails.currentStage === "Pending Analysis" || !selectedPatientDetails.currentStage) ? 
+      <span className="text-yellow-400 text-xs font-bold border border-yellow-400/30 px-2 py-1 rounded whitespace-nowrap">AI Required</span> :
+      <span className="text-green-400 text-xs font-bold border border-green-400/30 px-2 py-1 rounded whitespace-nowrap">AI Analyzed</span>
+    }
+  </div>
+
+  {/* Bottom Row: AI Insight (Full Width) */}
+  {selectedPatientDetails.inferenceText && (
+    <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-b-xl border-t-0">
+      <div className="p-3 bg-blue-500/10 border-l-2 border-blue-500 rounded">
+        <p className="text-xs text-blue-400 font-bold uppercase mb-1 flex items-center">
+          <Info size={12} className="mr-1"/> AI Clinical Insight
+        </p>
+        <p className="text-sm text-slate-300 italic leading-relaxed">
+          "{selectedPatientDetails.inferenceText}"
+        </p>
+      </div>
+    </div>
+  )}
+</div>
+
+{/* AI Trajectory Result */}
+<div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
+  <h3 className="text-white font-semibold flex items-center mb-4">
+    <TrendingDown className="mr-2 text-purple-400" size={20}/> 
+    Progression Trajectory
+  </h3>
+
+  {/* Grid for small data points */}
+  <div className="grid grid-cols-2 gap-4 mb-4">
+    <div className="p-4 bg-slate-800 rounded-xl border border-slate-700">
+      <p className="text-xs text-slate-400 uppercase mb-1">Decline Rate</p>
+      <p className="text-xl font-bold text-white">
+        {selectedPatientDetails.predictedDecline || "2.3% / month"}
+      </p>
+    </div>
+
+    <div className="p-4 bg-slate-800 rounded-xl border border-slate-700">
+      <p className="text-xs text-slate-400 uppercase mb-1">Time to Next Stage</p>
+      <p className="text-xl font-bold text-white">
+        {selectedPatientDetails.trajectoryMonths > 0 
+          ? `${selectedPatientDetails.trajectoryMonths} Months` 
+          : "~18 Months"}
+      </p>
+    </div>
+  </div>
+
+  {/* Full-width Inference Block */}
+  {selectedPatientDetails.inferenceText && (
+    <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+      <div className="flex items-center space-x-2 mb-2">
+        <div className="p-1 bg-blue-500/20 rounded">
+          <Info size={14} className="text-blue-400" />
+        </div>
+        <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider">
+          AI Clinical Insight
+        </h4>
+      </div>
+      <p className="text-sm text-slate-300 italic leading-relaxed">
+        "{selectedPatientDetails.inferenceText}"
+      </p>
+    </div>
+  )}
+
                           
-                          {/* Progress Bar */}
-                          <div className="h-2 bg-slate-700 rounded-full flex mb-2">
-                             {[0,1,2,3].map(step => (
-                                <div key={step} className={`flex-1 h-full border-r border-slate-900 last:border-0 ${step <= (selectedPatientDetails.stageLevel || 1) ? 'bg-blue-500' : 'bg-transparent'}`}/>
-                             ))}
-                          </div>
-                          <div className="flex justify-between text-xs text-slate-500 uppercase font-medium mb-4">
-                             <span>Normal</span><span>MCI</span><span>Mild</span><span>Severe</span>
-                          </div>
-
-                          <div className="p-4 bg-slate-800 rounded border border-slate-700 flex justify-between items-center">
-                             <div>
-                                <p className="text-xs text-slate-400 uppercase">Current Stage</p>
-                                <p className="text-xl font-bold text-white">{selectedPatientDetails.currentStage || "Mild Cognitive Impairment"}</p>
-                             </div>
-                             {(selectedPatientDetails.currentStage === "Pending Analysis" || !selectedPatientDetails.currentStage) ? 
-                               <span className="text-yellow-400 text-xs font-bold border border-yellow-400/30 px-2 py-1 rounded">AI Required</span> :
-                               <span className="text-green-400 text-xs font-bold border border-green-400/30 px-2 py-1 rounded">AI Analyzed</span>
-                             }
-                          </div>
-                       </div>
-
-                       {/* AI Trajectory Result */}
-                       <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
-                          <h3 className="text-white font-semibold flex items-center mb-4"><TrendingDown className="mr-2 text-purple-400" size={20}/> Progression Trajectory</h3>
-                          <div className="grid grid-cols-2 gap-4">
-                             <div className="p-4 bg-slate-800 rounded border border-slate-700">
-                                <p className="text-xs text-slate-400 uppercase">Decline Rate</p>
-                                <p className="text-xl font-bold text-white">{selectedPatientDetails.predictedDecline || "2.3% / month"}</p>
-                             </div>
-                             <div className="p-4 bg-slate-800 rounded border border-slate-700">
-                                <p className="text-xs text-slate-400 uppercase">Time to Next Stage</p>
-                                <p className="text-xl font-bold text-white">
-                                    {selectedPatientDetails.trajectoryMonths > 0 ? `${selectedPatientDetails.trajectoryMonths} Months` : "~18 Months"}
-                                </p>
-                             </div>
-                          </div>
                        </div>
                     </div>
 
@@ -2347,36 +2164,12 @@ const handleViewPatient = async (patientId) => {
                                  <span className="text-green-400">● Active</span>
                               </div>
                            </div>
-                        </div>
+                       
 
-                        {/* MRI Gallery */}
-                        <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
-                           <h3 className="text-white font-semibold flex items-center mb-4"><ImageIcon className="mr-2 text-indigo-400" size={20}/> MRI Scans</h3>
-                           <div className="grid grid-cols-2 gap-2">
-                              {selectedPatientDetails.mriScans.length > 0 ? (
-                                selectedPatientDetails.mriScans.map((scan, i) => (
-                                    <div key={i} className="relative aspect-square bg-black rounded border border-slate-600 overflow-hidden group">
-                                        <img src={scan.url} alt="Scan" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white p-1 text-center">
-                                            {scan.date}
-                                        </div>
-                                    </div>
-                                ))
-                              ) : (
-                                <div className="col-span-2 py-6 text-center text-slate-500 text-sm border-2 border-dashed border-slate-700 rounded">No DICOM Data</div>
-                              )}
-                           </div>
-                           {/* 1. HIDDEN INPUT (Required to open file dialog) */}
-                           <input 
-                              type="file" 
-                              ref={fileInputRef} 
-                              onChange={handleFileUpload} 
-                              className="hidden" 
-                              accept=".dcm,.png,.jpg,.jpeg" 
-                           />
+                       
 
                            {/* 2. UPDATED BUTTON */}
-                           <button 
+                           {/* <button 
                               onClick={() => fileInputRef.current.click()}
                               disabled={uploading}
                               className="w-full mt-4 py-2 border border-slate-600 text-slate-300 rounded hover:bg-slate-700 transition-colors text-sm flex justify-center items-center"
@@ -2389,7 +2182,7 @@ const handleViewPatient = async (patientId) => {
                               ) : (
                                 "Upload DICOM"
                               )}
-                           </button>
+                           </button> */}
                         </div>
 
                     </div>
