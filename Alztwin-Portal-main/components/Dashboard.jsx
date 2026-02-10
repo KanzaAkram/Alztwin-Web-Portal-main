@@ -102,9 +102,10 @@ import {
 } from "../services/userService";
 
 // --- CONFIGURATION ---
-const API_STAGE_URL = "https://cors-anywhere.herokuapp.com/https://ce68-34-6-200-182.ngrok-free.app/predict"; 
+const API_STAGE_URL =
+  "https://cors-anywhere.herokuapp.com/https://b537-34-145-56-129.ngrok-free.app/predict"; 
 const API_PROGRESSION_URL =
-  "https://cors-anywhere.herokuapp.com/https://cedd-34-73-45-27.ngrok-free.app/predict";
+  "https://cors-anywhere.herokuapp.com/https://b626-34-50-189-86.ngrok-free.app/predict";
 const API_3D_MODEL_URL = "https://cors-anywhere.herokuapp.com/https://integrant-freeman-inscriptively.ngrok-free.dev";
 const getRiskColor = (level) => {
   switch (level?.toLowerCase()) {
