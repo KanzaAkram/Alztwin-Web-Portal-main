@@ -729,6 +729,24 @@ export const getActiveConsultation = async (patientId) => {
 };
 
 /**
+ * Get all consultation sessions for a clinician
+ * @param {string} clinicianId - Clinician user ID
+ */
+export const getClinicianConsultations = async (clinicianId) => {
+  try {
+    const q = query(
+      collection(db, "consultation_sessions"),
+      where("clinicianId", "==", clinicianId)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    console.error("Error getting clinician consultations:", error);
+    return [];
+  }
+};
+
+/**
  * Update consultation session status
  * @param {string} sessionId - Session document ID
  * @param {string} status - New status
@@ -830,6 +848,7 @@ export default {
   getPatientFullDetails,
   createConsultationSession,
   getActiveConsultation,
+  getClinicianConsultations,
   updateConsultationStatus,
   sendSignalingData,
   getSignalingData,

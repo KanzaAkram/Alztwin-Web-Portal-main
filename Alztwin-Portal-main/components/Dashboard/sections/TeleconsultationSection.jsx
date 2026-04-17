@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Shield,
   Video,
@@ -14,80 +14,147 @@ import {
   Star,
 } from "lucide-react";
 
-const TELECON_STATS = [
-  { label: "Total Consultations", value: "156", icon: Video, color: "green" },
-  { label: "This Week", value: "12", icon: Calendar, color: "blue" },
-  { label: "Avg. Duration", value: "24 min", icon: Clock, color: "purple" },
-  { label: "Satisfaction", value: "4.8/5", icon: Star, color: "yellow" },
-];
+const toDate = (ts) => {
+  if (!ts) return null;
+  if (typeof ts?.toDate === "function") return ts.toDate();
+  if (typeof ts === "number") return new Date(ts);
+  if (typeof ts === "string") return new Date(ts);
+  if (ts?.seconds) return new Date(ts.seconds * 1000);
+  return null;
+};
 
-const UPCOMING_SESSIONS = [
-  {
-    patient: "John Doe",
-    time: "Today, 3:00 PM",
-    type: "Follow-up",
-    avatar: "JD",
-  },
-  {
-    patient: "Sarah Wilson",
-    time: "Tomorrow, 10:00 AM",
-    type: "Initial",
-    avatar: "SW",
-  },
-  {
-    patient: "Michael Brown",
-    time: "Dec 18, 2:30 PM",
-    type: "Review",
-    avatar: "MB",
-  },
-];
+const formatDateTime = (date) => {
+  if (!date) return "—";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
 
-const CONSULTATION_HISTORY = [
-  {
-    patient: "John Doe",
-    avatar: "JD",
-    date: "Dec 15, 2:30 PM",
-    duration: "25 min",
-    type: "Follow-up",
-    notes: "Discussed medication adjustment",
-    status: "completed",
-  },
-  {
-    patient: "Sarah Wilson",
-    avatar: "SW",
-    date: "Dec 14, 10:00 AM",
-    duration: "18 min",
-    type: "Emergency",
-    notes: "Caregiver reported confusion",
-    status: "completed",
-  },
-  {
-    patient: "Michael Brown",
-    avatar: "MB",
-    date: "Dec 13, 3:15 PM",
-    duration: "32 min",
-    type: "Initial",
-    notes: "First consultation, baseline established",
-    status: "completed",
-  },
-  {
-    patient: "Emma Davis",
-    avatar: "ED",
-    date: "Dec 12, 11:00 AM",
-    duration: "28 min",
-    type: "Review",
-    notes: "Digital Twin analysis reviewed",
-    status: "completed",
-  },
-];
+const formatDuration = (minutes) => {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "—";
+  return `${Math.round(minutes)} min`;
+};
+
+const initialsOf = (name = "") =>
+  name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0]?.toUpperCase() || "")
+    .join("") || "?";
 
 export default function TeleconsultationSection({
-  patients,
+  patients = [],
+  consultations = [],
   onOpenScheduleModal,
   onSchedulePatient,
   onViewDigitalTwin,
   onStartCall,
 }) {
+  const patientsById = useMemo(() => {
+    const map = new Map();
+    patients.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [patients]);
+
+  const enriched = useMemo(() => {
+    const now = Date.now();
+    return consultations.map((c) => {
+      const patient = patientsById.get(c.patientId);
+      const scheduledAt = toDate(c.scheduledAt);
+      const createdAt = toDate(c.createdAt);
+      const updatedAt = toDate(c.updatedAt);
+      const endedAt = toDate(c.endedAt) || updatedAt;
+      const startedAt = toDate(c.startedAt) || createdAt;
+      const durationMin =
+        startedAt && endedAt && endedAt > startedAt
+          ? (endedAt - startedAt) / 60000
+          : null;
+      const when = scheduledAt || createdAt;
+      const isUpcoming =
+        ["waiting", "scheduled", "active"].includes(c.status) &&
+        (!scheduledAt || scheduledAt.getTime() >= now);
+      return {
+        ...c,
+        patient,
+        patientName: patient?.name || "Unknown Patient",
+        avatar: patient?.avatar || initialsOf(patient?.name),
+        scheduledAt,
+        createdAt,
+        endedAt,
+        when,
+        durationMin,
+        isUpcoming,
+      };
+    });
+  }, [consultations, patientsById]);
+
+  const upcoming = useMemo(
+    () =>
+      enriched
+        .filter((c) => c.isUpcoming)
+        .sort((a, b) => (a.when?.getTime() || 0) - (b.when?.getTime() || 0)),
+    [enriched]
+  );
+
+  const history = useMemo(
+    () =>
+      enriched
+        .filter((c) => c.status === "ended" || c.status === "completed")
+        .sort((a, b) => (b.endedAt?.getTime() || 0) - (a.endedAt?.getTime() || 0)),
+    [enriched]
+  );
+
+  const stats = useMemo(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const thisWeek = enriched.filter(
+      (c) => (c.createdAt?.getTime() || 0) >= weekAgo
+    ).length;
+    const durations = history
+      .map((c) => c.durationMin)
+      .filter((d) => Number.isFinite(d) && d > 0);
+    const avgDuration =
+      durations.length > 0
+        ? durations.reduce((a, b) => a + b, 0) / durations.length
+        : null;
+    const ratings = enriched
+      .map((c) => c.rating)
+      .filter((r) => Number.isFinite(r));
+    const satisfaction =
+      ratings.length > 0
+        ? ratings.reduce((a, b) => a + b, 0) / ratings.length
+        : null;
+    return [
+      {
+        label: "Total Consultations",
+        value: String(enriched.length),
+        icon: Video,
+        color: "green",
+      },
+      {
+        label: "This Week",
+        value: String(thisWeek),
+        icon: Calendar,
+        color: "blue",
+      },
+      {
+        label: "Avg. Duration",
+        value: avgDuration ? `${Math.round(avgDuration)} min` : "—",
+        icon: Clock,
+        color: "purple",
+      },
+      {
+        label: "Satisfaction",
+        value: satisfaction ? `${satisfaction.toFixed(1)}/5` : "—",
+        icon: Star,
+        color: "yellow",
+      },
+    ];
+  }, [enriched, history]);
+
   return (
     <div className="space-y-6">
       <div className="relative bg-gradient-to-r from-emerald-900/40 via-green-900/30 to-teal-900/40 border border-green-500/30 rounded-2xl p-8 overflow-hidden">
@@ -132,18 +199,13 @@ export default function TeleconsultationSection({
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {TELECON_STATS.map((stat, idx) => (
+        {stats.map((stat, idx) => (
           <div
             key={idx}
             className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 hover:border-slate-700 transition-colors"
           >
             <div className="flex items-center justify-between mb-2">
               <stat.icon size={20} className={`text-${stat.color}-400`} />
-              <span
-                className={`text-xs px-2 py-0.5 rounded bg-${stat.color}-500/20 text-${stat.color}-400`}
-              >
-                {idx === 1 ? "+3" : ""}
-              </span>
             </div>
             <p className="text-2xl font-bold text-white">{stat.value}</p>
             <p className="text-slate-500 text-xs">{stat.label}</p>
@@ -171,71 +233,77 @@ export default function TeleconsultationSection({
             </div>
           </div>
           <div className="divide-y divide-slate-800 max-h-[400px] overflow-y-auto">
-            {patients.map((patient) => (
-              <div
-                key={patient.id}
-                className="p-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors group"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-lg">
-                      {patient.avatar}
-                    </div>
-                    <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
-                      <span className="w-2 h-2 bg-white rounded-full" />
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-white font-medium group-hover:text-green-400 transition-colors">
-                      {patient.name}
-                    </p>
-                    <p className="text-slate-400 text-sm">{patient.diagnosis}</p>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                          patient.riskLevel === "high"
-                            ? "bg-red-500/20 text-red-400"
-                            : patient.riskLevel === "medium"
-                            ? "bg-yellow-500/20 text-yellow-400"
-                            : "bg-green-500/20 text-green-400"
-                        }`}
-                      >
-                        {patient.riskLevel?.toUpperCase()} RISK
-                      </span>
-                      <span className="text-slate-500 text-[10px]">
-                        Last: {patient.lastScan}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => {
-                      onSchedulePatient(patient);
-                      onOpenScheduleModal();
-                    }}
-                    className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all"
-                    title="Schedule"
-                  >
-                    <Calendar size={16} />
-                  </button>
-                  <button
-                    onClick={() => onViewDigitalTwin(patient)}
-                    className="p-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition-all"
-                    title="View Digital Twin"
-                  >
-                    <Brain size={16} />
-                  </button>
-                  <button
-                    onClick={() => onStartCall(patient)}
-                    className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-lg shadow-green-500/20"
-                  >
-                    <Video size={16} />
-                    <span>Call</span>
-                  </button>
-                </div>
+            {patients.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 text-sm">
+                No patients available yet.
               </div>
-            ))}
+            ) : (
+              patients.map((patient) => (
+                <div
+                  key={patient.id}
+                  className="p-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors group"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-lg">
+                        {patient.avatar}
+                      </div>
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
+                        <span className="w-2 h-2 bg-white rounded-full" />
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-white font-medium group-hover:text-green-400 transition-colors">
+                        {patient.name}
+                      </p>
+                      <p className="text-slate-400 text-sm">{patient.diagnosis}</p>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                            patient.riskLevel === "high"
+                              ? "bg-red-500/20 text-red-400"
+                              : patient.riskLevel === "medium"
+                              ? "bg-yellow-500/20 text-yellow-400"
+                              : "bg-green-500/20 text-green-400"
+                          }`}
+                        >
+                          {patient.riskLevel?.toUpperCase()} RISK
+                        </span>
+                        <span className="text-slate-500 text-[10px]">
+                          Last: {patient.lastScan}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        onSchedulePatient(patient);
+                        onOpenScheduleModal();
+                      }}
+                      className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all"
+                      title="Schedule"
+                    >
+                      <Calendar size={16} />
+                    </button>
+                    <button
+                      onClick={() => onViewDigitalTwin(patient)}
+                      className="p-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition-all"
+                      title="View Digital Twin"
+                    >
+                      <Brain size={16} />
+                    </button>
+                    <button
+                      onClick={() => onStartCall(patient)}
+                      className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-lg shadow-green-500/20"
+                    >
+                      <Video size={16} />
+                      <span>Call</span>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -247,36 +315,48 @@ export default function TeleconsultationSection({
             </h3>
           </div>
           <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
-            {UPCOMING_SESSIONS.map((apt, idx) => (
-              <div
-                key={idx}
-                className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 hover:border-green-500/30 transition-colors"
-              >
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm">
-                    {apt.avatar}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-white font-medium text-sm">
-                      {apt.patient}
-                    </p>
-                    <p className="text-slate-400 text-xs">
-                      {apt.type} Consultation
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2 text-green-400">
-                    <Clock size={14} />
-                    <span className="text-sm font-medium">{apt.time}</span>
-                  </div>
-                  <button className="flex items-center space-x-1 bg-green-600/20 hover:bg-green-600/30 text-green-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all">
-                    <Play size={12} />
-                    <span>Join</span>
-                  </button>
-                </div>
+            {upcoming.length === 0 ? (
+              <div className="py-6 text-center text-slate-500 text-sm">
+                No upcoming sessions.
               </div>
-            ))}
+            ) : (
+              upcoming.map((apt) => (
+                <div
+                  key={apt.id}
+                  className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 hover:border-green-500/30 transition-colors"
+                >
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm">
+                      {apt.avatar}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white font-medium text-sm">
+                        {apt.patientName}
+                      </p>
+                      <p className="text-slate-400 text-xs">
+                        {apt.type ? `${apt.type} Consultation` : "Consultation"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 text-green-400">
+                      <Clock size={14} />
+                      <span className="text-sm font-medium">
+                        {formatDateTime(apt.when)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => apt.patient && onStartCall(apt.patient)}
+                      disabled={!apt.patient}
+                      className="flex items-center space-x-1 bg-green-600/20 hover:bg-green-600/30 disabled:opacity-40 disabled:cursor-not-allowed text-green-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    >
+                      <Play size={12} />
+                      <span>Join</span>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
             <button
               onClick={onOpenScheduleModal}
               className="w-full p-4 border-2 border-dashed border-slate-700 rounded-xl text-slate-400 hover:text-green-400 hover:border-green-500/50 transition-all flex items-center justify-center space-x-2"
@@ -299,72 +379,78 @@ export default function TeleconsultationSection({
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-800/50 text-xs uppercase text-slate-400 font-medium">
-              <tr>
-                <th className="px-5 py-3 text-left">Patient</th>
-                <th className="px-5 py-3 text-left">Date & Time</th>
-                <th className="px-5 py-3 text-left">Duration</th>
-                <th className="px-5 py-3 text-left">Type</th>
-                <th className="px-5 py-3 text-left">Notes</th>
-                <th className="px-5 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {CONSULTATION_HISTORY.map((consultation, idx) => (
-                <tr key={idx} className="hover:bg-slate-800/30">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm">
-                        {consultation.avatar}
-                      </div>
-                      <span className="text-white font-medium">
-                        {consultation.patient}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-slate-300 text-sm">
-                    {consultation.date}
-                  </td>
-                  <td className="px-5 py-4 text-slate-300 text-sm">
-                    {consultation.duration}
-                  </td>
-                  <td className="px-5 py-4">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        consultation.type === "Emergency"
-                          ? "bg-red-500/20 text-red-400"
-                          : consultation.type === "Initial"
-                          ? "bg-blue-500/20 text-blue-400"
-                          : "bg-slate-700 text-slate-300"
-                      }`}
-                    >
-                      {consultation.type}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-slate-400 text-sm max-w-xs truncate">
-                    {consultation.notes}
-                  </td>
-                  <td className="px-5 py-4 text-right">
-                    <div className="flex items-center justify-end space-x-2">
-                      <button
-                        className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all"
-                        title="View Notes"
-                      >
-                        <FileText size={16} />
-                      </button>
-                      <button
-                        className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all"
-                        title="View Recording"
-                      >
-                        <Play size={16} />
-                      </button>
-                    </div>
-                  </td>
+          {history.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 text-sm">
+              No past consultations yet.
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-slate-800/50 text-xs uppercase text-slate-400 font-medium">
+                <tr>
+                  <th className="px-5 py-3 text-left">Patient</th>
+                  <th className="px-5 py-3 text-left">Date & Time</th>
+                  <th className="px-5 py-3 text-left">Duration</th>
+                  <th className="px-5 py-3 text-left">Type</th>
+                  <th className="px-5 py-3 text-left">Notes</th>
+                  <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {history.map((consultation) => (
+                  <tr key={consultation.id} className="hover:bg-slate-800/30">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                          {consultation.avatar}
+                        </div>
+                        <span className="text-white font-medium">
+                          {consultation.patientName}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-slate-300 text-sm">
+                      {formatDateTime(consultation.endedAt || consultation.createdAt)}
+                    </td>
+                    <td className="px-5 py-4 text-slate-300 text-sm">
+                      {formatDuration(consultation.durationMin)}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          consultation.type === "Emergency"
+                            ? "bg-red-500/20 text-red-400"
+                            : consultation.type === "Initial"
+                            ? "bg-blue-500/20 text-blue-400"
+                            : "bg-slate-700 text-slate-300"
+                        }`}
+                      >
+                        {consultation.type || "Consultation"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-slate-400 text-sm max-w-xs truncate">
+                      {consultation.notes || "—"}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end space-x-2">
+                        <button
+                          className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all"
+                          title="View Notes"
+                        >
+                          <FileText size={16} />
+                        </button>
+                        <button
+                          className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all"
+                          title="View Recording"
+                        >
+                          <Play size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 

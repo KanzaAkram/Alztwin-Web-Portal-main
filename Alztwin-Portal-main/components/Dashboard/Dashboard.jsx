@@ -95,6 +95,7 @@ import {
   getClinicianAllRequests,
   acceptPatientRequest,
   rejectPatientRequest,
+  getClinicianConsultations,
 } from "../../services/userService";
 import {
   formatDate,
@@ -110,6 +111,7 @@ import DigitalTwinSection from "./sections/DigitalTwinSection";
 import TeleconsultationSection from "./sections/TeleconsultationSection";
 import PatientsSection from "./sections/PatientsSection";
 
+const Dashboard = ({ user, onLogout }) => {
   const fileInputRef = useRef(null); // Reference for hidden input
   const [uploading, setUploading] = useState(false); // Loading state for upload
   const [searchQuery, setSearchQuery] = useState("");
@@ -148,6 +150,9 @@ import PatientsSection from "./sections/PatientsSection";
   const [recommendationPlan, setRecommendationPlan] = useState("");
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
+
+  // Teleconsultation Data State
+  const [consultations, setConsultations] = useState([]);
 
   // Teleconsultation Scheduling State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -231,15 +236,30 @@ import PatientsSection from "./sections/PatientsSection";
           avatar: (data.name || "U").charAt(0).toUpperCase(),
           
           deviceData: data.deviceData || {},
-          
+
+          // Digital Twin clinical fields (all optional — render empty states when absent)
+          stage: data.stage || data.diagnosis || null,
+          stageLevel: typeof data.stageLevel === "number" ? data.stageLevel : null,
+          progression: Array.isArray(data.progression) ? data.progression : [],
+          regions: Array.isArray(data.regions) ? data.regions : [],
+          cognitiveTests: Array.isArray(data.cognitiveTests) ? data.cognitiveTests : [],
+          treatmentPlan: Array.isArray(data.treatmentPlan) ? data.treatmentPlan : [],
+          recommendations: Array.isArray(data.recommendations) ? data.recommendations : [],
+          predictedDecline: data.predictedDecline || null,
+          trajectoryMonths: data.trajectoryMonths || null,
+
           // 3. Pass the full array. We will process base64Data in handleViewPatient
-          mriScans: data.mriScans || [] 
+          mriScans: data.mriScans || []
         });
       });
 
       
 
       setPatients(realPatients);
+
+      // C. Fetch Consultations for this clinician
+      const clinicianConsultations = await getClinicianConsultations(user.uid);
+      setConsultations(clinicianConsultations);
 
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -739,6 +759,7 @@ const handleViewPatient = async (patientId) => {
           {activeSection === "teleconsultation" && (
             <TeleconsultationSection
               patients={patients}
+              consultations={consultations}
               onOpenScheduleModal={() => setShowScheduleModal(true)}
               onSchedulePatient={setSelectedPatientForSchedule}
               onViewDigitalTwin={(patient) => {
@@ -1408,4 +1429,5 @@ const handleViewPatient = async (patientId) => {
   );
 };
 
+export { Dashboard };
 export default Dashboard;

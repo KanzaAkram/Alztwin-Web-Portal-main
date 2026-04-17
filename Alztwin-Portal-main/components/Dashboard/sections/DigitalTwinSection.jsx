@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Brain,
   Upload,
@@ -19,113 +19,44 @@ import {
 } from "lucide-react";
 import ThreeBrainView from "../ThreeBrainView";
 
-const PROGRESSION_POINTS = [
-  { month: "Current", stage: "MCI", progress: 35, predicted: false },
-  { month: "+6 Mo", stage: "MCI", progress: 42, predicted: true },
-  { month: "+12 Mo", stage: "Mild AD", progress: 55, predicted: true },
-  { month: "+18 Mo", stage: "Mild AD", progress: 65, predicted: true },
-  { month: "+24 Mo", stage: "Moderate", progress: 75, predicted: true },
+const STAGE_LADDER = [
+  { stage: "Normal", color: "green" },
+  { stage: "MCI", color: "yellow" },
+  { stage: "Mild AD", color: "orange" },
+  { stage: "Moderate AD", color: "red" },
+  { stage: "Severe AD", color: "red" },
 ];
 
-const STAGES = [
-  { stage: "Normal", active: false, color: "green" },
-  { stage: "MCI", active: true, color: "yellow" },
-  { stage: "Mild AD", active: false, color: "orange" },
-  { stage: "Moderate AD", active: false, color: "red" },
-  { stage: "Severe AD", active: false, color: "red" },
-];
+const DEVICE_FIELD_META = {
+  sleepQuality: { label: "Sleep Quality", icon: "😴" },
+  activityLevel: { label: "Activity Level", icon: "🚶" },
+  steps: { label: "Steps", icon: "🚶" },
+  heartRate: { label: "Heart Rate", icon: "❤️", suffix: " bpm" },
+  temperature: { label: "Temperature", icon: "🌡️", suffix: " °C" },
+  stressLevel: { label: "Stress Level", icon: "😰" },
+  bloodPressure: { label: "Blood Pressure", icon: "🩺" },
+  oxygenSaturation: { label: "Oxygen Saturation", icon: "🫁" },
+  medication: { label: "Medication", icon: "💊" },
+};
 
-const REGIONS = [
-  {
-    region: "Hippocampus",
-    status: "Moderate Atrophy",
-    score: 58,
-    icon: "🧠",
-    desc: "Memory formation affected",
-    color: "yellow",
-  },
-  {
-    region: "Frontal Lobe",
-    status: "Mild Changes",
-    score: 78,
-    icon: "💭",
-    desc: "Executive function intact",
-    color: "green",
-  },
-  {
-    region: "Temporal Lobe",
-    status: "Significant Atrophy",
-    score: 42,
-    icon: "👂",
-    desc: "Language processing impacted",
-    color: "red",
-  },
-  {
-    region: "Parietal Lobe",
-    status: "Normal",
-    score: 85,
-    icon: "🎯",
-    desc: "Spatial awareness normal",
-    color: "green",
-  },
-];
+const numericOr = (v, fallback) =>
+  typeof v === "number" && Number.isFinite(v) ? v : fallback;
 
-const COGNITIVE_TESTS = [
-  { test: "MMSE", scores: [28, 26, 25, 24, 23], current: 24, max: 30 },
-  { test: "MoCA", scores: [26, 24, 23, 22, 21], current: 21, max: 30 },
-  {
-    test: "CDR",
-    scores: [0, 0.5, 0.5, 0.5, 1],
-    current: 0.5,
-    max: 3,
-    inverted: true,
-  },
-];
+const getActiveStageIndex = (patient) => {
+  if (!patient) return -1;
+  if (typeof patient.stageLevel === "number") return patient.stageLevel;
+  if (patient.stage) {
+    const idx = STAGE_LADDER.findIndex(
+      (s) => s.stage.toLowerCase() === patient.stage.toLowerCase()
+    );
+    if (idx >= 0) return idx;
+  }
+  return -1;
+};
 
-const DEVICE_DATA = [
-  {
-    label: "Sleep Quality",
-    value: "6.5 hrs",
-    trend: "down",
-    icon: "😴",
-    color: "yellow",
-  },
-  {
-    label: "Activity Level",
-    value: "4,200 steps",
-    trend: "up",
-    icon: "🚶",
-    color: "green",
-  },
-  {
-    label: "Heart Rate",
-    value: "72 bpm",
-    trend: "stable",
-    icon: "❤️",
-    color: "green",
-  },
-  {
-    label: "Stress Level",
-    value: "Moderate",
-    trend: "up",
-    icon: "😰",
-    color: "yellow",
-  },
-  {
-    label: "Blood Pressure",
-    value: "128/82",
-    trend: "stable",
-    icon: "🩺",
-    color: "yellow",
-  },
-  {
-    label: "Medication",
-    value: "Compliant",
-    trend: "stable",
-    icon: "💊",
-    color: "green",
-  },
-];
+const EmptyBlock = ({ children }) => (
+  <div className="text-center text-slate-500 text-sm py-6">{children}</div>
+);
 
 export default function DigitalTwinSection({
   patients,
@@ -135,6 +66,43 @@ export default function DigitalTwinSection({
   onFolderUpload,
   onShowNotesModal,
 }) {
+  const progression = selectedPatientForDT?.progression || [];
+  const regions = selectedPatientForDT?.regions || [];
+  const cognitiveTests = selectedPatientForDT?.cognitiveTests || [];
+  const treatmentPlan = selectedPatientForDT?.treatmentPlan || [];
+  const recommendations = selectedPatientForDT?.recommendations || [];
+  const activeStageIdx = getActiveStageIndex(selectedPatientForDT);
+
+  const deviceMetrics = useMemo(() => {
+    const deviceData = selectedPatientForDT?.deviceData;
+    if (!deviceData || typeof deviceData !== "object") return [];
+
+    // Pick the latest timestamped entry if deviceData is keyed by timestamps
+    const keys = Object.keys(deviceData);
+    if (keys.length === 0) return [];
+    const sorted = [...keys].sort((a, b) => {
+      const na = parseInt(a.replace(/^\D+/g, ""), 10) || 0;
+      const nb = parseInt(b.replace(/^\D+/g, ""), 10) || 0;
+      return na - nb;
+    });
+    const latest = deviceData[sorted[sorted.length - 1]];
+    const source =
+      latest && typeof latest === "object" && !Array.isArray(latest)
+        ? latest
+        : deviceData;
+
+    return Object.entries(source)
+      .filter(([, v]) => v !== null && v !== undefined && v !== "")
+      .map(([key, value]) => {
+        const meta = DEVICE_FIELD_META[key] || { label: key, icon: "📊" };
+        const displayValue =
+          typeof value === "number"
+            ? `${value}${meta.suffix || ""}`
+            : String(value);
+        return { key, label: meta.label, icon: meta.icon, value: displayValue };
+      });
+  }, [selectedPatientForDT]);
+
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-br from-slate-900/80 via-purple-900/10 to-slate-900/80 border border-purple-500/20 rounded-2xl p-6 backdrop-blur-sm">
@@ -142,48 +110,52 @@ export default function DigitalTwinSection({
           <Brain className="mr-2 text-purple-400" size={22} />
           Select Patient for Digital Twin Analysis
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {patients.map((patient) => (
-            <button
-              key={patient.id}
-              onClick={() => setSelectedPatientForDT(patient)}
-              className={`p-4 rounded-xl border transition-all duration-300 text-left group ${
-                selectedPatientForDT?.id === patient.id
-                  ? "bg-gradient-to-br from-purple-600/30 to-blue-600/30 border-purple-500 ring-2 ring-purple-500/50 shadow-lg shadow-purple-500/20"
-                  : "bg-slate-800/50 border-slate-700 hover:border-purple-500/50 hover:bg-slate-800/80"
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <div
-                  className={`w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold shadow-lg ${
-                    selectedPatientForDT?.id === patient.id
-                      ? "ring-2 ring-white/30"
-                      : ""
-                  }`}
-                >
-                  {patient.avatar}
-                </div>
-                <div>
-                  <p className="text-white font-medium text-sm group-hover:text-purple-300 transition-colors">
-                    {patient.name}
-                  </p>
-                  <p className="text-slate-400 text-xs">{patient.diagnosis}</p>
-                  <span
-                    className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-medium ${
-                      patient.riskLevel === "high"
-                        ? "bg-red-500/20 text-red-400"
-                        : patient.riskLevel === "medium"
-                        ? "bg-yellow-500/20 text-yellow-400"
-                        : "bg-green-500/20 text-green-400"
+        {patients.length === 0 ? (
+          <EmptyBlock>No patients available.</EmptyBlock>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {patients.map((patient) => (
+              <button
+                key={patient.id}
+                onClick={() => setSelectedPatientForDT(patient)}
+                className={`p-4 rounded-xl border transition-all duration-300 text-left group ${
+                  selectedPatientForDT?.id === patient.id
+                    ? "bg-gradient-to-br from-purple-600/30 to-blue-600/30 border-purple-500 ring-2 ring-purple-500/50 shadow-lg shadow-purple-500/20"
+                    : "bg-slate-800/50 border-slate-700 hover:border-purple-500/50 hover:bg-slate-800/80"
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div
+                    className={`w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold shadow-lg ${
+                      selectedPatientForDT?.id === patient.id
+                        ? "ring-2 ring-white/30"
+                        : ""
                     }`}
                   >
-                    {patient.riskLevel?.toUpperCase()}
-                  </span>
+                    {patient.avatar}
+                  </div>
+                  <div>
+                    <p className="text-white font-medium text-sm group-hover:text-purple-300 transition-colors">
+                      {patient.name}
+                    </p>
+                    <p className="text-slate-400 text-xs">{patient.diagnosis}</p>
+                    <span
+                      className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-medium ${
+                        patient.riskLevel === "high"
+                          ? "bg-red-500/20 text-red-400"
+                          : patient.riskLevel === "medium"
+                          ? "bg-yellow-500/20 text-yellow-400"
+                          : "bg-green-500/20 text-green-400"
+                      }`}
+                    >
+                      {patient.riskLevel?.toUpperCase()}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {selectedPatientForDT ? (
@@ -272,64 +244,67 @@ export default function DigitalTwinSection({
                 <TrendingUp className="mr-2 text-orange-400" size={20} />
                 Disease Progression Prediction
               </h3>
-              <div className="relative h-48">
-                <div className="absolute inset-0 flex items-end justify-between px-4">
-                  {PROGRESSION_POINTS.map((point, idx) => (
-                    <div
-                      key={idx}
-                      className="flex flex-col items-center flex-1"
-                    >
-                      <div className="relative w-full flex justify-center mb-2">
+              {progression.length === 0 ? (
+                <EmptyBlock>
+                  No progression prediction available for this patient.
+                </EmptyBlock>
+              ) : (
+                <>
+                  <div className="relative h-48">
+                    <div className="absolute inset-0 flex items-end justify-between px-4">
+                      {progression.map((point, idx) => (
                         <div
-                          className={`w-8 rounded-t-lg transition-all duration-500 ${
-                            point.predicted
-                              ? "bg-gradient-to-t from-orange-600/50 to-orange-400/30 border border-orange-500/30 border-dashed"
-                              : "bg-gradient-to-t from-purple-600 to-blue-500"
-                          }`}
-                          style={{ height: `${point.progress * 1.5}px` }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-slate-500 uppercase">
-                        {point.month}
-                      </p>
-                      <p
-                        className={`text-xs font-medium ${
-                          point.predicted ? "text-orange-400" : "text-white"
-                        }`}
-                      >
-                        {point.stage}
-                      </p>
-                      <p className="text-[10px] text-slate-400">
-                        {point.progress}%
-                      </p>
+                          key={idx}
+                          className="flex flex-col items-center flex-1"
+                        >
+                          <div className="relative w-full flex justify-center mb-2">
+                            <div
+                              className={`w-8 rounded-t-lg transition-all duration-500 ${
+                                point.predicted
+                                  ? "bg-gradient-to-t from-orange-600/50 to-orange-400/30 border border-orange-500/30 border-dashed"
+                                  : "bg-gradient-to-t from-purple-600 to-blue-500"
+                              }`}
+                              style={{
+                                height: `${numericOr(point.progress, 0) * 1.5}px`,
+                              }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-500 uppercase">
+                            {point.month}
+                          </p>
+                          <p
+                            className={`text-xs font-medium ${
+                              point.predicted ? "text-orange-400" : "text-white"
+                            }`}
+                          >
+                            {point.stage}
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            {numericOr(point.progress, 0)}%
+                          </p>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                  <path
-                    d="M40,140 Q100,130 160,100 T280,60 T400,30"
-                    fill="none"
-                    stroke="rgba(251,146,60,0.5)"
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
-                  />
-                </svg>
-              </div>
-              <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-4">
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 rounded bg-gradient-to-r from-purple-600 to-blue-500" />
-                    <span className="text-xs text-slate-400">Current</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 rounded bg-orange-500/50 border border-dashed border-orange-500" />
-                    <span className="text-xs text-slate-400">Predicted</span>
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-4">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 rounded bg-gradient-to-r from-purple-600 to-blue-500" />
+                        <span className="text-xs text-slate-400">Current</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 rounded bg-orange-500/50 border border-dashed border-orange-500" />
+                        <span className="text-xs text-slate-400">Predicted</span>
+                      </div>
+                    </div>
+                    {selectedPatientForDT.predictedDecline && (
+                      <p className="text-xs text-slate-500">
+                        Decline rate: {selectedPatientForDT.predictedDecline}
+                      </p>
+                    )}
                   </div>
-                </div>
-                <p className="text-xs text-slate-500">
-                  AI-Predicted Trajectory (95% confidence)
-                </p>
-              </div>
+                </>
+              )}
             </div>
 
             <div className="bg-gradient-to-br from-slate-900 to-purple-900/20 border border-purple-500/20 rounded-xl p-6">
@@ -337,45 +312,54 @@ export default function DigitalTwinSection({
                 <Brain className="mr-2 text-purple-400" size={20} />
                 Current Stage
               </h3>
-              <div className="space-y-3">
-                {STAGES.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex items-center space-x-3 p-2 rounded-lg ${
-                      item.active ? "bg-yellow-500/10 border border-yellow-500/30" : ""
-                    }`}
-                  >
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        item.active
-                          ? "bg-yellow-400 ring-4 ring-yellow-400/30"
-                          : item.color === "green"
-                          ? "bg-green-500/30"
-                          : item.color === "yellow"
-                          ? "bg-yellow-500/30"
-                          : item.color === "orange"
-                          ? "bg-orange-500/30"
-                          : "bg-red-500/30"
-                      }`}
-                    />
-                    <span
-                      className={`text-sm ${
-                        item.active
-                          ? "text-yellow-400 font-semibold"
-                          : "text-slate-400"
-                      }`}
-                    >
-                      {item.stage}
-                    </span>
-                    {item.active && (
-                      <ChevronRight
-                        size={14}
-                        className="text-yellow-400 ml-auto"
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
+              {activeStageIdx < 0 ? (
+                <EmptyBlock>No stage recorded for this patient.</EmptyBlock>
+              ) : (
+                <div className="space-y-3">
+                  {STAGE_LADDER.map((item, idx) => {
+                    const isActive = idx === activeStageIdx;
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-center space-x-3 p-2 rounded-lg ${
+                          isActive
+                            ? "bg-yellow-500/10 border border-yellow-500/30"
+                            : ""
+                        }`}
+                      >
+                        <div
+                          className={`w-3 h-3 rounded-full ${
+                            isActive
+                              ? "bg-yellow-400 ring-4 ring-yellow-400/30"
+                              : item.color === "green"
+                              ? "bg-green-500/30"
+                              : item.color === "yellow"
+                              ? "bg-yellow-500/30"
+                              : item.color === "orange"
+                              ? "bg-orange-500/30"
+                              : "bg-red-500/30"
+                          }`}
+                        />
+                        <span
+                          className={`text-sm ${
+                            isActive
+                              ? "text-yellow-400 font-semibold"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {item.stage}
+                        </span>
+                        {isActive && (
+                          <ChevronRight
+                            size={14}
+                            className="text-yellow-400 ml-auto"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -384,54 +368,64 @@ export default function DigitalTwinSection({
               <Activity className="mr-2 text-blue-400" size={20} />
               Brain Region Analysis
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {REGIONS.map((region, idx) => (
-                <div
-                  key={idx}
-                  className={`bg-slate-800/50 border rounded-xl p-4 transition-all hover:scale-105 ${
-                    region.color === "red"
-                      ? "border-red-500/30 hover:border-red-500/50"
-                      : region.color === "yellow"
-                      ? "border-yellow-500/30 hover:border-yellow-500/50"
-                      : "border-green-500/30 hover:border-green-500/50"
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <span className="text-2xl">{region.icon}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                        region.color === "red"
-                          ? "bg-red-500/20 text-red-400"
-                          : region.color === "yellow"
-                          ? "bg-yellow-500/20 text-yellow-400"
-                          : "bg-green-500/20 text-green-400"
-                      }`}
-                    >
-                      {region.status}
-                    </span>
+            {regions.length === 0 ? (
+              <EmptyBlock>
+                No region analysis available for this patient.
+              </EmptyBlock>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {regions.map((region, idx) => (
+                  <div
+                    key={idx}
+                    className={`bg-slate-800/50 border rounded-xl p-4 transition-all hover:scale-105 ${
+                      region.color === "red"
+                        ? "border-red-500/30 hover:border-red-500/50"
+                        : region.color === "yellow"
+                        ? "border-yellow-500/30 hover:border-yellow-500/50"
+                        : "border-green-500/30 hover:border-green-500/50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <span className="text-2xl">{region.icon || "🧠"}</span>
+                      {region.status && (
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                            region.color === "red"
+                              ? "bg-red-500/20 text-red-400"
+                              : region.color === "yellow"
+                              ? "bg-yellow-500/20 text-yellow-400"
+                              : "bg-green-500/20 text-green-400"
+                          }`}
+                        >
+                          {region.status}
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-white font-semibold text-sm mb-1">
+                      {region.region}
+                    </h4>
+                    {region.desc && (
+                      <p className="text-slate-500 text-xs mb-3">{region.desc}</p>
+                    )}
+                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000 ${
+                          region.color === "red"
+                            ? "bg-gradient-to-r from-red-600 to-red-400"
+                            : region.color === "yellow"
+                            ? "bg-gradient-to-r from-yellow-600 to-yellow-400"
+                            : "bg-gradient-to-r from-green-600 to-green-400"
+                        }`}
+                        style={{ width: `${numericOr(region.score, 0)}%` }}
+                      />
+                    </div>
+                    <p className="text-right text-xs text-slate-400 mt-1">
+                      {numericOr(region.score, 0)}%
+                    </p>
                   </div>
-                  <h4 className="text-white font-semibold text-sm mb-1">
-                    {region.region}
-                  </h4>
-                  <p className="text-slate-500 text-xs mb-3">{region.desc}</p>
-                  <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-1000 ${
-                        region.color === "red"
-                          ? "bg-gradient-to-r from-red-600 to-red-400"
-                          : region.color === "yellow"
-                          ? "bg-gradient-to-r from-yellow-600 to-yellow-400"
-                          : "bg-gradient-to-r from-green-600 to-green-400"
-                      }`}
-                      style={{ width: `${region.score}%` }}
-                    />
-                  </div>
-                  <p className="text-right text-xs text-slate-400 mt-1">
-                    {region.score}%
-                  </p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -440,47 +434,59 @@ export default function DigitalTwinSection({
                 <BarChart3 className="mr-2 text-cyan-400" size={20} />
                 Cognitive Test History
               </h3>
-              <div className="space-y-4">
-                {COGNITIVE_TESTS.map((test, idx) => (
-                  <div key={idx} className="bg-slate-800/30 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-white font-medium text-sm">
-                        {test.test}
-                      </span>
-                      <span className="text-cyan-400 font-bold">
-                        {test.current}/{test.max}
-                      </span>
-                    </div>
-                    <div className="flex items-end space-x-1 h-12">
-                      {test.scores.map((score, i) => (
-                        <div
-                          key={i}
-                          className="flex-1 flex flex-col items-center"
-                        >
-                          <div
-                            className={`w-full rounded-t ${
-                              i === test.scores.length - 1
-                                ? "bg-cyan-500"
-                                : "bg-slate-600"
-                            }`}
-                            style={{
-                              height: `${(score / test.max) * 100}%`,
-                            }}
-                          />
+              {cognitiveTests.length === 0 ? (
+                <EmptyBlock>No cognitive tests recorded.</EmptyBlock>
+              ) : (
+                <div className="space-y-4">
+                  {cognitiveTests.map((test, idx) => {
+                    const scores = Array.isArray(test.scores) ? test.scores : [];
+                    const max = numericOr(test.max, 30);
+                    return (
+                      <div key={idx} className="bg-slate-800/30 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-white font-medium text-sm">
+                            {test.test}
+                          </span>
+                          <span className="text-cyan-400 font-bold">
+                            {numericOr(test.current, "—")}/{max}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-[10px] text-slate-500">
-                        6 mo ago
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        Current
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        {scores.length > 0 && (
+                          <>
+                            <div className="flex items-end space-x-1 h-12">
+                              {scores.map((score, i) => (
+                                <div
+                                  key={i}
+                                  className="flex-1 flex flex-col items-center"
+                                >
+                                  <div
+                                    className={`w-full rounded-t ${
+                                      i === scores.length - 1
+                                        ? "bg-cyan-500"
+                                        : "bg-slate-600"
+                                    }`}
+                                    style={{
+                                      height: `${(score / max) * 100}%`,
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex justify-between mt-1">
+                              <span className="text-[10px] text-slate-500">
+                                Earliest
+                              </span>
+                              <span className="text-[10px] text-slate-500">
+                                Current
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
@@ -488,29 +494,27 @@ export default function DigitalTwinSection({
                 <Smartphone className="mr-2 text-green-400" size={20} />
                 Device Physiological Data
               </h3>
-              <div className="grid grid-cols-2 gap-3">
-                {DEVICE_DATA.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-lg">{item.icon}</span>
-                      {item.trend === "up" ? (
-                        <TrendingUp size={14} className="text-green-400" />
-                      ) : item.trend === "down" ? (
-                        <TrendingDown size={14} className="text-red-400" />
-                      ) : (
+              {deviceMetrics.length === 0 ? (
+                <EmptyBlock>No device data recorded.</EmptyBlock>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {deviceMetrics.map((item) => (
+                    <div
+                      key={item.key}
+                      className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-lg">{item.icon}</span>
                         <Minus size={14} className="text-slate-400" />
-                      )}
+                      </div>
+                      <p className="text-white font-semibold text-sm">
+                        {item.value}
+                      </p>
+                      <p className="text-slate-500 text-xs">{item.label}</p>
                     </div>
-                    <p className="text-white font-semibold text-sm">
-                      {item.value}
-                    </p>
-                    <p className="text-slate-500 text-xs">{item.label}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -534,58 +538,46 @@ export default function DigitalTwinSection({
                   <FileText size={16} className="mr-2 text-purple-400" />
                   Current Treatment Plan
                 </h4>
-                <ul className="space-y-2 text-sm text-slate-300">
-                  <li className="flex items-start space-x-2">
-                    <CheckCircle
-                      size={14}
-                      className="text-green-400 mt-0.5 flex-shrink-0"
-                    />
-                    <span>Donepezil 10mg daily - Cholinesterase inhibitor</span>
-                  </li>
-                  <li className="flex items-start space-x-2">
-                    <CheckCircle
-                      size={14}
-                      className="text-green-400 mt-0.5 flex-shrink-0"
-                    />
-                    <span>Memantine 20mg daily - NMDA receptor antagonist</span>
-                  </li>
-                  <li className="flex items-start space-x-2">
-                    <CheckCircle
-                      size={14}
-                      className="text-green-400 mt-0.5 flex-shrink-0"
-                    />
-                    <span>Weekly cognitive therapy sessions</span>
-                  </li>
-                </ul>
+                {treatmentPlan.length === 0 ? (
+                  <EmptyBlock>No treatment plan recorded.</EmptyBlock>
+                ) : (
+                  <ul className="space-y-2 text-sm text-slate-300">
+                    {treatmentPlan.map((item, idx) => (
+                      <li key={idx} className="flex items-start space-x-2">
+                        <CheckCircle
+                          size={14}
+                          className="text-green-400 mt-0.5 flex-shrink-0"
+                        />
+                        <span>
+                          {typeof item === "string" ? item : item.text || ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                 <h4 className="text-white font-medium mb-2 flex items-center">
                   <Stethoscope size={16} className="mr-2 text-cyan-400" />
                   Clinical Recommendations
                 </h4>
-                <ul className="space-y-2 text-sm text-slate-300">
-                  <li className="flex items-start space-x-2">
-                    <ChevronRight
-                      size={14}
-                      className="text-cyan-400 mt-0.5 flex-shrink-0"
-                    />
-                    <span>Follow-up MRI in 6 months</span>
-                  </li>
-                  <li className="flex items-start space-x-2">
-                    <ChevronRight
-                      size={14}
-                      className="text-cyan-400 mt-0.5 flex-shrink-0"
-                    />
-                    <span>Increase physical activity to 30 min/day</span>
-                  </li>
-                  <li className="flex items-start space-x-2">
-                    <ChevronRight
-                      size={14}
-                      className="text-cyan-400 mt-0.5 flex-shrink-0"
-                    />
-                    <span>Consider support group enrollment</span>
-                  </li>
-                </ul>
+                {recommendations.length === 0 ? (
+                  <EmptyBlock>No recommendations recorded.</EmptyBlock>
+                ) : (
+                  <ul className="space-y-2 text-sm text-slate-300">
+                    {recommendations.map((item, idx) => (
+                      <li key={idx} className="flex items-start space-x-2">
+                        <ChevronRight
+                          size={14}
+                          className="text-cyan-400 mt-0.5 flex-shrink-0"
+                        />
+                        <span>
+                          {typeof item === "string" ? item : item.text || ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           </div>
