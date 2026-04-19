@@ -106,6 +106,10 @@ import {
   acceptPatientRequest,
   rejectPatientRequest,
   getClinicianConsultations,
+  createConsultationSession,
+  updateConsultationStatus,
+  sendSignalingData,
+  subscribeToSignalingData,
 } from "../../services/userService";
 import {
   formatDate,
@@ -161,6 +165,12 @@ const Dashboard = ({ user, onLogout }) => {
   const remoteVideoRef = useRef(null);
   const localStreamRef = useRef(null);
   const callTimerRef = useRef(null);
+  // WebRTC refs
+  const pcRef = useRef(null);
+  const sessionIdRef = useRef(null);
+  const unsubSignalsRef = useRef(null);
+  const seenSignalsRef = useRef(new Set());
+  const pendingCandidatesRef = useRef([]);
 
   // Treatment Notes State
   const [treatmentNotes, setTreatmentNotes] = useState("");
@@ -349,50 +359,185 @@ setSelectedPatientForDT(prev => ({
     }
   };
 
-  // --- VIDEO CONSULTATION FUNCTIONS ---
+  // --- VIDEO CONSULTATION (Clinician = INITIATOR) ---
+  const ICE_SERVERS = {
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+    ],
+  };
+
   const startVideoCall = async () => {
+    if (!selectedPatientDetails?.id) {
+      alert("Select a patient before starting a consultation.");
+      return;
+    }
     try {
       setCallStatus("connecting");
       setShowVideoCall(true);
-      
-      // Get user media
+      seenSignalsRef.current = new Set();
+      pendingCandidatesRef.current = [];
+
+      // 1. Get user media
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
-      
       localStreamRef.current = stream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
-      
-      setCallStatus("connected");
-      
-      // Start call timer
-      callTimerRef.current = setInterval(() => {
-        setCallDuration(prev => prev + 1);
-      }, 1000);
-      
+
+      // 2. Create the consultation session in Firestore (status: waiting)
+      const session = await createConsultationSession(
+        user.uid,
+        selectedPatientDetails.id,
+        null
+      );
+      sessionIdRef.current = session.id;
+      console.log("Consultation session created:", session.id);
+
+      // 3. Create peer connection
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      pcRef.current = pc;
+
+      // Add local tracks
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      // Remote stream arrives here
+      pc.ontrack = (event) => {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+        }
+        setCallStatus("connected");
+        if (!callTimerRef.current) {
+          callTimerRef.current = setInterval(() => {
+            setCallDuration((prev) => prev + 1);
+          }, 1000);
+        }
+        if (sessionIdRef.current) {
+          updateConsultationStatus(sessionIdRef.current, "active").catch(
+            (e) => console.warn("Could not mark session active:", e)
+          );
+        }
+      };
+
+      // Ship local ICE candidates to the patient via Firestore
+      pc.onicecandidate = (event) => {
+        if (event.candidate && sessionIdRef.current) {
+          sendSignalingData(
+            sessionIdRef.current,
+            "ice-candidate",
+            event.candidate.toJSON(),
+            user.uid
+          ).catch((e) => console.warn("Failed to send ICE:", e));
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log("PC state:", pc.connectionState);
+        if (
+          pc.connectionState === "failed" ||
+          pc.connectionState === "disconnected"
+        ) {
+          console.warn("Peer connection lost:", pc.connectionState);
+        }
+      };
+
+      // 4. Subscribe to incoming signals from the patient (answer + ICE)
+      unsubSignalsRef.current = subscribeToSignalingData(
+        session.id,
+        user.uid,
+        async (signal) => {
+          if (seenSignalsRef.current.has(signal.id)) return;
+          seenSignalsRef.current.add(signal.id);
+
+          try {
+            if (signal.type === "answer") {
+              if (pc.signalingState === "have-local-offer") {
+                await pc.setRemoteDescription(
+                  new RTCSessionDescription(signal.data)
+                );
+                // Drain any ICE candidates that arrived before the answer
+                for (const c of pendingCandidatesRef.current) {
+                  try {
+                    await pc.addIceCandidate(new RTCIceCandidate(c));
+                  } catch (e) {
+                    console.warn("Pending ICE add failed:", e);
+                  }
+                }
+                pendingCandidatesRef.current = [];
+              }
+            } else if (signal.type === "ice-candidate") {
+              if (pc.remoteDescription) {
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(signal.data));
+                } catch (e) {
+                  console.warn("addIceCandidate failed:", e);
+                }
+              } else {
+                pendingCandidatesRef.current.push(signal.data);
+              }
+            }
+          } catch (e) {
+            console.error("Signal handling error:", e);
+          }
+        }
+      );
+
+      // 5. Create and send the offer
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await sendSignalingData(
+        session.id,
+        "offer",
+        { type: offer.type, sdp: offer.sdp },
+        user.uid
+      );
+      console.log("Offer sent. Waiting for patient to answer…");
     } catch (error) {
       console.error("Error starting video call:", error);
       setCallStatus("idle");
-      alert("Could not access camera/microphone. Please check permissions.");
+      alert(
+        error.name === "NotAllowedError"
+          ? "Camera/microphone access denied. Please allow access and try again."
+          : "Could not start call: " + (error.message || "Unknown error")
+      );
+      await endVideoCall();
     }
   };
 
-  const endVideoCall = () => {
-    // Stop all tracks
+  const endVideoCall = async () => {
+    // Unsubscribe from signals
+    if (unsubSignalsRef.current) {
+      try { unsubSignalsRef.current(); } catch {}
+      unsubSignalsRef.current = null;
+    }
+    // Close peer connection
+    if (pcRef.current) {
+      try { pcRef.current.close(); } catch {}
+      pcRef.current = null;
+    }
+    // Mark the session ended in Firestore
+    if (sessionIdRef.current) {
+      try { await updateConsultationStatus(sessionIdRef.current, "ended"); } catch {}
+      sessionIdRef.current = null;
+    }
+    // Stop local tracks
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
     }
-    
     // Clear timer
     if (callTimerRef.current) {
       clearInterval(callTimerRef.current);
       callTimerRef.current = null;
     }
-    
+
+    seenSignalsRef.current = new Set();
+    pendingCandidatesRef.current = [];
+
     setShowVideoCall(false);
     setCallStatus("idle");
     setCallDuration(0);

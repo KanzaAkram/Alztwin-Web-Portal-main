@@ -11,6 +11,7 @@ import {
   getDocs,
   deleteDoc,
   addDoc,
+  onSnapshot,
 } from "firebase/firestore";
 
 /**
@@ -794,6 +795,39 @@ export const sendSignalingData = async (sessionId, type, data, fromUserId) => {
  * @param {string} sessionId - Session ID
  * @param {string} forUserId - User ID to get signals for (not from)
  */
+/**
+ * Realtime subscription to WebRTC signals for a session.
+ * Invokes `onSignal` with every NEW signal from the other party (filters out own).
+ * Returns an unsubscribe function.
+ */
+export const subscribeToSignalingData = (sessionId, forUserId, onSignal) => {
+  const q = query(
+    collection(db, "webrtc_signals"),
+    where("sessionId", "==", sessionId)
+  );
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type !== "added") return;
+      const data = change.doc.data();
+      if (!data || data.fromUserId === forUserId) return;
+      let parsed = data.data;
+      try {
+        parsed = typeof data.data === "string" ? JSON.parse(data.data) : data.data;
+      } catch (e) {
+        console.warn("Invalid signal payload:", e);
+        return;
+      }
+      onSignal({
+        id: change.doc.id,
+        type: data.type,
+        fromUserId: data.fromUserId,
+        data: parsed,
+      });
+    });
+  });
+  return unsubscribe;
+};
+
 export const getSignalingData = async (sessionId, forUserId) => {
   try {
     const q = query(
@@ -852,4 +886,5 @@ export default {
   updateConsultationStatus,
   sendSignalingData,
   getSignalingData,
+  subscribeToSignalingData,
 };
