@@ -2,23 +2,17 @@
  * Dashboard configuration and shared utilities
  */
 
-const isDev = import.meta.env?.DEV;
-
-export const API_STAGE_URL = isDev
-  ? "/api/stage"
-  : "https://currentstagepredictionalztwin-d0dug2cmffeqfpa2.uaenorth-01.azurewebsites.net/predict";
-export const API_PROGRESSION_URL = isDev
-  ? "/api/progression"
-  : "https://trajectoryprogressionprediction-fpc8f8b9gqd3ggcm.uaenorth-01.azurewebsites.net/predict";
-export const API_3D_MODEL_URL = isDev
-  ? "/api/brain"
-  : "https://alztwin-brain-api.azurewebsites.net";
+// All API calls go through relative /api/* paths.
+// In dev, Vite proxy (vite.config.js) forwards to the real Azure hosts.
+// In prod, Vercel rewrites (vercel.json) forward to the real Azure hosts.
+// This keeps the browser same-origin so CORS never applies.
+export const API_STAGE_URL = "/api/stage";
+export const API_PROGRESSION_URL = "/api/progression";
+export const API_3D_MODEL_URL = "/api/brain";
 
 export const RAG_FUNCTION_CODE =
   "gqkqEhgGIuKrDBnE8MolPCcN2Uq-_WoGbeD-w2gz2qLNAzFuAGSKug==";
-export const API_RAG_URL = isDev
-  ? `/api/rag/recommend?code=${RAG_FUNCTION_CODE}`
-  : `https://func-alztwin-proto.azurewebsites.net/api/recommend?code=${RAG_FUNCTION_CODE}`;
+export const API_RAG_URL = `/api/rag/recommend?code=${RAG_FUNCTION_CODE}`;
 
 export const RAG_STAGE_FROM_LEVEL = ["normal", "mild", "moderate", "severe"];
 export const mapStageToRag = (currentStage, stageLevel) => {
