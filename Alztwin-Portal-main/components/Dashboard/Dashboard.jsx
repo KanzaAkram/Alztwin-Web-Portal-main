@@ -99,6 +99,7 @@ import {
   doc,
   updateDoc,
   arrayUnion,
+  where,
 } from "firebase/firestore";
 import {
   getClinicianPendingRequests,
@@ -165,6 +166,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [callNotes, setCallNotes] = useState("");
   const [showPatientPanel, setShowPatientPanel] = useState(true);
   const [copiedSessionId, setCopiedSessionId] = useState(false);
+  const [currentRoomId, setCurrentRoomId] = useState(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -172,6 +174,7 @@ const Dashboard = ({ user, onLogout }) => {
   // WebRTC refs
   const pcRef = useRef(null);
   const sessionIdRef = useRef(null);
+  const roomIdRef = useRef(null);
   const unsubSignalsRef = useRef(null);
   const seenSignalsRef = useRef(new Set());
   const pendingCandidatesRef = useRef([]);
@@ -372,6 +375,7 @@ setSelectedPatientForDT(prev => ({
     ],
   };
 
+  // Clinician joins an EXISTING waiting session created by the caregiver (answerer role)
   const startVideoCall = async () => {
     if (!selectedPatientDetails?.id) {
       alert("Select a patient before starting a consultation.");
@@ -383,7 +387,38 @@ setSelectedPatientForDT(prev => ({
       seenSignalsRef.current = new Set();
       pendingCandidatesRef.current = [];
 
-      // 1. Get user media
+      // 1. Find the most recent "waiting" session for this patient initiated by caregiver
+      const q = query(
+        collection(db, "consultation_sessions"),
+        where("clinicianId", "==", user.uid),
+        where("patientId", "==", selectedPatientDetails.id),
+        where("status", "==", "waiting")
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        alert(
+          "No incoming call from this patient. Ask the caregiver to start the call from the mobile app first — their app creates the session, you join it."
+        );
+        setCallStatus("idle");
+        setShowVideoCall(false);
+        return;
+      }
+      // Pick the newest (in case there are stale ones)
+      const docs = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      const session = docs[0];
+      sessionIdRef.current = session.id;
+      roomIdRef.current = session.roomId || null;
+      setCurrentRoomId(session.roomId || null);
+      console.log(
+        "Joining existing waiting session:",
+        session.id,
+        "room:",
+        session.roomId
+      );
+
+      // 2. Get user media
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
@@ -393,23 +428,11 @@ setSelectedPatientForDT(prev => ({
         localVideoRef.current.srcObject = stream;
       }
 
-      // 2. Create the consultation session in Firestore (status: waiting)
-      const session = await createConsultationSession(
-        user.uid,
-        selectedPatientDetails.id,
-        null
-      );
-      sessionIdRef.current = session.id;
-      console.log("Consultation session created:", session.id);
-
       // 3. Create peer connection
       const pc = new RTCPeerConnection(ICE_SERVERS);
       pcRef.current = pc;
-
-      // Add local tracks
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      // Remote stream arrives here
       pc.ontrack = (event) => {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = event.streams[0];
@@ -427,7 +450,6 @@ setSelectedPatientForDT(prev => ({
         }
       };
 
-      // Ship local ICE candidates to the patient via Firestore
       pc.onicecandidate = (event) => {
         if (event.candidate && sessionIdRef.current) {
           sendSignalingData(
@@ -442,15 +464,11 @@ setSelectedPatientForDT(prev => ({
       pc.onconnectionstatechange = () => {
         console.log("PC state:", pc.connectionState);
         setPeerConnState(pc.connectionState);
-        if (
-          pc.connectionState === "failed" ||
-          pc.connectionState === "disconnected"
-        ) {
-          console.warn("Peer connection lost:", pc.connectionState);
-        }
       };
 
-      // 4. Subscribe to incoming signals from the patient (answer + ICE)
+      // 4. Subscribe to signals from the caregiver (offer + ICE)
+      // onSnapshot delivers any already-written docs as initial "added" events,
+      // so if caregiver has already sent offer + ICE they will arrive immediately.
       unsubSignalsRef.current = subscribeToSignalingData(
         session.id,
         user.uid,
@@ -459,21 +477,29 @@ setSelectedPatientForDT(prev => ({
           seenSignalsRef.current.add(signal.id);
 
           try {
-            if (signal.type === "answer") {
-              if (pc.signalingState === "have-local-offer") {
-                await pc.setRemoteDescription(
-                  new RTCSessionDescription(signal.data)
-                );
-                // Drain any ICE candidates that arrived before the answer
-                for (const c of pendingCandidatesRef.current) {
-                  try {
-                    await pc.addIceCandidate(new RTCIceCandidate(c));
-                  } catch (e) {
-                    console.warn("Pending ICE add failed:", e);
-                  }
-                }
-                pendingCandidatesRef.current = [];
+            if (signal.type === "offer") {
+              if (pc.signalingState !== "stable" && pc.signalingState !== "have-remote-offer") {
+                console.warn("Unexpected signaling state for offer:", pc.signalingState);
               }
+              await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              await sendSignalingData(
+                session.id,
+                "answer",
+                { type: answer.type, sdp: answer.sdp },
+                user.uid
+              );
+              // Drain queued ICE candidates that arrived before the offer
+              for (const c of pendingCandidatesRef.current) {
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(c));
+                } catch (e) {
+                  console.warn("Pending ICE add failed:", e);
+                }
+              }
+              pendingCandidatesRef.current = [];
+              console.log("Answer sent to caregiver.");
             } else if (signal.type === "ice-candidate") {
               if (pc.remoteDescription) {
                 try {
@@ -491,23 +517,14 @@ setSelectedPatientForDT(prev => ({
         }
       );
 
-      // 5. Create and send the offer
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      await sendSignalingData(
-        session.id,
-        "offer",
-        { type: offer.type, sdp: offer.sdp },
-        user.uid
-      );
-      console.log("Offer sent. Waiting for patient to answer…");
+      console.log("Listening for caregiver offer on session", session.id);
     } catch (error) {
-      console.error("Error starting video call:", error);
+      console.error("Error joining video call:", error);
       setCallStatus("idle");
       alert(
         error.name === "NotAllowedError"
           ? "Camera/microphone access denied. Please allow access and try again."
-          : "Could not start call: " + (error.message || "Unknown error")
+          : "Could not join call: " + (error.message || "Unknown error")
       );
       await endVideoCall();
     }
@@ -553,6 +570,8 @@ setSelectedPatientForDT(prev => ({
 
     seenSignalsRef.current = new Set();
     pendingCandidatesRef.current = [];
+    roomIdRef.current = null;
+    setCurrentRoomId(null);
 
     setShowVideoCall(false);
     setCallStatus("idle");
@@ -1532,16 +1551,27 @@ const handleViewPatient = async (patientId) => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {sessionIdRef.current && (
+                    {currentRoomId && (
                       <button
-                        onClick={copySessionId}
-                        title="Copy session ID"
-                        className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg bg-slate-800/60 hover:bg-slate-700 border border-slate-700 transition-colors"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(currentRoomId).catch(() => {});
+                          setCopiedSessionId(true);
+                          setTimeout(() => setCopiedSessionId(false), 1500);
+                        }}
+                        title={`Room: ${currentRoomId} — click to copy`}
+                        className="group flex items-center space-x-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 transition-colors"
                       >
-                        <Clipboard size={12} />
-                        <span className="font-mono">
-                          {copiedSessionId ? "Copied" : sessionIdRef.current.slice(0, 8) + "…"}
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="uppercase tracking-wider text-[10px] opacity-70">
+                          Room
                         </span>
+                        <span className="font-mono font-semibold">
+                          {copiedSessionId ? "Copied ✓" : currentRoomId}
+                        </span>
+                        <Clipboard
+                          size={11}
+                          className="opacity-0 group-hover:opacity-70 transition-opacity"
+                        />
                       </button>
                     )}
                     <button
@@ -1584,8 +1614,8 @@ const handleViewPatient = async (patientId) => {
                           <p className="text-slate-400 text-sm mb-5">
                             {callStatus === "connecting"
                               ? sessionIdRef.current
-                                ? "Waiting for patient to join from their mobile app…"
-                                : "Starting camera…"
+                                ? "Joined — waiting for caregiver's stream to arrive…"
+                                : "Looking for incoming call…"
                               : "Disconnected"}
                           </p>
                           {callStatus === "connecting" && (
