@@ -18,6 +18,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import ThreeBrainView from "../ThreeBrainView";
+import RagRecommendationPanel from "../RagRecommendationPanel";
 
 const STAGE_LADDER = [
   { stage: "Normal", color: "green" },
@@ -581,6 +582,9 @@ export default function DigitalTwinSection({
               </div>
             </div>
           </div>
+
+          {/* RAG-powered Clinician Recommendation */}
+          <RagRecommendationPanel patient={selectedPatientForDT} />
         </>
       ) : (
         <div className="bg-gradient-to-br from-slate-900 via-purple-900/10 to-slate-900 border border-purple-500/20 rounded-xl p-16 text-center">

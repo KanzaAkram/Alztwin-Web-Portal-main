@@ -1,5 +1,5 @@
 import React from "react";
-import { Eye } from "lucide-react";
+import { Eye, Brain, Clock } from "lucide-react";
 import { getRiskColor } from "../config";
 
 export default function PatientsSection({
@@ -61,9 +61,11 @@ export default function PatientsSection({
             <thead className="bg-slate-800/50 text-xs uppercase text-slate-400 font-medium">
               <tr>
                 <th className="px-5 py-3 text-left">Patient</th>
-                <th className="px-5 py-3 text-left">Diagnosis</th>
+                <th className="px-5 py-3 text-left">AI Diagnosis</th>
+                <th className="px-5 py-3 text-left">Stage</th>
                 <th className="px-5 py-3 text-left">Risk</th>
-                <th className="px-5 py-3 text-left">Last Scan</th>
+                <th className="px-5 py-3 text-left">Confidence</th>
+                <th className="px-5 py-3 text-left">Last Analyzed</th>
                 <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -89,8 +91,48 @@ export default function PatientsSection({
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-slate-300 text-sm">
-                      {patient.diagnosis}
+                    <td className="px-5 py-4 text-sm">
+                      {patient.lastAnalysisAt ? (
+                        <div className="flex items-center space-x-2">
+                          <Brain size={14} className="text-blue-400" />
+                          <span className="text-white font-medium">
+                            {patient.diagnosis}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-yellow-400/80 italic text-xs">
+                          Pending AI Analysis
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      {typeof patient.stageLevel === "number" ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="h-1.5 w-16 bg-slate-700 rounded-full flex overflow-hidden">
+                            {[0, 1, 2, 3].map((step) => (
+                              <div
+                                key={step}
+                                className={`flex-1 border-r border-slate-900 last:border-0 ${
+                                  step <= patient.stageLevel
+                                    ? step >= 3
+                                      ? "bg-red-500"
+                                      : step >= 2
+                                      ? "bg-orange-400"
+                                      : step >= 1
+                                      ? "bg-yellow-400"
+                                      : "bg-green-400"
+                                    : ""
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs text-slate-400">
+                            {patient.stageLevel}/3
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-600 text-xs">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <span
@@ -99,10 +141,34 @@ export default function PatientsSection({
                         )}`}
                       >
                         {patient.riskLevel.toUpperCase()}
+                        {typeof patient.riskScore === "number" &&
+                          patient.riskScore > 0 && (
+                            <span className="ml-1 opacity-70">
+                              {patient.riskScore}%
+                            </span>
+                          )}
                       </span>
                     </td>
+                    <td className="px-5 py-4 text-sm">
+                      {patient.aiConfidence != null ? (
+                        <span className="text-slate-200 font-medium">
+                          {(patient.aiConfidence * 100).toFixed(1)}%
+                        </span>
+                      ) : (
+                        <span className="text-slate-600 text-xs">—</span>
+                      )}
+                    </td>
                     <td className="px-5 py-4 text-slate-400 text-sm">
-                      {patient.lastScan}
+                      {patient.lastAnalysisAt ? (
+                        <div className="flex items-center space-x-1">
+                          <Clock size={12} className="text-slate-500" />
+                          <span>{patient.lastAnalysisAt}</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-600 text-xs">
+                          {patient.lastScan}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-right">
                       <button
@@ -117,7 +183,7 @@ export default function PatientsSection({
               ) : (
                 <tr>
                   <td
-                    colSpan="5"
+                    colSpan="7"
                     className="p-8 text-center text-slate-500"
                   >
                     No patients found.

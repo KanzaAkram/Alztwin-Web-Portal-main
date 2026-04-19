@@ -89,7 +89,17 @@ import {
 } from "lucide-react";
 // --- FIREBASE IMPORTS ---
 import { db } from "../../firebase";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  query,
+  orderBy,
+  serverTimestamp,
+  doc,
+  updateDoc,
+  arrayUnion,
+} from "firebase/firestore";
 import {
   getClinicianPendingRequests,
   getClinicianAllRequests,
@@ -103,7 +113,10 @@ import {
   API_STAGE_URL,
   API_PROGRESSION_URL,
   API_3D_MODEL_URL,
+  STAGE_LEVEL_MAP,
+  deriveRiskFromStage,
 } from "./config";
+import MriComparisonCharts from "./MriComparisonCharts";
 import DashboardSidebar from "./DashboardSidebar";
 import DashboardTopBar from "./DashboardTopBar";
 import RequestsSection from "./sections/RequestsSection";
@@ -128,6 +141,10 @@ const Dashboard = ({ user, onLogout }) => {
   // Modal/Detail State
   const [selectedPatientDetails, setSelectedPatientDetails] = useState(null);
   const [showPatientModal, setShowPatientModal] = useState(false);
+
+  // AI Analysis History State
+  const [aiHistory, setAiHistory] = useState([]); // All past runs, newest first
+  const [compareWithId, setCompareWithId] = useState(null); // Selected prior run to compare against
   
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -247,6 +264,10 @@ const Dashboard = ({ user, onLogout }) => {
           recommendations: Array.isArray(data.recommendations) ? data.recommendations : [],
           predictedDecline: data.predictedDecline || null,
           trajectoryMonths: data.trajectoryMonths || null,
+          aiConfidence: data.aiConfidence ?? null,
+          lastAnalysisAt: data.lastAnalysisAt
+            ? formatDate(data.lastAnalysisAt)
+            : null,
 
           // 3. Pass the full array. We will process base64Data in handleViewPatient
           mriScans: data.mriScans || []
@@ -446,6 +467,23 @@ const handleViewPatient = async (patientId) => {
       let patientData = patients.find(p => p.id === patientId);
       if (!patientData) return;
 
+      // Fetch AI analysis history for this patient (newest first)
+      let history = [];
+      try {
+        const historySnap = await getDocs(
+          query(
+            collection(db, "patients", patientId, "aiAnalyses"),
+            orderBy("createdAt", "desc")
+          )
+        );
+        historySnap.forEach((d) => history.push({ id: d.id, ...d.data() }));
+      } catch (e) {
+        console.warn("Could not load AI history:", e);
+      }
+      setAiHistory(history);
+      setCompareWithId(null);
+      const latestAnalysis = history[0] || null;
+
       // A. Extract Latest Vitals (with dummy fallback values)
       // Dummy values for demo purposes when no real device data exists
       const dummyVitals = {
@@ -511,11 +549,23 @@ const handleViewPatient = async (patientId) => {
         activityLevel: patientData.activityLevel || `${Math.floor(3000 + Math.random() * 5000)} steps`
       };
 
-      // C. Set State
+      // C. Set State — prefer stored AI analysis values over dummy placeholders
+      const aiSeed = latestAnalysis
+        ? {
+            currentStage: latestAnalysis.currentStage,
+            stageLevel: latestAnalysis.stageLevel,
+            predictedDecline: latestAnalysis.predictedDecline,
+            trajectoryMonths: latestAnalysis.trajectoryMonths,
+            inferenceText: latestAnalysis.inferenceText,
+            trajInference: latestAnalysis.trajInference,
+          }
+        : {};
+
       setSelectedPatientDetails({
         ...patientData,
         ...latestVitals,
         ...dummyClinicalData,
+        ...aiSeed,
         mriScans: processedScans,
         medications: patientData.medications || ["Donepezil 10mg", "Memantine 20mg"]
       });
@@ -583,29 +633,93 @@ const handleViewPatient = async (patientId) => {
           ? nextStagesList.join(" -> ") 
           : "Stable";
 
-      // C. Calculate Stage Level for Progress Bar (0-3 scale)
-      const stageMap = {
-          "CN": 0, "Normal": 0, "SMC": 0,
-          "EMCI": 1, "MCI": 1, 
-          "LMCI": 2, "Mild": 2,
-          "AD": 3, "Severe": 3
-      };
-      
-      // Default to 0 if unknown
-      const stageLevelIndex = stageMap[currentStage] !== undefined ? stageMap[currentStage] : 0;
+      // C. Calculate Stage Level + derive Risk from stage + confidence
+      const stageLevelIndex =
+        STAGE_LEVEL_MAP[currentStage] !== undefined ? STAGE_LEVEL_MAP[currentStage] : 0;
+      const confidence = stageRes.data.confidence ?? 1;
+      const { riskLevel, riskScore } = deriveRiskFromStage(currentStage, confidence);
 
-      // 4. UPDATE UI
+      // 4. UPDATE UI (modal + registry row)
       setSelectedPatientDetails(prev => ({
         ...prev,
-        currentStage: currentStage, 
-        stageLevel: stageLevelIndex, 
-        predictedDecline: predictedDecline,
-        inferenceText: inferenceText,
-        trajInference:trajInference,
-        
-        // Progression API doesn't output time, so we keep the estimate
-        trajectoryMonths: "12 (Est.)" 
+        currentStage,
+        stageLevel: stageLevelIndex,
+        predictedDecline,
+        inferenceText,
+        trajInference,
+        riskLevel,
+        riskScore,
+        diagnosis: currentStage,
+        aiConfidence: confidence,
+        lastAnalysisAt: new Date().toLocaleString(),
+        trajectoryMonths: "12 (Est.)"
       }));
+
+      // Also refresh the registry row so "Pending Analysis" → new stage, risk updates etc.
+      setPatients(prev => prev.map(p =>
+        p.id === selectedPatientDetails.id
+          ? {
+              ...p,
+              diagnosis: currentStage,
+              riskLevel,
+              riskScore,
+              stageLevel: stageLevelIndex,
+              aiConfidence: confidence,
+              lastAnalysisAt: new Date().toLocaleString(),
+            }
+          : p
+      ));
+
+      // 5. PERSIST RESULT TO FIRESTORE (patients/{id}/aiAnalyses/{autoId})
+      try {
+        const record = {
+          createdAt: serverTimestamp(),
+          clinicianId: user?.uid || null,
+          currentStage,
+          stageLevel: stageLevelIndex,
+          predictedDecline,
+          trajectoryMonths: "12 (Est.)",
+          inferenceText: inferenceText || null,
+          trajInference: trajInference || null,
+          stageApi: {
+            stage: stageRes.data.stage || null,
+            confidence: stageRes.data.confidence ?? null,
+            details: stageRes.data.details || null,
+            explanation: stageRes.data.explanation || null,
+          },
+          progressionApi: {
+            next_stage_prediction: nextStagesList,
+            explanation: progRes.data.explanation || null,
+          },
+          scanRef: {
+            type: latestScan?.fileType || null,
+            uploadedAt: latestScan?.uploadedAt || null,
+          },
+        };
+        const docRef = await addDoc(
+          collection(db, "patients", selectedPatientDetails.id, "aiAnalyses"),
+          record
+        );
+        // Prepend to in-memory history (createdAt will fill in after refresh, use local Date for display)
+        setAiHistory(prev => [
+          { id: docRef.id, ...record, createdAt: { seconds: Math.floor(Date.now() / 1000) } },
+          ...prev,
+        ]);
+
+        // Update the patient document so the registry persists across reloads
+        await updateDoc(doc(db, "patients", selectedPatientDetails.id), {
+          diagnosis: currentStage,
+          riskLevel,
+          riskScore,
+          stageLevel: stageLevelIndex,
+          predictedDecline,
+          trajectoryMonths: "12 (Est.)",
+          aiConfidence: confidence,
+          lastAnalysisAt: serverTimestamp(),
+        });
+      } catch (saveErr) {
+        console.error("Failed to save AI analysis to Firestore:", saveErr);
+      }
 
     } catch (error) {
       console.error("AI Analysis Error:", error);
@@ -651,37 +765,51 @@ const handleViewPatient = async (patientId) => {
       try {
         const base64String = reader.result; // Contains "data:image/png;base64,..."
 
-        // 2. Prepare Payload
-        const payload = {
-          patientId: selectedPatientDetails.id,
+        // 2. Build the record to persist (matches mobile app schema)
+        const uploadedAt = new Date().toISOString();
+        const scanRecord = {
           fileName: file.name,
-          fileType: "DICOM",
-          base64Data: base64String, // Send the string to API
-          uploadedAt: new Date().toISOString()
+          fileType: file.name.toLowerCase().endsWith(".dcm") ? "DICOM" : "IMAGE",
+          base64Data: base64String,
+          uploadedAt,
+          uploadedBy: user?.uid || "clinician",
+          uploadSource: "clinician_portal",
         };
 
-        // 3. Send to API
-        // await axios.post(API_UPLOAD_URL, payload); 
-        
-        // --- SIMULATE API CALL (Remove timeout and uncomment above line in production) ---
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        console.log("File sent to API:", payload);
-        // --------------------------------------------------------------------------------
+        // 3. Persist to Firestore: append to patient doc mriScans[] and also write to subcollection
+        await updateDoc(doc(db, "patients", selectedPatientDetails.id), {
+          mriScans: arrayUnion(scanRecord),
+        });
+        try {
+          await addDoc(
+            collection(db, "patients", selectedPatientDetails.id, "mriScans"),
+            { ...scanRecord, createdAt: serverTimestamp() }
+          );
+        } catch (e) {
+          console.warn("Subcollection write failed (non-blocking):", e);
+        }
 
-        // 4. Update UI "At Real Time" (Add new scan to the list immediately)
+        // 4. Update UI immediately (local mriScans gets processed shape)
         const newScan = {
           date: new Date().toLocaleDateString(),
-          url: base64String, // Display immediate preview
-          type: "DICOM",
-          base64Data: base64String
+          url: base64String,
+          type: scanRecord.fileType,
+          base64Data: base64String,
+          uploadedAt,
         };
 
         setSelectedPatientDetails(prev => ({
           ...prev,
-          mriScans: [newScan, ...prev.mriScans] // Add to top of list
+          mriScans: [newScan, ...(prev.mriScans || [])]
         }));
+        // Also refresh the registry-list patient row
+        setPatients(prev => prev.map(p =>
+          p.id === selectedPatientDetails.id
+            ? { ...p, mriScans: [scanRecord, ...(p.mriScans || [])], lastScan: formatDate(uploadedAt) }
+            : p
+        ));
 
-        alert("MRI Scan uploaded and sent to API successfully!");
+        alert("MRI Scan saved to Firestore successfully!");
 
       } catch (error) {
         console.error("Upload failed:", error);
@@ -989,8 +1117,154 @@ const handleViewPatient = async (patientId) => {
     </div>
   )}
 
-                          
+
                        </div>
+
+{/* MRI Scan Comparison Charts */}
+<MriComparisonCharts aiHistory={aiHistory} />
+
+{/* AI Analysis History & Comparison */}
+<div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
+  <div className="flex items-center justify-between mb-4">
+    <h3 className="text-white font-semibold flex items-center">
+      <History className="mr-2 text-cyan-400" size={20}/>
+      Analysis History
+      <span className="ml-2 text-xs text-slate-400 font-normal">
+        ({aiHistory.length} {aiHistory.length === 1 ? "run" : "runs"})
+      </span>
+    </h3>
+    {aiHistory.length > 1 && (
+      <select
+        value={compareWithId || ""}
+        onChange={(e) => setCompareWithId(e.target.value || null)}
+        className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1"
+      >
+        <option value="">Compare with…</option>
+        {aiHistory.slice(1).map((h) => (
+          <option key={h.id} value={h.id}>
+            {formatDate(h.createdAt)} — {h.currentStage}
+          </option>
+        ))}
+      </select>
+    )}
+  </div>
+
+  {aiHistory.length === 0 ? (
+    <p className="text-sm text-slate-500 italic">
+      No previous AI analyses. Run a diagnostic to create the first record.
+    </p>
+  ) : (
+    <>
+      {/* History list */}
+      <div className="space-y-2 max-h-48 overflow-y-auto mb-4">
+        {aiHistory.map((h, idx) => (
+          <div
+            key={h.id}
+            className={`p-3 rounded-lg border text-sm flex justify-between items-center ${
+              idx === 0
+                ? "bg-blue-500/10 border-blue-500/30"
+                : compareWithId === h.id
+                ? "bg-purple-500/10 border-purple-500/30"
+                : "bg-slate-800/50 border-slate-700"
+            }`}
+          >
+            <div>
+              <p className="text-white font-medium">
+                {h.currentStage}
+                {idx === 0 && (
+                  <span className="ml-2 text-[10px] uppercase tracking-wider text-blue-400 font-bold">
+                    Latest
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-slate-400">
+                {formatDate(h.createdAt)} · Decline:{" "}
+                {h.predictedDecline || "—"} · Conf:{" "}
+                {h.stageApi?.confidence != null
+                  ? `${(h.stageApi.confidence * 100).toFixed(1)}%`
+                  : "—"}
+              </p>
+            </div>
+            {idx !== 0 && (
+              <button
+                onClick={() =>
+                  setCompareWithId(compareWithId === h.id ? null : h.id)
+                }
+                className="text-xs px-2 py-1 rounded border border-purple-500/40 text-purple-300 hover:bg-purple-500/10"
+              >
+                {compareWithId === h.id ? "Clear" : "Compare"}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Side-by-side comparison */}
+      {compareWithId && aiHistory[0] && (() => {
+        const prev = aiHistory.find((h) => h.id === compareWithId);
+        const curr = aiHistory[0];
+        if (!prev) return null;
+        const Row = ({ label, a, b }) => (
+          <div className="grid grid-cols-3 gap-2 py-2 border-b border-slate-700/50 text-sm">
+            <span className="text-slate-400">{label}</span>
+            <span className="text-slate-300">{a ?? "—"}</span>
+            <span className="text-white font-medium">{b ?? "—"}</span>
+          </div>
+        );
+        const stageChanged = prev.currentStage !== curr.currentStage;
+        return (
+          <div className="bg-slate-900/60 border border-slate-700 rounded-lg p-4">
+            <div className="grid grid-cols-3 gap-2 pb-2 border-b border-slate-700 text-xs uppercase tracking-wider">
+              <span className="text-slate-500">Metric</span>
+              <span className="text-purple-400">
+                Previous ({formatDate(prev.createdAt)})
+              </span>
+              <span className="text-blue-400">
+                Latest ({formatDate(curr.createdAt)})
+              </span>
+            </div>
+            <Row label="Stage" a={prev.currentStage} b={curr.currentStage} />
+            <Row
+              label="Stage Level"
+              a={prev.stageLevel}
+              b={curr.stageLevel}
+            />
+            <Row
+              label="Confidence"
+              a={
+                prev.stageApi?.confidence != null
+                  ? `${(prev.stageApi.confidence * 100).toFixed(1)}%`
+                  : null
+              }
+              b={
+                curr.stageApi?.confidence != null
+                  ? `${(curr.stageApi.confidence * 100).toFixed(1)}%`
+                  : null
+              }
+            />
+            <Row
+              label="Decline Rate"
+              a={prev.predictedDecline}
+              b={curr.predictedDecline}
+            />
+            <Row
+              label="Time to Next"
+              a={prev.trajectoryMonths}
+              b={curr.trajectoryMonths}
+            />
+            {stageChanged && (
+              <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-300">
+                Stage changed from <b>{prev.currentStage}</b> to{" "}
+                <b>{curr.currentStage}</b> between these runs.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+    </>
+  )}
+</div>
+
                     </div>
 
                     {/* RIGHT: MRI & Device */}

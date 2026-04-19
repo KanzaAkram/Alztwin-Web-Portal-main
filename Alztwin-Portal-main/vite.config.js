@@ -11,6 +11,34 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: "0.0.0.0",
+      proxy: {
+        "/api/stage": {
+          target:
+            "https://currentstagepredictionalztwin-d0dug2cmffeqfpa2.uaenorth-01.azurewebsites.net",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (p) => p.replace(/^\/api\/stage/, "/predict"),
+        },
+        "/api/progression": {
+          target:
+            "https://trajectoryprogressionprediction-fpc8f8b9gqd3ggcm.uaenorth-01.azurewebsites.net",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (p) => p.replace(/^\/api\/progression/, "/predict"),
+        },
+        "/api/brain": {
+          target: "https://alztwin-brain-api.azurewebsites.net",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (p) => p.replace(/^\/api\/brain/, ""),
+        },
+        "/api/rag": {
+          target: "https://func-alztwin-proto.azurewebsites.net",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (p) => p.replace(/^\/api\/rag/, "/api"),
+        },
+      },
     },
     plugins: [react()],
     define: {

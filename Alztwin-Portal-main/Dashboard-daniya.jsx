@@ -102,10 +102,10 @@ import {
 } from "../services/userService";
 
 // --- CONFIGURATION ---
-const API_STAGE_URL = "https://cors-anywhere.herokuapp.com/https://ce68-34-6-200-182.ngrok-free.app/predict"; 
+const API_STAGE_URL = "https://currentstagepredictionalztwin-d0dug2cmffeqfpa2.uaenorth-01.azurewebsites.net/predict";
 const API_PROGRESSION_URL =
-  "https://cors-anywhere.herokuapp.com/https://cedd-34-73-45-27.ngrok-free.app/predict";
-const API_3D_MODEL_URL = "https://cors-anywhere.herokuapp.com/https://integrant-freeman-inscriptively.ngrok-free.dev";
+  "https://trajectoryprogressionprediction-fpc8f8b9gqd3ggcm.uaenorth-01.azurewebsites.net/predict";
+const API_3D_MODEL_URL = "https://alztwin-brain-api.azurewebsites.net";
 const getRiskColor = (level) => {
   switch (level?.toLowerCase()) {
     case "high": return "text-red-400 bg-red-500/10 border-red-500/20";
