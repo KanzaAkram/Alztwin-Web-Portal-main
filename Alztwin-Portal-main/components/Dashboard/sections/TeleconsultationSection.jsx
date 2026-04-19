@@ -118,14 +118,21 @@ export default function TeleconsultationSection({
     });
   }, [consultations, patients]);
 
+  // Sessions older than this with no "ended" write are treated as abandoned
+  const STALE_AFTER_MS = 30 * 60 * 1000; // 30 minutes
+
+  const isLikelyStale = (c) => {
+    if (c.status !== "active" && c.status !== "waiting") return false;
+    const ref = c.when?.getTime() || c.createdAt?.getTime?.() || 0;
+    return ref > 0 && Date.now() - ref > STALE_AFTER_MS;
+  };
+
   const upcoming = useMemo(() => {
     const now = Date.now();
     return enrichedConsultations
-      .filter(
-        (c) =>
-          ["waiting", "scheduled", "active"].includes(c.status) &&
-          (!c.when || c.when.getTime() >= now - 30 * 60 * 1000)
-      )
+      .filter((c) => ["waiting", "scheduled", "active"].includes(c.status))
+      .filter((c) => !isLikelyStale(c))
+      .filter((c) => !c.when || c.when.getTime() >= now - STALE_AFTER_MS)
       .sort((a, b) => (a.when?.getTime() || 0) - (b.when?.getTime() || 0));
   }, [enrichedConsultations]);
 
@@ -183,7 +190,7 @@ export default function TeleconsultationSection({
         ? durations.reduce((a, b) => a + b, 0) / durations.length
         : null;
     const activeNow = enrichedConsultations.filter(
-      (c) => c.status === "active"
+      (c) => c.status === "active" && !isLikelyStale(c)
     ).length;
     return [
       {
