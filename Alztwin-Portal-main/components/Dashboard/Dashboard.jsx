@@ -161,6 +161,10 @@ const Dashboard = ({ user, onLogout }) => {
   const [isAudioOn, setIsAudioOn] = useState(true);
   const [callStatus, setCallStatus] = useState("idle"); // idle, connecting, connected, ended
   const [callDuration, setCallDuration] = useState(0);
+  const [peerConnState, setPeerConnState] = useState("new"); // WebRTC connection state for UI
+  const [callNotes, setCallNotes] = useState("");
+  const [showPatientPanel, setShowPatientPanel] = useState(true);
+  const [copiedSessionId, setCopiedSessionId] = useState(false);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -437,6 +441,7 @@ setSelectedPatientForDT(prev => ({
 
       pc.onconnectionstatechange = () => {
         console.log("PC state:", pc.connectionState);
+        setPeerConnState(pc.connectionState);
         if (
           pc.connectionState === "failed" ||
           pc.connectionState === "disconnected"
@@ -519,9 +524,20 @@ setSelectedPatientForDT(prev => ({
       try { pcRef.current.close(); } catch {}
       pcRef.current = null;
     }
-    // Mark the session ended in Firestore
+    // Mark the session ended in Firestore (with notes + duration)
     if (sessionIdRef.current) {
-      try { await updateConsultationStatus(sessionIdRef.current, "ended"); } catch {}
+      try {
+        await updateConsultationStatus(sessionIdRef.current, "ended");
+        if (callNotes.trim() || callDuration > 0) {
+          await updateDoc(doc(db, "consultation_sessions", sessionIdRef.current), {
+            notes: callNotes.trim() || null,
+            endedAt: serverTimestamp(),
+            durationSeconds: callDuration,
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to finalize session:", e);
+      }
       sessionIdRef.current = null;
     }
     // Stop local tracks
@@ -541,6 +557,8 @@ setSelectedPatientForDT(prev => ({
     setShowVideoCall(false);
     setCallStatus("idle");
     setCallDuration(0);
+    setPeerConnState("new");
+    setCallNotes("");
     setIsVideoOn(true);
     setIsAudioOn(true);
   };
@@ -1460,154 +1478,309 @@ const handleViewPatient = async (patientId) => {
           )}
 
           {/* === VIDEO CONSULTATION MODAL === */}
-          {showVideoCall && (
-            <div className="fixed inset-0 bg-slate-950 z-[60] flex flex-col">
-              {/* Video Call Header */}
-              <div className="flex items-center justify-between p-4 bg-slate-900/90 backdrop-blur-sm border-b border-slate-800">
-                <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
-                    {selectedPatientDetails?.avatar || "P"}
-                  </div>
-                  <div>
-                    <h3 className="text-white font-semibold">
-                      Consultation with {selectedPatientDetails?.name || "Patient"}
-                    </h3>
-                    <div className="flex items-center space-x-2">
-                      <span className={`w-2 h-2 rounded-full ${callStatus === "connected" ? "bg-green-400" : callStatus === "connecting" ? "bg-yellow-400 animate-pulse" : "bg-red-400"}`} />
-                      <span className="text-sm text-slate-400">
-                        {callStatus === "connected" ? `Connected • ${formatCallDuration(callDuration)}` : callStatus === "connecting" ? "Connecting..." : "Disconnected"}
-                      </span>
+          {showVideoCall && (() => {
+            const p = selectedPatientDetails || {};
+            const statePill =
+              callStatus === "connected"
+                ? { dot: "bg-green-400", label: `Live · ${formatCallDuration(callDuration)}` }
+                : callStatus === "connecting"
+                ? { dot: "bg-yellow-400 animate-pulse", label: peerConnState === "connecting" ? "Establishing peer…" : "Ringing patient…" }
+                : { dot: "bg-red-400", label: "Disconnected" };
+            const netQuality =
+              peerConnState === "connected"
+                ? { label: "Good", color: "text-green-400" }
+                : peerConnState === "connecting" || peerConnState === "new"
+                ? { label: "Negotiating", color: "text-yellow-400" }
+                : { label: "Unstable", color: "text-red-400" };
+            const riskColor =
+              p.riskLevel === "high"
+                ? "text-red-400"
+                : p.riskLevel === "medium"
+                ? "text-yellow-400"
+                : p.riskLevel === "low"
+                ? "text-green-400"
+                : "text-slate-400";
+            const copySessionId = () => {
+              if (!sessionIdRef.current) return;
+              navigator.clipboard?.writeText(sessionIdRef.current).catch(() => {});
+              setCopiedSessionId(true);
+              setTimeout(() => setCopiedSessionId(false), 1500);
+            };
+            return (
+              <div className="fixed inset-0 bg-slate-950 z-[60] flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between p-3 px-5 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                      {p.avatar || "P"}
+                    </div>
+                    <div>
+                      <h3 className="text-white font-semibold leading-tight">
+                        {p.name || "Patient"}
+                        <span className="text-slate-500 font-normal ml-2 text-sm">
+                          · {p.age || "—"}y · {p.diagnosis || "Unknown"}
+                        </span>
+                      </h3>
+                      <div className="flex items-center space-x-2 mt-0.5">
+                        <span className={`w-2 h-2 rounded-full ${statePill.dot}`} />
+                        <span className="text-xs text-slate-400">{statePill.label}</span>
+                        <span className="text-slate-700">•</span>
+                        <span className={`text-xs ${netQuality.color}`}>
+                          {netQuality.label}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    {sessionIdRef.current && (
+                      <button
+                        onClick={copySessionId}
+                        title="Copy session ID"
+                        className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg bg-slate-800/60 hover:bg-slate-700 border border-slate-700 transition-colors"
+                      >
+                        <Clipboard size={12} />
+                        <span className="font-mono">
+                          {copiedSessionId ? "Copied" : sessionIdRef.current.slice(0, 8) + "…"}
+                        </span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowPatientPanel((v) => !v)}
+                      title="Toggle patient panel"
+                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                    >
+                      <FileText size={18} />
+                    </button>
+                    <button
+                      onClick={endVideoCall}
+                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={endVideoCall}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
 
-              {/* Video Area */}
-              <div className="flex-1 relative bg-slate-900 overflow-hidden">
-                {/* Remote Video / Placeholder */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  {callStatus === "connected" ? (
+                {/* Body */}
+                <div className="flex-1 flex overflow-hidden">
+                  {/* Video stage */}
+                  <div className="flex-1 relative bg-slate-900 overflow-hidden">
                     <video
                       ref={remoteVideoRef}
                       autoPlay
                       playsInline
                       className="w-full h-full object-cover"
                     />
-                  ) : (
-                    <div className="text-center">
-                      <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center mx-auto mb-6">
-                        <span className="text-5xl font-bold text-white">
-                          {selectedPatientDetails?.avatar || "P"}
-                        </span>
+                    {callStatus !== "connected" && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
+                        <div className="text-center max-w-md px-6">
+                          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center mx-auto mb-5 shadow-2xl">
+                            <span className="text-4xl font-bold text-white">
+                              {p.avatar || "P"}
+                            </span>
+                          </div>
+                          <h3 className="text-2xl text-white font-semibold mb-1">
+                            {p.name || "Patient"}
+                          </h3>
+                          <p className="text-slate-400 text-sm mb-5">
+                            {callStatus === "connecting"
+                              ? sessionIdRef.current
+                                ? "Waiting for patient to join from their mobile app…"
+                                : "Starting camera…"
+                              : "Disconnected"}
+                          </p>
+                          {callStatus === "connecting" && (
+                            <div className="flex items-center justify-center space-x-1.5">
+                              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" />
+                              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }} />
+                              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }} />
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <h3 className="text-xl text-white font-semibold mb-2">
-                        {selectedPatientDetails?.name || "Patient"}
-                      </h3>
-                      {callStatus === "connecting" && (
-                        <div className="flex items-center justify-center space-x-2">
-                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" />
-                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
-                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
-                          <span className="text-slate-400 ml-2">Starting camera...</span>
+                    )}
+
+                    {/* Local PiP */}
+                    <div className="absolute bottom-24 right-4 w-48 h-36 rounded-xl overflow-hidden border-2 border-slate-700 shadow-2xl bg-slate-800">
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                      />
+                      {!isVideoOn && (
+                        <div className="absolute inset-0 bg-slate-800 flex items-center justify-center">
+                          <VideoOff size={28} className="text-slate-500" />
                         </div>
                       )}
+                      <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-slate-900/90 rounded text-[10px] text-white uppercase tracking-wider font-medium">
+                        You
+                      </div>
                     </div>
+
+                    {/* Controls */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center space-x-3 bg-slate-900/95 backdrop-blur-sm rounded-full px-5 py-2.5 border border-slate-700 shadow-2xl">
+                      <button
+                        onClick={toggleAudio}
+                        className={`p-3 rounded-full transition-colors ${isAudioOn ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}`}
+                        title={isAudioOn ? "Mute" : "Unmute"}
+                      >
+                        {isAudioOn ? <Mic size={18} /> : <MicOff size={18} />}
+                      </button>
+                      <button
+                        onClick={toggleVideo}
+                        className={`p-3 rounded-full transition-colors ${isVideoOn ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}`}
+                        title={isVideoOn ? "Turn off camera" : "Turn on camera"}
+                      >
+                        {isVideoOn ? <Video size={18} /> : <VideoOff size={18} />}
+                      </button>
+                      <div className="w-px h-6 bg-slate-700 mx-1" />
+                      <button
+                        onClick={endVideoCall}
+                        className="flex items-center space-x-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors font-medium text-sm"
+                        title="End call"
+                      >
+                        <PhoneOff size={16} />
+                        <span>End</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clinical side panel */}
+                  {showPatientPanel && (
+                    <aside className="w-80 bg-slate-900/95 backdrop-blur-sm border-l border-slate-800 overflow-y-auto flex flex-col">
+                      <div className="p-4 border-b border-slate-800">
+                        <h4 className="text-white font-semibold text-sm flex items-center">
+                          <Stethoscope size={15} className="mr-2 text-emerald-400" />
+                          Clinical Summary
+                        </h4>
+                      </div>
+
+                      {/* Vitals */}
+                      <div className="p-4 border-b border-slate-800 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Age</span>
+                          <span className="text-white">{p.age || "—"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Gender</span>
+                          <span className="text-white capitalize">
+                            {p.gender || "—"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Risk level</span>
+                          <span className={`${riskColor} font-medium capitalize`}>
+                            {p.riskLevel || "unknown"}
+                            {typeof p.riskScore === "number" && p.riskScore > 0
+                              ? ` · ${p.riskScore}%`
+                              : ""}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">BP</span>
+                          <span className="text-white">
+                            {p.bloodPressure || "—"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">HR</span>
+                          <span className="text-white">
+                            {p.heartRate ? `${p.heartRate} bpm` : "—"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* AI context */}
+                      <div className="p-4 border-b border-slate-800">
+                        <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2">
+                          Latest AI Analysis
+                        </p>
+                        {p.currentStage ? (
+                          <>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-white font-medium text-sm">
+                                {p.currentStage}
+                              </span>
+                              {p.aiConfidence != null && (
+                                <span className="text-[11px] text-blue-300 font-mono">
+                                  {(p.aiConfidence * 100).toFixed(1)}%
+                                </span>
+                              )}
+                            </div>
+                            <div className="h-1.5 bg-slate-800 rounded-full flex overflow-hidden mb-2">
+                              {[0, 1, 2, 3].map((step) => (
+                                <div
+                                  key={step}
+                                  className={`flex-1 border-r border-slate-900 last:border-0 ${
+                                    step <= (p.stageLevel ?? 0)
+                                      ? step >= 3
+                                        ? "bg-red-500"
+                                        : step >= 2
+                                        ? "bg-orange-400"
+                                        : step >= 1
+                                        ? "bg-yellow-400"
+                                        : "bg-green-400"
+                                      : ""
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            {p.predictedDecline && (
+                              <p className="text-[11px] text-slate-400">
+                                Forecast: <span className="text-white">{p.predictedDecline}</span>
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-xs text-slate-500 italic">
+                            No AI analysis yet.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Medications */}
+                      {Array.isArray(p.medications) && p.medications.length > 0 && (
+                        <div className="p-4 border-b border-slate-800">
+                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2 flex items-center">
+                            <Pill size={11} className="mr-1" />
+                            Current Medications
+                          </p>
+                          <ul className="space-y-1">
+                            {p.medications.slice(0, 5).map((m, i) => (
+                              <li key={i} className="text-xs text-slate-300">
+                                • {m}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Notes - auto-saves on end */}
+                      <div className="p-4 flex-1 flex flex-col">
+                        <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2 flex items-center">
+                          <FileText size={11} className="mr-1" />
+                          Call Notes
+                          <span className="ml-auto text-slate-600 normal-case tracking-normal font-normal">
+                            saved on end
+                          </span>
+                        </p>
+                        <textarea
+                          value={callNotes}
+                          onChange={(e) => setCallNotes(e.target.value)}
+                          placeholder="Symptoms observed, plan adjustments, follow-ups…"
+                          className="w-full flex-1 min-h-[120px] bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-emerald-500 resize-none"
+                        />
+                        <p className="text-[10px] text-slate-600 mt-2">
+                          Notes are written to the consultation_sessions doc when you end the call.
+                        </p>
+                      </div>
+                    </aside>
                   )}
                 </div>
-
-                {/* Local Video (Picture-in-Picture) */}
-                <div className="absolute bottom-24 right-4 w-48 h-36 rounded-xl overflow-hidden border-2 border-slate-700 shadow-2xl bg-slate-800">
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover"
-                  />
-                  {!isVideoOn && (
-                    <div className="absolute inset-0 bg-slate-800 flex items-center justify-center">
-                      <VideoOff size={32} className="text-slate-500" />
-                    </div>
-                  )}
-                  <div className="absolute bottom-2 left-2 px-2 py-1 bg-slate-900/80 rounded text-xs text-white">
-                    You
-                  </div>
-                </div>
-
-                {/* Control Bar */}
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 bg-slate-900/90 backdrop-blur-sm rounded-full px-6 py-3 border border-slate-700">
-                  <button
-                    onClick={toggleAudio}
-                    className={`p-3 rounded-full transition-colors ${isAudioOn ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}`}
-                    title={isAudioOn ? "Mute" : "Unmute"}
-                  >
-                    {isAudioOn ? <Mic size={20} /> : <MicOff size={20} />}
-                  </button>
-
-                  <button
-                    onClick={toggleVideo}
-                    className={`p-3 rounded-full transition-colors ${isVideoOn ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}`}
-                    title={isVideoOn ? "Turn off camera" : "Turn on camera"}
-                  >
-                    {isVideoOn ? <Video size={20} /> : <VideoOff size={20} />}
-                  </button>
-
-                  <button
-                    onClick={endVideoCall}
-                    className="p-3 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors"
-                    title="End call"
-                  >
-                    <PhoneOff size={20} />
-                  </button>
-
-                  <button
-                    className="p-3 bg-slate-700 hover:bg-slate-600 text-white rounded-full transition-colors"
-                    title="Chat"
-                  >
-                    <MessageSquare size={20} />
-                  </button>
-                </div>
               </div>
-
-              {/* Patient Info Sidebar (Optional) */}
-              <div className="absolute top-20 left-4 w-72 bg-slate-900/90 backdrop-blur-sm rounded-xl border border-slate-700 p-4 hidden lg:block">
-                <h4 className="text-white font-semibold mb-3">Patient Information</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Name</span>
-                    <span className="text-white">{selectedPatientDetails?.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Age</span>
-                    <span className="text-white">{selectedPatientDetails?.age}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Diagnosis</span>
-                    <span className="text-white">{selectedPatientDetails?.diagnosis}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Risk Level</span>
-                    <span className={`${selectedPatientDetails?.riskLevel === 'high' ? 'text-red-400' : selectedPatientDetails?.riskLevel === 'medium' ? 'text-yellow-400' : 'text-green-400'}`}>
-                      {selectedPatientDetails?.riskLevel?.charAt(0).toUpperCase() + selectedPatientDetails?.riskLevel?.slice(1)}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-4 pt-4 border-t border-slate-700">
-                  <p className="text-xs text-slate-500">Consultation Notes</p>
-                  <textarea
-                    placeholder="Add notes during consultation..."
-                    className="w-full mt-2 bg-slate-800 border border-slate-600 rounded-lg p-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none h-24"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* === TREATMENT NOTES MODAL === */}
           {showNotesModal && (
