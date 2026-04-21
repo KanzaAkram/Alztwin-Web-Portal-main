@@ -14,6 +14,10 @@
       "destination": "https://trajectoryprogressionprediction-fpc8f8b9gqd3ggcm.uaenorth-01.azurewebsites.net/predict"
     },
     {
+      "source": "/api/cognitive",
+      "destination": "https://alztwin-progression-api.azurewebsites.net/predict"
+    },
+    {
       "source": "/api/brain/:path*",
       "destination": "https://alztwin-brain-api.azurewebsites.net/:path*"
     },

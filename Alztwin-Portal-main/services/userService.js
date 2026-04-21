@@ -860,6 +860,314 @@ export const getSignalingData = async (sessionId, forUserId) => {
   }
 };
 
+const parseCognitiveDate = (raw) => {
+  if (!raw) return 0;
+  if (typeof raw === "number") return raw;
+  if (raw?.seconds) return raw.seconds * 1000;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+};
+
+const inferTestType = (row = {}) => {
+  const classification = String(row.classification || "").toUpperCase();
+  const fallback = String(row.test_type || "").toUpperCase();
+  const session = String(row.sessionId || "").toUpperCase();
+  const docRef = String(row.documentId || "").toUpperCase();
+  const source = `${classification} ${fallback} ${session} ${docRef}`;
+
+  if (source.includes("ADAS")) return "ADAS";
+  if (source.includes("MMSE")) return "MMSE";
+  if (source.includes("FAQ")) return "FAQ";
+  if (source.includes("MOCA")) return "MOCA";
+  if (source.includes("CDR")) return "CDR";
+  if (source.includes("RAVLT")) return "RAVLT";
+
+  const firstWord = source.trim().split(/\s+/)[0];
+  return firstWord || "UNKNOWN";
+};
+
+const extractNumericScore = (row = {}) => {
+  const candidates = [
+    row.TOTAL13,
+    row.total13,
+    row.FAQTOTAL,
+    row.faqTotal,
+    row.MMSCORE,
+    row.mmScore,
+    row.mmseScore,
+    row.totalScore,
+    row.score,
+    row.rawScore,
+    row.metadata?.totalScore,
+    row.metadata?.score,
+    row.metadata?.faqTotal,
+    row.metadata?.mmScore,
+  ];
+
+  for (const value of candidates) {
+    const num = Number(value);
+    if (Number.isFinite(num)) return num;
+  }
+  return null;
+};
+
+const chunkArray = (arr, size) => {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+};
+
+const uniqueStrings = (arr = []) => {
+  const out = [];
+  const seen = new Set();
+  arr.forEach((value) => {
+    const normalized = typeof value === "string" ? value.trim() : "";
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    out.push(normalized);
+  });
+  return out;
+};
+
+const buildPatientLookupCandidates = (patientRef) => {
+  if (typeof patientRef === "string") {
+    return {
+      patientIds: uniqueStrings([patientRef]),
+      caregiverIds: [],
+      emails: [],
+    };
+  }
+
+  const ref = patientRef || {};
+  return {
+    patientIds: uniqueStrings([
+      ref.id,
+      ref.patientId,
+      ref.voicePatientId,
+      ref.externalPatientId,
+      ref.metadataPatientId,
+      ref.userId,
+      ref.uid,
+      ref.authUid,
+      ref.firebaseUid,
+    ]),
+    caregiverIds: uniqueStrings([ref.caregiverId, ref.createdBy]),
+    emails: uniqueStrings([ref.email, ref.patientEmail]),
+    names: uniqueStrings([ref.name, ref.displayName]).map((v) => v.toLowerCase()),
+  };
+};
+
+const appendDocsToMap = (docsMap, docs = []) => {
+  docs.forEach((snap) => {
+    docsMap.set(snap.id, snap.data() || {});
+  });
+};
+
+/**
+ * Fetch all cognitive test records for a patient from voiceAssessmentResults.
+ * @param {string|Object} patientRef
+ * @returns {Promise<Array>}
+ */
+export const getPatientCognitiveTests = async (patientRef) => {
+  try {
+    const { patientIds, caregiverIds, emails, names } =
+      buildPatientLookupCandidates(patientRef);
+    if (
+      patientIds.length === 0 &&
+      caregiverIds.length === 0 &&
+      emails.length === 0 &&
+      names.length === 0
+    ) {
+      return [];
+    }
+
+    const resultsMap = new Map();
+    const baseCollection = collection(db, "voiceAssessmentResults");
+
+    // Primary: metadata.patientId matches one of possible IDs (doc id, uid, userId, etc.)
+    for (const idsChunk of chunkArray(patientIds, 10)) {
+      const q = query(baseCollection, where("metadata.patientId", "in", idsChunk));
+      const snap = await getDocs(q);
+      appendDocsToMap(resultsMap, snap.docs);
+    }
+
+    // Also check top-level patientId where some producers store it.
+    for (const idsChunk of chunkArray(patientIds, 10)) {
+      const q = query(baseCollection, where("patientId", "in", idsChunk));
+      const snap = await getDocs(q);
+      appendDocsToMap(resultsMap, snap.docs);
+    }
+
+    // Fallback 1: match by caregiver identity if patientId schema differs across apps.
+    if (resultsMap.size === 0) {
+      for (const caregiverId of caregiverIds) {
+        const q1 = query(baseCollection, where("metadata.caregiverId", "==", caregiverId));
+        const q2 = query(baseCollection, where("caregiverId", "==", caregiverId));
+        const q3 = query(baseCollection, where("createdBy", "==", caregiverId));
+        const [snap1, snap2, snap3] = await Promise.all([
+          getDocs(q1),
+          getDocs(q2),
+          getDocs(q3),
+        ]);
+        appendDocsToMap(resultsMap, snap1.docs);
+        appendDocsToMap(resultsMap, snap2.docs);
+        appendDocsToMap(resultsMap, snap3.docs);
+      }
+    }
+
+    // Fallback 2: match by email when available in metadata.
+    if (resultsMap.size === 0) {
+      for (const email of emails) {
+        const q1 = query(baseCollection, where("metadata.email", "==", email));
+        const q2 = query(baseCollection, where("metadata.patientEmail", "==", email));
+        const q3 = query(baseCollection, where("email", "==", email));
+        const [snap1, snap2, snap3] = await Promise.all([
+          getDocs(q1),
+          getDocs(q2),
+          getDocs(q3),
+        ]);
+        appendDocsToMap(resultsMap, snap1.docs);
+        appendDocsToMap(resultsMap, snap2.docs);
+        appendDocsToMap(resultsMap, snap3.docs);
+      }
+    }
+
+    // Fallback 3: match by patient name (exact, case-insensitive).
+    if (resultsMap.size === 0) {
+      for (const rawName of names) {
+        const q1 = query(baseCollection, where("metadata.name", "==", rawName));
+        const q2 = query(baseCollection, where("metadata.patientName", "==", rawName));
+        const q3 = query(baseCollection, where("name", "==", rawName));
+        const q4 = query(baseCollection, where("patientName", "==", rawName));
+        const [snap1, snap2, snap3, snap4] = await Promise.all([
+          getDocs(q1),
+          getDocs(q2),
+          getDocs(q3),
+          getDocs(q4),
+        ]);
+        appendDocsToMap(resultsMap, snap1.docs);
+        appendDocsToMap(resultsMap, snap2.docs);
+        appendDocsToMap(resultsMap, snap3.docs);
+        appendDocsToMap(resultsMap, snap4.docs);
+      }
+    }
+
+    // Final fallback: load all docs and filter in-memory for mixed schemas.
+    if (resultsMap.size === 0) {
+      const allSnap = await getDocs(baseCollection);
+      const patientIdSet = new Set(patientIds);
+      const caregiverIdSet = new Set(caregiverIds);
+      const emailSet = new Set(emails.map((e) => e.toLowerCase()));
+      const nameSet = new Set(names.map((n) => n.toLowerCase()));
+
+      allSnap.docs.forEach((snap) => {
+        const data = snap.data() || {};
+        const metadata = data.metadata || {};
+        const candidates = [
+          data.patientId,
+          metadata.patientId,
+          data.userId,
+          data.uid,
+          metadata.userId,
+          metadata.uid,
+        ];
+
+        const caregiverCandidates = [
+          data.caregiverId,
+          metadata.caregiverId,
+          data.createdBy,
+          metadata.createdBy,
+        ];
+
+        const emailCandidates = [
+          data.email,
+          data.patientEmail,
+          metadata.email,
+          metadata.patientEmail,
+        ]
+          .filter(Boolean)
+          .map((v) => String(v).toLowerCase());
+
+        const nameCandidates = [
+          data.name,
+          data.patientName,
+          metadata.name,
+          metadata.patientName,
+        ]
+          .filter(Boolean)
+          .map((v) => String(v).toLowerCase());
+
+        const matchesPatientId = candidates.some((v) => patientIdSet.has(String(v || "")));
+        const matchesCaregiver = caregiverCandidates.some((v) =>
+          caregiverIdSet.has(String(v || ""))
+        );
+        const matchesEmail = emailCandidates.some((v) => emailSet.has(v));
+        const matchesName = nameCandidates.some((v) => nameSet.has(v));
+
+        if (matchesPatientId || matchesCaregiver || matchesEmail || matchesName) {
+          resultsMap.set(snap.id, data);
+        }
+      });
+    }
+
+    const tests = Array.from(resultsMap.entries()).map(([id, data]) => {
+      const score = extractNumericScore(data);
+      const completedAtRaw =
+        data.completedAt || data.createdAt || data.updatedAt || null;
+
+      return {
+        id,
+        ...data,
+        testType: inferTestType({ ...data, documentId: id }),
+        score,
+        completedAtRaw,
+        completedAtMs: parseCognitiveDate(completedAtRaw),
+      };
+    });
+
+    tests.sort((a, b) => b.completedAtMs - a.completedAtMs);
+    return tests;
+  } catch (error) {
+    console.error("Error getting patient cognitive tests:", error);
+    return [];
+  }
+};
+
+/**
+ * Group cognitive tests by type and prepare past_scores arrays for inference API.
+ * @param {string|Object} patientRef
+ * @returns {Promise<Object<string, {testType: string, history: Array, pastScores: number[]}>>}
+ */
+export const getPatientCognitiveTestsByType = async (patientRef) => {
+  const tests = await getPatientCognitiveTests(patientRef);
+  const grouped = {};
+
+  tests.forEach((test) => {
+    if (!grouped[test.testType]) {
+      grouped[test.testType] = {
+        testType: test.testType,
+        history: [],
+        pastScores: [],
+      };
+    }
+
+    grouped[test.testType].history.push(test);
+  });
+
+  Object.values(grouped).forEach((group) => {
+    const chronological = [...group.history].sort(
+      (a, b) => a.completedAtMs - b.completedAtMs
+    );
+    group.pastScores = chronological
+      .map((h) => h.score)
+      .filter((v) => Number.isFinite(v));
+  });
+
+  return grouped;
+};
+
 export default {
   USER_ROLES,
   getUserRole,
@@ -887,4 +1195,6 @@ export default {
   sendSignalingData,
   getSignalingData,
   subscribeToSignalingData,
+  getPatientCognitiveTests,
+  getPatientCognitiveTestsByType,
 };

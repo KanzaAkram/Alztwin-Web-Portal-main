@@ -26,6 +26,12 @@ export default defineConfig(({ mode }) => {
           secure: true,
           rewrite: (p) => p.replace(/^\/api\/progression/, "/predict"),
         },
+        "/api/cognitive": {
+          target: "https://alztwin-progression-api.azurewebsites.net",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (p) => p.replace(/^\/api\/cognitive/, "/predict"),
+        },
         "/api/brain": {
           target: "https://alztwin-brain-api.azurewebsites.net",
           changeOrigin: true,

@@ -120,6 +120,7 @@ import {
   API_3D_MODEL_URL,
   STAGE_LEVEL_MAP,
   deriveRiskFromStage,
+  mapStageToTrajectory,
 } from "./config";
 import MriComparisonCharts from "./MriComparisonCharts";
 import DashboardSidebar from "./DashboardSidebar";
@@ -128,6 +129,23 @@ import RequestsSection from "./sections/RequestsSection";
 import DigitalTwinSection from "./sections/DigitalTwinSection";
 import TeleconsultationSection from "./sections/TeleconsultationSection";
 import PatientsSection from "./sections/PatientsSection";
+import CognitiveTestsSection from "./sections/CognitiveTestsSection";
+
+const getStageInferenceText = (payload = {}) =>
+  payload.explanation ||
+  payload.inference ||
+  payload.ai_inference ||
+  payload.message ||
+  payload.details ||
+  null;
+
+const getTrajectoryInferenceText = (payload = {}) =>
+  payload.explanation ||
+  payload.inference ||
+  payload.ai_inference ||
+  payload.message ||
+  payload.details ||
+  null;
 
 const Dashboard = ({ user, onLogout }) => {
   const fileInputRef = useRef(null); // Reference for hidden input
@@ -247,49 +265,77 @@ const Dashboard = ({ user, onLogout }) => {
 
       // B. Fetch Real Patients from Firestore Collection
       const querySnapshot = await getDocs(collection(db, "patients"));
-      const realPatients = [];
+      const realPatients = await Promise.all(
+        querySnapshot.docs.map(async (patientDoc) => {
+          const data = patientDoc.data();
+          const firstScan =
+            data.mriScans && data.mriScans.length > 0 ? data.mriScans[0] : null;
 
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        
-       const firstScan = (data.mriScans && data.mriScans.length > 0) ? data.mriScans[0] : null;
+          let resolvedUserId = data.userId || data.uid || null;
+          if (!resolvedUserId && data.email) {
+            try {
+              const userQuery = query(
+                collection(db, "users"),
+                where("email", "==", data.email)
+              );
+              const userSnap = await getDocs(userQuery);
+              if (!userSnap.empty) {
+                resolvedUserId = userSnap.docs[0].id;
+              }
+            } catch (err) {
+              console.warn("Could not resolve userId from users by email:", err);
+            }
+          }
 
-        realPatients.push({
-          id: doc.id,
-          name: data.name || "Unknown",
-          age: data.age || "N/A",
-          gender: data.gender || "N/A",
-          
-          // 2. Use formatDate helper for the list view
-          lastScan: firstScan ? formatDate(firstScan.uploadedAt) : "No Scans",
-          
-          riskLevel: data.riskLevel || "unknown",
-          riskScore: data.riskScore || 0,
-          diagnosis: data.diagnosis || "Pending Analysis",
-          trend: data.trend || "stable",
-          avatar: (data.name || "U").charAt(0).toUpperCase(),
-          
-          deviceData: data.deviceData || {},
+          return {
+            id: patientDoc.id,
+            patientId: data.patientId || null,
+            userId: resolvedUserId,
+            caregiverId: data.caregiverId || null,
+            createdBy: data.createdBy || null,
+            email: data.email || null,
+            name: data.name || "Unknown",
+            age: data.age || "N/A",
+            gender: data.gender || "N/A",
 
-          // Digital Twin clinical fields (all optional — render empty states when absent)
-          stage: data.stage || data.diagnosis || null,
-          stageLevel: typeof data.stageLevel === "number" ? data.stageLevel : null,
-          progression: Array.isArray(data.progression) ? data.progression : [],
-          regions: Array.isArray(data.regions) ? data.regions : [],
-          cognitiveTests: Array.isArray(data.cognitiveTests) ? data.cognitiveTests : [],
-          treatmentPlan: Array.isArray(data.treatmentPlan) ? data.treatmentPlan : [],
-          recommendations: Array.isArray(data.recommendations) ? data.recommendations : [],
-          predictedDecline: data.predictedDecline || null,
-          trajectoryMonths: data.trajectoryMonths || null,
-          aiConfidence: data.aiConfidence ?? null,
-          lastAnalysisAt: data.lastAnalysisAt
-            ? formatDate(data.lastAnalysisAt)
-            : null,
+            // 2. Use formatDate helper for the list view
+            lastScan: firstScan ? formatDate(firstScan.uploadedAt) : "No Scans",
 
-          // 3. Pass the full array. We will process base64Data in handleViewPatient
-          mriScans: data.mriScans || []
-        });
-      });
+            riskLevel: data.riskLevel || "unknown",
+            riskScore: data.riskScore || 0,
+            diagnosis: data.diagnosis || "Pending Analysis",
+            trend: data.trend || "stable",
+            avatar: (data.name || "U").charAt(0).toUpperCase(),
+
+            deviceData: data.deviceData || {},
+
+            // Digital Twin clinical fields (all optional — render empty states when absent)
+            stage: data.stage || data.diagnosis || null,
+            stageLevel:
+              typeof data.stageLevel === "number" ? data.stageLevel : null,
+            progression: Array.isArray(data.progression) ? data.progression : [],
+            regions: Array.isArray(data.regions) ? data.regions : [],
+            cognitiveTests: Array.isArray(data.cognitiveTests)
+              ? data.cognitiveTests
+              : [],
+            treatmentPlan: Array.isArray(data.treatmentPlan)
+              ? data.treatmentPlan
+              : [],
+            recommendations: Array.isArray(data.recommendations)
+              ? data.recommendations
+              : [],
+            predictedDecline: data.predictedDecline || null,
+            trajectoryMonths: data.trajectoryMonths || null,
+            aiConfidence: data.aiConfidence ?? null,
+            lastAnalysisAt: data.lastAnalysisAt
+              ? formatDate(data.lastAnalysisAt)
+              : null,
+
+            // 3. Pass the full array. We will process base64Data in handleViewPatient
+            mriScans: data.mriScans || [],
+          };
+        })
+      );
 
       
 
@@ -779,35 +825,61 @@ const handleViewPatient = async (patientId) => {
       // Convert Base64 to File
       const blob = base64ToBlob(mriBase64);
       const mriFile = new File([blob], "patient_scan.dcm", { type: "application/dicom" });
-      
-      // Create FormData (Both APIs expect a file upload)
-      const formData = new FormData();
-      formData.append("file", mriFile); 
 
-      // 2. CALL BOTH APIS IN PARALLEL
-      console.log("Sending DICOM to AI Models...");
+      const makeBaseFormData = () => {
+        const fd = new FormData();
+        fd.append("file", mriFile);
+        return fd;
+      };
 
-      const [stageRes, progRes] = await Promise.all([
-        // API 1: Current Stage Detection
-        axios.post(API_STAGE_URL, formData, {
-           headers: { "Content-Type": "multipart/form-data" },
-        }),
-        // API 2: Progression/Trajectory Prediction
-        axios.post(API_PROGRESSION_URL, formData, {
-           headers: { "Content-Type": "multipart/form-data" },
-        })
-      ]);
+      // 2. CALL STAGE MODEL FIRST, THEN PROGRESSION MODEL WITH MAPPED HISTORY
+      console.log("Sending DICOM to Stage Model...");
+
+      const stageRes = await axios.post(API_STAGE_URL, makeBaseFormData(), {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
       console.log("Stage API Result:", stageRes.data);
-      console.log("Progression API Result:", progRes.data);
 
       // 3. PROCESS RESULTS
       
       // A. Extract Current Stage from Stage API
       // Assuming Stage API returns: { "stage": "MCI", "confidence": 0.95 }
-      const currentStage = stageRes.data.stage || "Unknown";
-      const inferenceText = stageRes.data.explanation;
-      const trajInference=progRes.data.explanation;
+      const currentStage = stageRes.data.stage || stageRes.data.current_stage || "Unknown";
+      const inferenceText = getStageInferenceText(stageRes.data);
+
+      // Build mapped past stage sequence for trajectory model.
+      // Use prior visits (if any) + current predicted stage.
+      const historicalStages = [...(aiHistory || [])]
+        .sort((a, b) => {
+          const as = a?.createdAt?.seconds || 0;
+          const bs = b?.createdAt?.seconds || 0;
+          return as - bs;
+        })
+        .map((entry) => entry?.currentStage || entry?.stageApi?.stage)
+        .filter(Boolean)
+        .map((label) => mapStageToTrajectory(label));
+
+      const mappedCurrentStage = mapStageToTrajectory(currentStage);
+      const pastStagesSequence = [...historicalStages, mappedCurrentStage];
+
+      const progressionFormData = makeBaseFormData();
+      const pastStagesString = pastStagesSequence.join(", ");
+      progressionFormData.append("past_stages", pastStagesString);
+      progressionFormData.append("current_stage", mappedCurrentStage);
+
+      console.log("Sending DICOM + mapped stage history to Trajectory Model...", {
+        rawCurrentStage: currentStage,
+        mappedCurrentStage,
+        pastStagesSequence,
+        pastStagesString,
+      });
+
+      const progRes = await axios.post(API_PROGRESSION_URL, progressionFormData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      const trajInference = getTrajectoryInferenceText(progRes.data);
       // B. Extract Trajectory from Progression API
       // Python returns: { "next_stage_prediction": ["AD"] }
       const nextStagesList = progRes.data.next_stage_prediction || [];
@@ -834,7 +906,13 @@ const handleViewPatient = async (patientId) => {
         diagnosis: currentStage,
         aiConfidence: confidence,
         lastAnalysisAt: new Date().toLocaleString(),
-        trajectoryMonths: "12 (Est.)"
+        trajectoryMonths: "12 (Est.)",
+        trajectoryDebug: {
+          rawCurrentStage: currentStage,
+          mappedCurrentStage,
+          pastStagesSent: pastStagesSequence,
+          pastStagesString,
+        },
       }));
 
       // Also refresh the registry row so "Pending Analysis" → new stage, risk updates etc.
@@ -863,15 +941,26 @@ const handleViewPatient = async (patientId) => {
           trajectoryMonths: "12 (Est.)",
           inferenceText: inferenceText || null,
           trajInference: trajInference || null,
+          trajectoryDebug: {
+            rawCurrentStage: currentStage,
+            mappedCurrentStage,
+            pastStagesSent: pastStagesSequence,
+            pastStagesString,
+          },
           stageApi: {
             stage: stageRes.data.stage || null,
             confidence: stageRes.data.confidence ?? null,
             details: stageRes.data.details || null,
-            explanation: stageRes.data.explanation || null,
+            explanation: inferenceText || null,
+            raw: stageRes.data || null,
           },
           progressionApi: {
+            past_stages_sent: pastStagesSequence,
+            past_stages_string: pastStagesString,
+            mapped_current_stage: mappedCurrentStage,
             next_stage_prediction: nextStagesList,
-            explanation: progRes.data.explanation || null,
+            explanation: trajInference || null,
+            raw: progRes.data || null,
           },
           scanRef: {
             type: latestScan?.fileType || null,
@@ -1030,17 +1119,23 @@ const handleViewPatient = async (patientId) => {
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-white mb-2">
               {activeSection === "digitalTwin" ? "Digital Twin Analysis 🧠" : 
+               activeSection === "cognitiveTests" ? "Cognitive Tests and Forecasts 📊" :
                activeSection === "teleconsultation" ? "Teleconsultation Hub 📹" : 
                "Welcome back! 👋"}
             </h1>
             <p className="text-slate-400">
               {activeSection === "patients" ? "Monitor your patients from the Firestore Registry." : 
                activeSection === "requests" ? "Review access requests from caregivers." :
+               activeSection === "cognitiveTests" ? "Fetch patient-specific test history and run AI predictions by test type." :
                activeSection === "digitalTwin" ? "Explore AI-powered brain visualization and cognitive analysis." :
                activeSection === "teleconsultation" ? "Connect with patients through secure video consultations." :
                "Review access requests."}
             </p>
           </div>
+
+          {activeSection === "cognitiveTests" && (
+            <CognitiveTestsSection patients={patients} />
+          )}
 
           {activeSection === "requests" && (
             <RequestsSection
@@ -1283,7 +1378,7 @@ const handleViewPatient = async (patientId) => {
   </div>
 
   {/* Full-width Inference Block */}
-  {selectedPatientDetails.inferenceText && (
+  {/* {selectedPatientDetails.inferenceText && (
     <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
       <div className="flex items-center space-x-2 mb-2">
         <div className="p-1 bg-blue-500/20 rounded">
@@ -1295,6 +1390,43 @@ const handleViewPatient = async (patientId) => {
       </div>
       <p className="text-sm text-slate-300 italic leading-relaxed">
         "{selectedPatientDetails.inferenceText}"
+      </p>
+    </div>
+  )} */}
+
+  {selectedPatientDetails.trajInference && (
+    <div className="mt-4 bg-purple-500/5 border border-purple-500/20 rounded-xl p-4">
+      <div className="flex items-center space-x-2 mb-2">
+        <div className="p-1 bg-purple-500/20 rounded">
+          <TrendingDown size={14} className="text-purple-400" />
+        </div>
+        <h4 className="text-xs font-bold text-purple-400 uppercase tracking-wider">
+          Trajectory Insight
+        </h4>
+      </div>
+      <p className="text-sm text-slate-300 italic leading-relaxed">
+        "{selectedPatientDetails.trajInference}"
+      </p>
+    </div>
+  )}
+
+  {selectedPatientDetails.trajectoryDebug?.pastStagesSent?.length > 0 && (
+    <div className="mt-4 bg-slate-900/70 border border-slate-700 rounded-xl p-4">
+      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+        Past Stages Sent to Trajectory API
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {selectedPatientDetails.trajectoryDebug.pastStagesSent.map((stage, index) => (
+          <span
+            key={`${stage}-${index}`}
+            className="px-3 py-1 rounded-full text-xs bg-cyan-500/10 border border-cyan-500/20 text-cyan-200"
+          >
+            {stage}
+          </span>
+        ))}
+      </div>
+      <p className="text-xs text-slate-500 mt-3 break-words">
+        Request string: {selectedPatientDetails.trajectoryDebug.pastStagesString}
       </p>
     </div>
   )}

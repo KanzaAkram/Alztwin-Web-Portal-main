@@ -1,8 +1,9 @@
 import React from "react";
-import { Users, Brain, Video, UserPlus, LogOut } from "lucide-react";
+import { Users, Brain, Video, UserPlus, LogOut, BarChart3 } from "lucide-react";
 
 const navItems = [
   { id: "patients", label: "My Patients", icon: Users },
+  { id: "cognitiveTests", label: "Cognitive Tests", icon: BarChart3 },
   { id: "digitalTwin", label: "Digital Twin", icon: Brain },
   { id: "teleconsultation", label: "Teleconsultation", icon: Video },
   { id: "requests", label: "Patient Requests", icon: UserPlus },

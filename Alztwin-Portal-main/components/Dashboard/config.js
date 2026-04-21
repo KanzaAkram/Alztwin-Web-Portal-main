@@ -8,6 +8,7 @@
 // This keeps the browser same-origin so CORS never applies.
 export const API_STAGE_URL = "/api/stage";
 export const API_PROGRESSION_URL = "/api/progression";
+export const API_COGNITIVE_URL = "/api/cognitive";
 export const API_3D_MODEL_URL = "/api/brain";
 
 export const RAG_FUNCTION_CODE =
@@ -46,6 +47,35 @@ export const STAGE_LEVEL_MAP = {
   EMCI: 1, MCI: 1, VeryMildDemented: 1,
   LMCI: 2, Mild: 2, MildDemented: 2,
   AD: 3, Severe: 3, ModerateDemented: 3,
+};
+
+export const TRAJECTORY_STAGES = ["CN", "SMC", "LMCI", "EMCI", "MCI", "AD"];
+
+// Progression model accepts only: CN, SMC, LMCI, EMCI, MCI, AD.
+// This mapper converts stage-model outputs to the trajectory label set.
+export const mapStageToTrajectory = (stage) => {
+  const raw = String(stage || "").trim();
+  const upper = raw.toUpperCase();
+
+  // Pass-through for already-compatible labels.
+  if (TRAJECTORY_STAGES.includes(upper)) return upper;
+
+  // Required mappings from user requirements.
+  if (upper.includes("VERYMILDDEMENTED")) return "SMC";
+  if (upper.includes("MILDDEMENTED")) return "MCI";
+  if (upper.includes("NONDEMENTED")) return "CN";
+  if (upper.includes("MODERATEDEMENTED")) return "AD";
+
+  // Practical fallbacks for common variants.
+  if (upper === "NORMAL" || upper.includes("COGNITIVELY NORMAL")) return "CN";
+  if (upper.includes("SMC")) return "SMC";
+  if (upper.includes("LMCI")) return "LMCI";
+  if (upper.includes("EMCI")) return "EMCI";
+  if (upper.includes("MCI") || upper.includes("MILD")) return "MCI";
+  if (upper.includes("AD") || upper.includes("SEVERE")) return "AD";
+
+  // Safe default for unknown labels.
+  return "MCI";
 };
 
 export const deriveRiskFromStage = (stage, confidence = 1) => {
