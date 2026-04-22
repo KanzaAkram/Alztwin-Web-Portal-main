@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Assessment Results
+    match /voiceAssessmentResults/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Users - single match
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId || request.auth != null;
+    }
+
+    // Patients with subcollections
+    match /patients/{patientId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+
+      // MRI Scans subcollection
+      match /mriScans/{mriDoc} {
+        allow read, write: if request.auth != null;
+      }
+
+      // Assessment Results subcollection
+      match /assessmentResults/{assessmentDoc} {
+        allow read, write: if request.auth != null;
+      }
+
+      // AI Analysis history (stage + progression predictions per run)
+      match /aiAnalyses/{analysisId} {
+        allow read, write: if request.auth != null;
+      }
+
+      // RAG clinician recommendations (treatment reports for mobile app)
+      match /ragRecommendations/{recId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // Clinicians
+    match /clinicians/{clinicianId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Consultation requests
+    match /consult_requests/{requestId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Caregivers
+    match /caregivers/{userId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Patient access requests
+    match /patientAccessRequests/{requestId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Video consultation sessions
+    match /consultation_sessions/{sessionId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // WebRTC signaling
+    match /webrtc_signals/{signalId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

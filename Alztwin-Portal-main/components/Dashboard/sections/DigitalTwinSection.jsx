@@ -16,6 +16,8 @@ import {
   FileText,
   Stethoscope,
   CheckCircle,
+  Info,
+  History,
 } from "lucide-react";
 import ThreeBrainView from "../ThreeBrainView";
 import RagRecommendationPanel from "../RagRecommendationPanel";
@@ -64,8 +66,12 @@ export default function DigitalTwinSection({
   selectedPatientForDT,
   setSelectedPatientForDT,
   analyzing,
+  generating3D = false,
   onFolderUpload,
   onShowNotesModal,
+  onRunDiagnostics,
+  dtAiHistory = [],
+  dtCognitiveTests = {},
 }) {
   const progression = selectedPatientForDT?.progression || [];
   const regions = selectedPatientForDT?.regions || [];
@@ -175,17 +181,31 @@ export default function DigitalTwinSection({
                   <span className="text-xs text-white font-medium">
                     {selectedPatientForDT?.meshUrl
                       ? "Interactive VTM Model"
+                      : generating3D
+                      ? "Auto-Generating..."
+                      : selectedPatientForDT?.mriScans?.some(
+                          (s) => s.base64Data || s.mriId
+                        )
+                      ? "Scans Ready"
                       : "Waiting for DICOM"}
                   </span>
                 </div>
               </div>
 
-              {analyzing ? (
+              {generating3D ? (
                 <div className="flex flex-col items-center justify-center space-y-4">
                   <div className="w-16 h-16 border-4 border-slate-700 border-t-purple-500 rounded-full animate-spin" />
                   <p className="text-purple-400 font-semibold animate-pulse">
                     Reconstructing 3D Neuro-Atlas...
                   </p>
+                  {selectedPatientForDT?.mriScans?.some(
+                    (s) => s.base64Data || s.mriId
+                  ) && (
+                    <p className="text-slate-400 text-xs">
+                      Auto-generating from {selectedPatientForDT.mriScans.length} stored scan
+                      {selectedPatientForDT.mriScans.length !== 1 ? "s" : ""}
+                    </p>
+                  )}
                 </div>
               ) : selectedPatientForDT?.meshUrl ? (
                 <div className="w-full h-full relative">
@@ -196,6 +216,37 @@ export default function DigitalTwinSection({
                     </span>
                   </div>
                 </div>
+              ) : selectedPatientForDT?.mriScans?.some(
+                (s) => s.base64Data || s.mriId
+              ) ? (
+                <div className="text-center p-8 z-10">
+                  <div className="w-24 h-24 bg-slate-900 rounded-full border-2 border-dashed border-yellow-700/50 flex items-center justify-center mx-auto mb-6">
+                    <Brain size={40} className="text-yellow-500/70" />
+                  </div>
+                  <h4 className="text-white font-bold text-xl mb-2">
+                    Scans Found — Awaiting Generation
+                  </h4>
+                  <p className="text-slate-400 text-sm mb-6 max-w-md mx-auto">
+                    {selectedPatientForDT.mriScans.length} MRI scan
+                    {selectedPatientForDT.mriScans.length !== 1 ? "s" : ""} are
+                    ready. The Digital Twin will generate automatically.
+                  </p>
+                  <p className="text-slate-500 text-xs mb-4">
+                    Or upload a different folder manually:
+                  </p>
+                  <label className="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded-xl font-medium transition-all flex items-center justify-center space-x-2 w-max mx-auto text-sm">
+                    <Upload size={16} />
+                    <span>Upload DICOM Folder</span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      webkitdirectory="true"
+                      directory="true"
+                      multiple
+                      onChange={onFolderUpload}
+                    />
+                  </label>
+                </div>
               ) : (
                 <div className="text-center p-8 z-10">
                   <div className="w-24 h-24 bg-slate-900 rounded-full border-2 border-dashed border-slate-700 flex items-center justify-center mx-auto mb-6">
@@ -205,8 +256,8 @@ export default function DigitalTwinSection({
                     No Brain Reconstruction
                   </h4>
                   <p className="text-slate-400 text-sm mb-8 max-w-md mx-auto">
-                    Upload a patient's DICOM folder to generate the high-fidelity
-                    Digital Twin.
+                    No MRI scans found for this patient. Upload a DICOM folder to
+                    generate the Digital Twin.
                   </p>
                   <label className="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center space-x-2 w-max mx-auto">
                     <Upload size={20} />
@@ -362,6 +413,219 @@ export default function DigitalTwinSection({
                 </div>
               )}
             </div>
+          </div>
+
+          {/* === AI DIAGNOSTICS PANEL === */}
+          <div className="bg-gradient-to-br from-slate-900/80 to-blue-900/10 border border-blue-500/20 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-white flex items-center">
+                <Activity className="mr-2 text-blue-400" size={22} />
+                AI Diagnostics
+              </h3>
+              <button
+                onClick={onRunDiagnostics}
+                disabled={analyzing}
+                className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-5 py-2 rounded-xl font-bold transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20"
+              >
+                {analyzing ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Activity size={16} />
+                )}
+                <span>{analyzing ? "Analyzing..." : "Run AI Diagnostics"}</span>
+              </button>
+            </div>
+
+            {selectedPatientForDT?.currentStage &&
+            selectedPatientForDT.currentStage !== "Pending Analysis" ? (
+              <div className="space-y-4">
+                {/* Stage Assessment + Trajectory side by side */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Disease Stage Assessment */}
+                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-5">
+                    <h4 className="text-white font-semibold flex items-center mb-3">
+                      <Brain className="mr-2 text-blue-400" size={18} />
+                      Disease Stage Assessment
+                    </h4>
+                    <div className="h-2 bg-slate-700 rounded-full flex mb-2">
+                      {[0, 1, 2, 3].map((step) => (
+                        <div
+                          key={step}
+                          className={`flex-1 h-full border-r border-slate-900 last:border-0 ${
+                            step <= (selectedPatientForDT.stageLevel || 0)
+                              ? "bg-blue-500"
+                              : "bg-transparent"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500 uppercase font-medium mb-3">
+                      <span>Normal</span><span>MCI</span><span>Mild</span><span>Severe</span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700 mb-3">
+                      <div>
+                        <p className="text-xs text-slate-400 uppercase">Current Stage</p>
+                        <p className="text-xl font-bold text-white">{selectedPatientForDT.currentStage}</p>
+                      </div>
+                      <span className="text-green-400 text-xs font-bold border border-green-400/30 px-2 py-1 rounded">
+                        AI Analyzed
+                      </span>
+                    </div>
+                    {selectedPatientForDT.inferenceText && (
+                      <div className="p-3 bg-blue-500/10 border-l-2 border-blue-500 rounded">
+                        <p className="text-xs text-blue-400 font-bold uppercase mb-1 flex items-center">
+                          <Info size={12} className="mr-1" /> AI Clinical Insight
+                        </p>
+                        <p className="text-sm text-slate-300 italic leading-relaxed">
+                          "{selectedPatientForDT.inferenceText}"
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Progression Trajectory */}
+                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-5">
+                    <h4 className="text-white font-semibold flex items-center mb-3">
+                      <TrendingDown className="mr-2 text-purple-400" size={18} />
+                      Progression Trajectory
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="p-3 bg-slate-800 rounded-xl border border-slate-700">
+                        <p className="text-xs text-slate-400 uppercase mb-1">Predicted Path</p>
+                        <p className="text-base font-bold text-white leading-tight">
+                          {selectedPatientForDT.predictedDecline || "Stable"}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-slate-800 rounded-xl border border-slate-700">
+                        <p className="text-xs text-slate-400 uppercase mb-1">Est. Timeline</p>
+                        <p className="text-base font-bold text-white">
+                          {selectedPatientForDT.trajectoryMonths || "12 (Est.)"}
+                        </p>
+                      </div>
+                    </div>
+                    {selectedPatientForDT.trajInference && (
+                      <div className="p-3 bg-purple-500/10 border-l-2 border-purple-500 rounded">
+                        <p className="text-xs text-purple-400 font-bold uppercase mb-1 flex items-center">
+                          <TrendingDown size={12} className="mr-1" /> Trajectory Insight
+                        </p>
+                        <p className="text-sm text-slate-300 italic leading-relaxed">
+                          "{selectedPatientForDT.trajInference}"
+                        </p>
+                      </div>
+                    )}
+                    {selectedPatientForDT.aiConfidence != null && (
+                      <p className="text-xs text-slate-500 mt-3">
+                        Model confidence:{" "}
+                        <span className="text-slate-300 font-medium">
+                          {Math.round(selectedPatientForDT.aiConfidence * 100)}%
+                        </span>
+                        {selectedPatientForDT.lastAnalysisAt && (
+                          <span> · Last run: {selectedPatientForDT.lastAnalysisAt}</span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* AI Analysis History */}
+                {dtAiHistory.length > 0 && (
+                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-5">
+                    <h4 className="text-white font-semibold flex items-center mb-3">
+                      <History className="mr-2 text-cyan-400" size={18} />
+                      Analysis History
+                      <span className="ml-2 text-xs text-slate-400 font-normal">
+                        ({dtAiHistory.length} {dtAiHistory.length === 1 ? "run" : "runs"})
+                      </span>
+                    </h4>
+                    <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                      {dtAiHistory.map((h, idx) => {
+                        const ts = h.createdAt?.seconds
+                          ? new Date(h.createdAt.seconds * 1000).toLocaleDateString()
+                          : "—";
+                        return (
+                          <div
+                            key={h.id || idx}
+                            className={`flex items-center justify-between p-3 rounded-lg border ${
+                              idx === 0
+                                ? "bg-blue-500/10 border-blue-500/30"
+                                : "bg-slate-800/50 border-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-2 h-2 rounded-full ${idx === 0 ? "bg-blue-400" : "bg-slate-500"}`} />
+                              <div>
+                                <p className="text-white text-sm font-medium">{h.currentStage || "Unknown"}</p>
+                                <p className="text-slate-400 text-xs">{ts}</p>
+                              </div>
+                            </div>
+                            {h.predictedDecline && (
+                              <span className="text-xs text-slate-400 bg-slate-700/50 px-2 py-1 rounded">
+                                {h.predictedDecline}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              {/* Cognitive Test Scores */}
+              {Object.keys(dtCognitiveTests).length > 0 && (
+                <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-5">
+                  <h4 className="text-white font-semibold flex items-center mb-4">
+                    <BarChart3 className="mr-2 text-cyan-400" size={18} />
+                    Cognitive Test Scores
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {Object.entries(dtCognitiveTests).map(([testType, group]) => {
+                      const scores = group.pastScores || [];
+                      const latest = scores[scores.length - 1];
+                      const maxScore = testType === "MMSE" ? 30 : testType === "ADAS" ? 70 : 30;
+                      const pct = latest != null ? Math.round((latest / maxScore) * 100) : null;
+                      const color =
+                        pct == null ? "slate" : pct >= 70 ? "green" : pct >= 40 ? "yellow" : "red";
+                      return (
+                        <div key={testType} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-slate-400 uppercase font-medium">{testType}</span>
+                            <span className={`text-lg font-bold text-${color}-400`}>
+                              {latest ?? "—"}<span className="text-xs text-slate-500">/{maxScore}</span>
+                            </span>
+                          </div>
+                          {pct != null && (
+                            <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mb-2">
+                              <div
+                                className={`h-full rounded-full bg-${color}-500`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          )}
+                          {scores.length > 1 && (
+                            <div className="flex items-end space-x-0.5 h-8">
+                              {scores.map((s, i) => (
+                                <div
+                                  key={i}
+                                  className={`flex-1 rounded-t ${i === scores.length - 1 ? `bg-${color}-500` : "bg-slate-600"}`}
+                                  style={{ height: `${Math.round((s / maxScore) * 100)}%` }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          <p className="text-xs text-slate-500 mt-1">
+                            {group.history?.length || 0} test{(group.history?.length || 0) !== 1 ? "s" : ""} recorded
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-slate-500 text-sm">
+                No diagnostic results yet. Click <span className="text-blue-400 font-medium">Run AI Diagnostics</span> to analyze this patient's MRI scans.
+              </div>
+            )}
           </div>
 
           <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
