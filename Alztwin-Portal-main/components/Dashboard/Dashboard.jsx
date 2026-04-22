@@ -469,6 +469,15 @@ const Dashboard = ({ user, onLogout }) => {
           ? selectedPatientForDT.progression
           : [],
       },
+      brainModel3d: {
+        hasModel: Boolean(selectedPatientForDT.meshUrl),
+        inferenceText: selectedPatientForDT.meshInference || null,
+      },
+      inferenceDetails: {
+        currentStage: selectedPatientForDT.inferenceText || null,
+        trajectory: selectedPatientForDT.trajInference || null,
+        brainModel3d: selectedPatientForDT.meshInference || null,
+      },
       cognitiveScores,
       clinicianNotes: {
         clinicalNotes:
@@ -2707,7 +2716,7 @@ const handleViewPatient = async (patientId) => {
                 </div>
 
                 <div className="p-6 space-y-5 overflow-y-auto">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
                       <p className="text-xs text-slate-400 uppercase mb-1">
                         Current Stage Result
@@ -2749,6 +2758,45 @@ const handleViewPatient = async (patientId) => {
                           "{caregiverReportPreview.trajectory.insight}"
                         </p>
                       )}
+                    </div>
+
+                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 uppercase mb-1">
+                        3D Brain Model Inference
+                      </p>
+                      <p className="text-sm text-slate-300 mb-2">
+                        {caregiverReportPreview.brainModel3d?.hasModel
+                          ? "3D model available"
+                          : "3D model not available"}
+                      </p>
+                      <p className="text-sm text-slate-400 italic">
+                        {caregiverReportPreview.brainModel3d?.inferenceText
+                          ? `"${caregiverReportPreview.brainModel3d.inferenceText}"`
+                          : "No 3D inference available yet."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+                    <h4 className="text-white font-semibold mb-3">
+                      Inference Details for Caregiver Report
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      <p className="text-slate-300">
+                        <span className="text-slate-400">Current Stage:</span>{" "}
+                        {caregiverReportPreview.inferenceDetails?.currentStage ||
+                          "No current-stage inference available."}
+                      </p>
+                      <p className="text-slate-300">
+                        <span className="text-slate-400">Trajectory:</span>{" "}
+                        {caregiverReportPreview.inferenceDetails?.trajectory ||
+                          "No trajectory inference available."}
+                      </p>
+                      <p className="text-slate-300">
+                        <span className="text-slate-400">3D Brain Model:</span>{" "}
+                        {caregiverReportPreview.inferenceDetails?.brainModel3d ||
+                          "No 3D brain-model inference available."}
+                      </p>
                     </div>
                   </div>
 
