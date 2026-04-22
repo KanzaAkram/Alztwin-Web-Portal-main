@@ -622,6 +622,93 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
+  const extractBase64FromImageLike = (value) => {
+    if (!value) return null;
+    if (typeof value === "string") return value;
+    return (
+      value.base64Data ||
+      value.imageBase64 ||
+      value.base64 ||
+      value.imageData ||
+      null
+    );
+  };
+
+  const getCandidatesFromBatchData = (batchData = {}, fallbackName = "scan.dcm") => {
+    if (Array.isArray(batchData.images) && batchData.images.length > 0) {
+      return batchData.images
+        .map((img, idx) => ({
+          base64Data: extractBase64FromImageLike(img),
+          fileName: img?.fileName || batchData.fileName || `${fallbackName}_${idx}.dcm`,
+        }))
+        .filter((entry) => !!entry.base64Data);
+    }
+
+    const single = extractBase64FromImageLike(batchData);
+    if (!single) return [];
+
+    return [
+      {
+        base64Data: single,
+        fileName: batchData.fileName || fallbackName,
+      },
+    ];
+  };
+
+  const resolveDiagnosticScanForPatient = async (patient) => {
+    if (!patient?.id) return null;
+    const scans = Array.isArray(patient.mriScans) ? patient.mriScans : [];
+
+    // A) Direct scan payload on patient doc (clinician format).
+    for (const scan of scans) {
+      const direct = extractBase64FromImageLike(scan);
+      if (direct) {
+        return {
+          base64Data: direct,
+          fileName: scan.fileName || "scan.dcm",
+        };
+      }
+    }
+
+    const patientMriCollection = collection(db, "patients", patient.id, "mriScans");
+
+    // B) Caregiver format via mriId references.
+    const mriIds = [...new Set(scans.map((s) => s?.mriId).filter(Boolean))];
+    for (const mriId of mriIds) {
+      const batchQuery = query(patientMriCollection, where("mriId", "==", mriId));
+      const batchSnap = await getDocs(batchQuery);
+      const sorted = [...batchSnap.docs].sort(
+        (a, b) => (a.data().batchNumber ?? 0) - (b.data().batchNumber ?? 0)
+      );
+
+      for (const batchDoc of sorted) {
+        const candidates = getCandidatesFromBatchData(
+          batchDoc.data(),
+          `${mriId}.dcm`
+        );
+        if (candidates.length > 0) return candidates[0];
+      }
+    }
+
+    // C) Final fallback: scan all subcollection docs in case mriId summaries are absent.
+    const allSnap = await getDocs(patientMriCollection);
+    const sortedAll = [...allSnap.docs].sort((a, b) => {
+      const aBatch = a.data().batchNumber;
+      const bBatch = b.data().batchNumber;
+      if (Number.isFinite(aBatch) && Number.isFinite(bBatch)) return aBatch - bBatch;
+      if (Number.isFinite(aBatch)) return -1;
+      if (Number.isFinite(bBatch)) return 1;
+      return 0;
+    });
+
+    for (const batchDoc of sortedAll) {
+      const candidates = getCandidatesFromBatchData(batchDoc.data());
+      if (candidates.length > 0) return candidates[0];
+    }
+
+    return null;
+  };
+
   // === 3D FOLDER UPLOAD LOGIC ===
   const handleFolderUpload = async (e) => {
     if (!selectedPatientForDT) {
@@ -1427,33 +1514,19 @@ const handleViewPatient = async (patientId) => {
     if (!selectedPatientForDT) return;
     setAnalyzing(true);
     try {
-      // 1. Get first available MRI file
+      // 1. Resolve MRI source using the same stored patient scan data used for 3D generation.
+      const resolvedScan = await resolveDiagnosticScanForPatient(selectedPatientForDT);
       let mriFile = null;
-      const directScan = selectedPatientForDT.mriScans?.find((s) => s.base64Data);
-      if (directScan) {
-        const blob = base64ToBlob(directScan.base64Data);
-        mriFile = new File([blob], directScan.fileName || "scan.dcm", { type: "application/dicom" });
-      } else {
-        // Caregiver batch format — fetch first image from subcollection
-        const firstRef = selectedPatientForDT.mriScans?.find((s) => s.mriId);
-        if (firstRef) {
-          const snap = await getDocs(
-            query(collection(db, "patients", selectedPatientForDT.id, "mriScans"), where("mriId", "==", firstRef.mriId))
-          );
-          const sorted = [...snap.docs].sort((a, b) => (a.data().batchNumber ?? 0) - (b.data().batchNumber ?? 0));
-          if (sorted.length) {
-            const bd = sorted[0].data();
-            const items = bd.images?.length ? bd.images : bd.base64Data ? [{ base64Data: bd.base64Data, fileName: bd.fileName }] : [];
-            if (items[0]?.base64Data) {
-              const blob = base64ToBlob(items[0].base64Data);
-              mriFile = new File([blob], items[0].fileName || "scan.dcm", { type: "application/dicom" });
-            }
-          }
-        }
+      if (resolvedScan?.base64Data) {
+        const blob = base64ToBlob(resolvedScan.base64Data);
+        const fileName = resolvedScan.fileName || "scan.dcm";
+        mriFile = new File([blob], fileName, { type: "application/dicom" });
       }
 
       if (!mriFile) {
-        alert("No MRI data found for this patient. Cannot run diagnostics.");
+        alert(
+          "No MRI scan payload could be resolved for diagnostics. Please re-upload scans if this patient only has a cached 3D model."
+        );
         setAnalyzing(false);
         return;
       }
