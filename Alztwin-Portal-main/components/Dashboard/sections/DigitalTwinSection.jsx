@@ -53,6 +53,31 @@ const SCORE_TONE_CLASS = {
 const numericOr = (v, fallback) =>
   typeof v === "number" && Number.isFinite(v) ? v : fallback;
 
+const toFiniteNumber = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const getCognitiveMaxScore = (testType) =>
+  testType === "MMSE" ? 30 : testType === "ADAS" ? 70 : 30;
+
+const getMaxScoreFromEntry = (entry) => {
+  if (!entry) return null;
+  const raw = entry.maxScore ?? entry.max ?? entry.totalMax ?? entry.scoreMax ?? null;
+  return toFiniteNumber(raw);
+};
+
+const getMaxScoreFromHistory = (history = []) => {
+  const sorted = [...history].sort(
+    (a, b) => (b.completedAtMs || 0) - (a.completedAtMs || 0)
+  );
+  for (const item of sorted) {
+    const max = getMaxScoreFromEntry(item);
+    if (max != null) return max;
+  }
+  return null;
+};
+
 const getStageIndexFromLabel = (stageLabel) => {
   const normalized = String(stageLabel || "").toLowerCase().trim();
   if (!normalized) return -1;
@@ -131,7 +156,8 @@ export default function DigitalTwinSection({
       Object.entries(dtCognitiveTests || {}).map(([testType, group]) => {
         const scores = Array.isArray(group?.pastScores) ? group.pastScores : [];
         const current = scores.length > 0 ? scores[scores.length - 1] : null;
-        const max = testType === "MMSE" ? 30 : testType === "ADAS" ? 70 : 30;
+        const historyMax = getMaxScoreFromHistory(group?.history || []);
+        const max = historyMax != null ? historyMax : getCognitiveMaxScore(testType);
         return {
           test: testType,
           current,
@@ -846,7 +872,8 @@ export default function DigitalTwinSection({
                     {Object.entries(dtCognitiveTests).map(([testType, group]) => {
                       const scores = group.pastScores || [];
                       const latest = scores[scores.length - 1];
-                      const maxScore = testType === "MMSE" ? 30 : testType === "ADAS" ? 70 : 30;
+                      const historyMax = getMaxScoreFromHistory(group?.history || []);
+                      const maxScore = historyMax != null ? historyMax : getCognitiveMaxScore(testType);
                       const pct = latest != null ? Math.round((latest / maxScore) * 100) : null;
                       const tone =
                         pct == null ? "slate" : pct >= 70 ? "green" : pct >= 40 ? "yellow" : "red";
@@ -1003,7 +1030,8 @@ export default function DigitalTwinSection({
                   <div className="space-y-4">
                     {cognitiveTests.map((test, idx) => {
                       const scores = Array.isArray(test.scores) ? test.scores : [];
-                      const max = numericOr(test.max, 30);
+                      const explicitMax = getMaxScoreFromEntry(test);
+                      const max = explicitMax != null ? explicitMax : numericOr(test.max, getCognitiveMaxScore(test.test));
                       return (
                         <div key={idx} className="bg-slate-800/30 rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">

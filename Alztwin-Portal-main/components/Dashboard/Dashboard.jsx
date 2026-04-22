@@ -395,6 +395,24 @@ const Dashboard = ({ user, onLogout }) => {
     return Number.isFinite(num) ? num : null;
   };
 
+  const getMaxScoreFromEntry = (entry) => {
+    if (!entry) return null;
+    const raw =
+      entry.maxScore ?? entry.max ?? entry.totalMax ?? entry.scoreMax ?? null;
+    return toFiniteNumber(raw);
+  };
+
+  const getMaxScoreFromHistory = (history = []) => {
+    const sorted = [...history].sort(
+      (a, b) => (b.completedAtMs || 0) - (a.completedAtMs || 0)
+    );
+    for (const item of sorted) {
+      const max = getMaxScoreFromEntry(item);
+      if (max != null) return max;
+    }
+    return null;
+  };
+
   const buildPreviewCognitiveScores = (groupedTests = dtCognitiveTests) => {
     if (!selectedPatientForDT) return [];
 
@@ -416,10 +434,8 @@ const Dashboard = ({ user, onLogout }) => {
           : scores.length > 0
           ? scores[scores.length - 1]
           : null;
-      const maxScore =
-        toFiniteNumber(entry?.max) != null
-          ? Number(entry.max)
-          : getCognitiveMaxScore(testType);
+      const explicitMax = getMaxScoreFromEntry(entry);
+      const maxScore = explicitMax != null ? explicitMax : getCognitiveMaxScore(testType);
 
       byTestType.set(testType, {
         testType,
@@ -438,7 +454,8 @@ const Dashboard = ({ user, onLogout }) => {
         : [];
       const latestScore =
         pastScores.length > 0 ? pastScores[pastScores.length - 1] : null;
-      const maxScore = getCognitiveMaxScore(testType);
+      const historyMax = getMaxScoreFromHistory(group?.history || []);
+      const maxScore = historyMax != null ? historyMax : getCognitiveMaxScore(testType);
       const existing = byTestType.get(testType);
 
       if (!existing) {
