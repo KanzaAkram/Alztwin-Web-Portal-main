@@ -178,7 +178,7 @@ export default function RagRecommendationPanel({ patient }) {
           setActiveHistoryId(latest.id);
         }
       } catch (e) {
-        console.warn("Could not load RAG history:", e);
+        console.warn("Could not load treatment-support history:", e);
       }
       if (!cancelled) setLoadingHistory(false);
     })();
@@ -188,7 +188,7 @@ export default function RagRecommendationPanel({ patient }) {
     };
   }, [patient?.id]);
 
-  // When we have the latest AI analysis, sync the RAG stage input to match it
+  // When we have the latest AI analysis, sync the stage input to match it
   useEffect(() => {
     if (latestAi) {
       const mapped = mapStageToRag(
@@ -279,10 +279,10 @@ export default function RagRecommendationPanel({ patient }) {
           setActiveHistoryId(docRef.id);
         }
       } catch (e) {
-        console.warn("Could not save RAG recommendation:", e);
+        console.warn("Could not save treatment support plan:", e);
       }
     } catch (e) {
-      console.error("RAG API error:", e);
+      console.error("Treatment support API error:", e);
       setError(e.response?.data?.error || e.message || "Request failed");
     }
     setLoading(false);
@@ -292,40 +292,40 @@ export default function RagRecommendationPanel({ patient }) {
   const sources = result?.sources || [];
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-indigo-900/10 to-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-xl shadow-indigo-500/5">
+    <div className="bg-gradient-to-br from-slate-900 via-cyan-900/10 to-slate-900 border border-cyan-500/30 rounded-2xl p-6 shadow-xl shadow-cyan-500/5">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-lg border border-indigo-500/30">
-            <Sparkles className="text-indigo-400" size={22} />
+          <div className="p-2 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-lg border border-cyan-500/30">
+            <Sparkles className="text-cyan-300" size={22} />
           </div>
           <div>
             <h3 className="text-lg font-bold text-white">
-              AI Clinician Recommendation
+              Clinical Trials-backed Treatment Support
             </h3>
             <p className="text-xs text-slate-400">
-              Evidence-backed suggestions retrieved from clinical trials & PubMed
+              AI-assisted support plans grounded in published clinical trial and PubMed evidence
             </p>
           </div>
         </div>
         <button
           onClick={generate}
           disabled={loading}
-          className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-lg shadow-indigo-500/20"
+          className="flex items-center space-x-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-lg shadow-cyan-500/20"
         >
           {loading ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              <span>Generating…</span>
+              <span>Building Plan…</span>
             </>
           ) : result ? (
             <>
               <RefreshCw size={16} />
-              <span>Regenerate</span>
+              <span>Refresh Plan</span>
             </>
           ) : (
             <>
               <Sparkles size={16} />
-              <span>Generate Recommendation</span>
+              <span>Generate Support Plan</span>
             </>
           )}
         </button>
@@ -387,16 +387,16 @@ export default function RagRecommendationPanel({ patient }) {
           </div>
 
           {/* Future Progression */}
-          <div className="bg-slate-900/60 border border-purple-500/30 rounded-xl p-4">
+          <div className="bg-slate-900/60 border border-cyan-500/30 rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
-                <TrendingDown size={16} className="text-purple-400" />
-                <p className="text-[10px] uppercase tracking-wider text-purple-400 font-bold">
+                <TrendingDown size={16} className="text-cyan-400" />
+                <p className="text-[10px] uppercase tracking-wider text-cyan-400 font-bold">
                   AI Progression Forecast
                 </p>
               </div>
               {latestAi.trajectoryMonths && (
-                <span className="text-[10px] text-purple-300">
+                <span className="text-[10px] text-cyan-300">
                   {latestAi.trajectoryMonths}
                 </span>
               )}
@@ -414,7 +414,7 @@ export default function RagRecommendationPanel({ patient }) {
                     (s, i) => (
                       <span
                         key={i}
-                        className="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/10 text-purple-300 border border-purple-500/20"
+                        className="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/20"
                       >
                         {s}
                       </span>
@@ -436,8 +436,7 @@ export default function RagRecommendationPanel({ patient }) {
           <Info size={14} className="text-yellow-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-yellow-200/90">
             No AI stage/progression analysis yet. Run the Stage & Progression
-            diagnostic from the patient modal first to auto-populate context
-            here.
+            diagnostic first to auto-populate clinical context here.
           </p>
         </div>
       )}
@@ -445,7 +444,7 @@ export default function RagRecommendationPanel({ patient }) {
       {/* Input summary (editable) */}
       <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 mb-5">
         <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-3">
-          Patient Inputs (editable)
+          Clinical Inputs (editable)
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <Field label="Age">
@@ -468,7 +467,7 @@ export default function RagRecommendationPanel({ patient }) {
               <option value="severe">Severe</option>
             </select>
           </Field>
-          <Field label="Top K Sources">
+          <Field label="Evidence Sources (Top K)">
             <input
               type="number"
               min={1}
@@ -559,11 +558,11 @@ export default function RagRecommendationPanel({ patient }) {
         <div className="text-center py-8 border-2 border-dashed border-slate-700 rounded-xl">
           <Sparkles size={28} className="text-slate-600 mx-auto mb-2" />
           <p className="text-slate-500 text-sm">
-            No previous recommendations. Click{" "}
-            <span className="text-indigo-400 font-medium">
-              Generate Recommendation
+            No previous support plans. Click{" "}
+            <span className="text-cyan-400 font-medium">
+              Generate Support Plan
             </span>{" "}
-            to fetch AI-assisted clinical guidance.
+            to synthesize evidence-backed treatment guidance.
           </p>
         </div>
       )}
@@ -572,7 +571,7 @@ export default function RagRecommendationPanel({ patient }) {
       {loadingHistory && (
         <div className="flex items-center justify-center py-4 text-slate-500 text-xs">
           <Loader2 size={14} className="animate-spin mr-2" />
-          Loading saved recommendations…
+          Loading saved support plans…
         </div>
       )}
 
@@ -584,17 +583,17 @@ export default function RagRecommendationPanel({ patient }) {
           <div
             className={`mb-4 flex items-center justify-between p-3 rounded-lg border ${
               isLatest
-                ? "bg-indigo-500/5 border-indigo-500/30"
+                ? "bg-cyan-500/5 border-cyan-500/30"
                 : "bg-amber-500/5 border-amber-500/30"
             }`}
           >
             <div className="flex items-center space-x-2 text-xs">
               <Clock
                 size={14}
-                className={isLatest ? "text-indigo-400" : "text-amber-400"}
+                className={isLatest ? "text-cyan-400" : "text-amber-400"}
               />
               <span className="text-slate-400">
-                {isLatest ? "Latest saved recommendation" : "Viewing past recommendation"}
+                {isLatest ? "Latest saved support plan" : "Viewing past support plan"}
               </span>
               <span className="text-slate-500">·</span>
               <span className="text-slate-200 font-medium">
@@ -604,7 +603,7 @@ export default function RagRecommendationPanel({ patient }) {
             {!isLatest && (
               <button
                 onClick={() => viewHistoryItem(history[0])}
-                className="text-[11px] px-2 py-1 rounded border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/10"
+                className="text-[11px] px-2 py-1 rounded border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
               >
                 Jump to latest
               </button>
@@ -616,9 +615,9 @@ export default function RagRecommendationPanel({ patient }) {
       {/* Loading */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-12 space-y-3">
-          <Loader2 className="text-indigo-400 animate-spin" size={32} />
-          <p className="text-sm text-indigo-300 animate-pulse">
-            Retrieving evidence from clinical trials…
+          <Loader2 className="text-cyan-400 animate-spin" size={32} />
+          <p className="text-sm text-cyan-300 animate-pulse">
+            Synthesizing treatment support from clinical evidence…
           </p>
         </div>
       )}
@@ -659,14 +658,14 @@ export default function RagRecommendationPanel({ patient }) {
           </div>
 
           {/* Treatment card */}
-          <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/30 rounded-xl p-5">
+          <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-xl p-5">
             <div className="flex items-start space-x-3">
-              <div className="p-2 bg-indigo-500/20 rounded-lg">
-                <Pill className="text-indigo-300" size={22} />
+              <div className="p-2 bg-cyan-500/20 rounded-lg">
+                <Pill className="text-cyan-300" size={22} />
               </div>
               <div className="flex-1">
-                <p className="text-[10px] uppercase tracking-wider text-indigo-300 font-bold mb-1">
-                  Recommended Treatment
+                <p className="text-[10px] uppercase tracking-wider text-cyan-300 font-bold mb-1">
+                  Trials-backed Treatment Option
                 </p>
                 <h4 className="text-xl font-bold text-white leading-snug mb-3">
                   {rec.treatment}
@@ -726,8 +725,8 @@ export default function RagRecommendationPanel({ patient }) {
           {sources.length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-white mb-3 flex items-center">
-                <BookOpen size={16} className="mr-2 text-purple-400" />
-                Evidence Sources
+                <BookOpen size={16} className="mr-2 text-cyan-400" />
+                Clinical Trial & Literature Sources
               </h4>
               <div className="space-y-2">
                 {sources.map((s, i) => (
@@ -736,11 +735,11 @@ export default function RagRecommendationPanel({ patient }) {
                     href={s.source_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="group block bg-slate-900/60 hover:bg-slate-800/60 border border-slate-800 hover:border-purple-500/40 rounded-lg p-3 transition-all"
+                    className="group block bg-slate-900/60 hover:bg-slate-800/60 border border-slate-800 hover:border-cyan-500/40 rounded-lg p-3 transition-all"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white group-hover:text-purple-300 font-medium leading-snug line-clamp-2">
+                        <p className="text-sm text-white group-hover:text-cyan-300 font-medium leading-snug line-clamp-2">
                           {s.title}
                         </p>
                         <div className="flex items-center space-x-2 mt-1.5">
@@ -756,13 +755,13 @@ export default function RagRecommendationPanel({ patient }) {
                       </div>
                       <div className="flex flex-col items-end space-y-1 flex-shrink-0">
                         {typeof s.relevance_score === "number" && (
-                          <span className="text-[10px] text-purple-300 font-mono">
+                          <span className="text-[10px] text-cyan-300 font-mono">
                             {(s.relevance_score * 100).toFixed(2)}% match
                           </span>
                         )}
                         <ExternalLink
                           size={12}
-                          className="text-slate-500 group-hover:text-purple-400"
+                          className="text-slate-500 group-hover:text-cyan-400"
                         />
                       </div>
                     </div>
@@ -792,7 +791,7 @@ export default function RagRecommendationPanel({ patient }) {
         <div className="mt-6 pt-5 border-t border-slate-800">
           <h4 className="text-sm font-semibold text-white mb-3 flex items-center">
             <History size={16} className="mr-2 text-cyan-400" />
-            Recommendation History
+            Support Plan History
             <span className="ml-2 text-xs text-slate-500 font-normal">
               ({history.length})
             </span>
@@ -807,7 +806,7 @@ export default function RagRecommendationPanel({ patient }) {
                   onClick={() => viewHistoryItem(h)}
                   className={`w-full text-left p-3 rounded-lg border transition-all ${
                     isActive
-                      ? "bg-indigo-500/10 border-indigo-500/50 ring-1 ring-indigo-500/30"
+                      ? "bg-cyan-500/10 border-cyan-500/50 ring-1 ring-cyan-500/30"
                       : "bg-slate-900/50 border-slate-800 hover:border-slate-600 hover:bg-slate-800/60"
                   }`}
                 >
@@ -828,7 +827,7 @@ export default function RagRecommendationPanel({ patient }) {
                           {h.stage || "—"}
                         </span>
                         {isLatest && (
-                          <span className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold">
+                          <span className="text-[10px] uppercase tracking-wider text-cyan-400 font-bold">
                             Latest
                           </span>
                         )}

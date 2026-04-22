@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Brain,
   Upload,
@@ -21,7 +21,7 @@ import {
   Eye,
 } from "lucide-react";
 import ThreeBrainView from "../ThreeBrainView";
-import RagRecommendationPanel from "../RagRecommendationPanel";
+import ClinicalTreatmentSupportPanel from "../RagRecommendationPanel";
 
 const STAGE_LADDER = [
   { stage: "Normal", color: "green" },
@@ -41,6 +41,13 @@ const DEVICE_FIELD_META = {
   bloodPressure: { label: "Blood Pressure", icon: "🩺" },
   oxygenSaturation: { label: "Oxygen Saturation", icon: "🫁" },
   medication: { label: "Medication", icon: "💊" },
+};
+
+const SCORE_TONE_CLASS = {
+  slate: { text: "text-slate-300", bar: "bg-slate-500" },
+  green: { text: "text-green-400", bar: "bg-green-500" },
+  yellow: { text: "text-yellow-400", bar: "bg-yellow-500" },
+  red: { text: "text-red-400", bar: "bg-red-500" },
 };
 
 const numericOr = (v, fallback) =>
@@ -139,6 +146,55 @@ export default function DigitalTwinSection({
   const treatmentPlan = selectedPatientForDT?.treatmentPlan || [];
   const recommendations = selectedPatientForDT?.recommendations || [];
   const activeStageIdx = getActiveStageIndex(selectedPatientForDT);
+  const [activeDetailTab, setActiveDetailTab] = useState("cognitive");
+
+  useEffect(() => {
+    setActiveDetailTab("cognitive");
+  }, [selectedPatientForDT?.id]);
+
+  const hasDicom = selectedPatientForDT?.mriScans?.some(
+    (s) => s.base64Data || s.mriId
+  );
+  const hasDiagnostics =
+    !!selectedPatientForDT?.currentStage &&
+    selectedPatientForDT.currentStage !== "Pending Analysis";
+  const hasTreatmentContent =
+    treatmentPlan.length > 0 || recommendations.length > 0;
+
+  const detailTabs = [
+    {
+      id: "cognitive",
+      label: "Cognitive",
+      icon: BarChart3,
+      helper: "Track score trends over time to quickly assess decline, stability, or response to interventions.",
+    },
+    {
+      id: "physiology",
+      label: "Physiology",
+      icon: Smartphone,
+      helper: "Review wearable and device vitals that can explain near-term symptom fluctuation.",
+    },
+    {
+      id: "regions",
+      label: "Regions",
+      icon: Activity,
+      helper: "Inspect regional brain burden to identify which structures are driving risk and progression.",
+    },
+    {
+      id: "treatment",
+      label: "Treatment",
+      icon: Pill,
+      helper: "Consolidate clinician notes and action items into a clear, patient-specific care plan.",
+    },
+    {
+      id: "support",
+      label: "Trials-backed Support",
+      icon: FileText,
+      helper: "Generate treatment support plans backed by clinical trial and literature evidence.",
+    },
+  ];
+  const activeDetailMeta =
+    detailTabs.find((tab) => tab.id === activeDetailTab) || detailTabs[0];
 
   const progressionModel = useMemo(() => {
     if (Array.isArray(progression) && progression.length > 0) {
@@ -218,28 +274,63 @@ export default function DigitalTwinSection({
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-br from-slate-900/80 via-purple-900/10 to-slate-900/80 border border-purple-500/20 rounded-2xl p-6 backdrop-blur-sm">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-          <Brain className="mr-2 text-purple-400" size={22} />
-          Select Patient for Digital Twin Analysis
-        </h3>
+      <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 sm:p-6 backdrop-blur-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-400">
+              Step 1 · Patient Context
+            </p>
+            <h3 className="text-lg sm:text-xl font-semibold text-white mt-1 flex items-center">
+              <Brain className="mr-2 text-cyan-400" size={22} />
+              Select Patient for Digital Twin Analysis
+            </h3>
+            <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+              Choose one patient to load their imaging, progression forecasts, diagnostics,
+              and treatment insights in a single workflow.
+            </p>
+          </div>
+
+          {selectedPatientForDT && (
+            <div className="bg-slate-950/80 border border-slate-700 rounded-xl px-4 py-3 min-w-[260px]">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Current Context</p>
+              <p className="text-sm font-semibold text-white mt-1">{selectedPatientForDT.name}</p>
+              <div className="mt-2 flex items-center gap-2 flex-wrap text-xs">
+                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  {selectedPatientForDT.diagnosis || "No diagnosis"}
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded border ${
+                    selectedPatientForDT.riskLevel === "high"
+                      ? "bg-red-500/15 border-red-500/40 text-red-300"
+                      : selectedPatientForDT.riskLevel === "medium"
+                      ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                      : "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                  }`}
+                >
+                  Risk: {(selectedPatientForDT.riskLevel || "unknown").toUpperCase()}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {patients.length === 0 ? (
           <EmptyBlock>No patients available.</EmptyBlock>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             {patients.map((patient) => (
               <button
                 key={patient.id}
                 onClick={() => setSelectedPatientForDT(patient)}
                 className={`p-4 rounded-xl border transition-all duration-300 text-left group ${
                   selectedPatientForDT?.id === patient.id
-                    ? "bg-gradient-to-br from-purple-600/30 to-blue-600/30 border-purple-500 ring-2 ring-purple-500/50 shadow-lg shadow-purple-500/20"
-                    : "bg-slate-800/50 border-slate-700 hover:border-purple-500/50 hover:bg-slate-800/80"
+                    ? "bg-cyan-500/10 border-cyan-400 ring-2 ring-cyan-500/30 shadow-lg shadow-cyan-500/10"
+                    : "bg-slate-800/50 border-slate-700 hover:border-cyan-500/40 hover:bg-slate-800/80"
                 }`}
               >
                 <div className="flex items-center space-x-3">
                   <div
-                    className={`w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold shadow-lg ${
+                    className={`w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-white font-bold shadow-lg ${
                       selectedPatientForDT?.id === patient.id
                         ? "ring-2 ring-white/30"
                         : ""
@@ -248,7 +339,7 @@ export default function DigitalTwinSection({
                     {patient.avatar}
                   </div>
                   <div>
-                    <p className="text-white font-medium text-sm group-hover:text-purple-300 transition-colors">
+                    <p className="text-white font-medium text-sm group-hover:text-cyan-300 transition-colors">
                       {patient.name}
                     </p>
                     <p className="text-slate-400 text-xs">{patient.diagnosis}</p>
@@ -273,8 +364,61 @@ export default function DigitalTwinSection({
 
       {selectedPatientForDT ? (
         <>
-          <div className="lg:col-span-3">
-            <div className="relative bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden h-[600px] flex flex-col items-center justify-center">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Step 1</p>
+              <p className="text-sm font-semibold text-white mt-1">Patient Selected</p>
+              <p className="text-xs text-slate-400 mt-2">{selectedPatientForDT.name}</p>
+            </div>
+
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Step 2</p>
+              <p className="text-sm font-semibold text-white mt-1">Imaging Readiness</p>
+              <p className={`text-xs mt-2 ${hasDicom ? "text-emerald-300" : "text-amber-300"}`}>
+                {hasDicom ? "MRI scans available" : "Awaiting DICOM upload"}
+              </p>
+            </div>
+
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Step 3</p>
+              <p className="text-sm font-semibold text-white mt-1">AI Diagnostics</p>
+              <p className={`text-xs mt-2 ${hasDiagnostics ? "text-emerald-300" : "text-slate-400"}`}>
+                {hasDiagnostics ? "Results ready" : "Run diagnostics"}
+              </p>
+            </div>
+
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Step 4</p>
+              <p className="text-sm font-semibold text-white mt-1">Care Plan</p>
+              <p className={`text-xs mt-2 ${hasTreatmentContent ? "text-emerald-300" : "text-slate-400"}`}>
+                {hasTreatmentContent ? "Recommendations recorded" : "Add treatment notes"}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-slate-900/45 border border-slate-800 rounded-2xl p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-blue-300">
+                  Step 2 · Visual Twin
+                </p>
+                <h3 className="text-lg font-semibold text-white mt-1">3D Brain Reconstruction</h3>
+              </div>
+              <button
+                onClick={onRunDiagnostics}
+                disabled={analyzing}
+                className="inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+              >
+                {analyzing ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Activity size={16} />
+                )}
+                <span>{analyzing ? "Analyzing..." : "Run AI Diagnostics"}</span>
+              </button>
+            </div>
+
+            <div className="relative bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden h-[560px] flex flex-col items-center justify-center">
               <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10 pointer-events-none">
                 <div className="flex items-center space-x-2 bg-slate-900/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-green-500/30">
                   <div
@@ -289,9 +433,7 @@ export default function DigitalTwinSection({
                       ? "Interactive VTM Model"
                       : generating3D
                       ? "Auto-Generating..."
-                      : selectedPatientForDT?.mriScans?.some(
-                          (s) => s.base64Data || s.mriId
-                        )
+                      : hasDicom
                       ? "Scans Ready"
                       : "Waiting for DICOM"}
                   </span>
@@ -304,9 +446,7 @@ export default function DigitalTwinSection({
                   <p className="text-purple-400 font-semibold animate-pulse">
                     Reconstructing 3D Neuro-Atlas...
                   </p>
-                  {selectedPatientForDT?.mriScans?.some(
-                    (s) => s.base64Data || s.mriId
-                  ) && (
+                  {hasDicom && (
                     <p className="text-slate-400 text-xs">
                       Auto-generating from {selectedPatientForDT.mriScans.length} stored scan
                       {selectedPatientForDT.mriScans.length !== 1 ? "s" : ""}
@@ -322,9 +462,7 @@ export default function DigitalTwinSection({
                     </span>
                   </div>
                 </div>
-              ) : selectedPatientForDT?.mriScans?.some(
-                (s) => s.base64Data || s.mriId
-              ) ? (
+              ) : hasDicom ? (
                 <div className="text-center p-8 z-10">
                   <div className="w-24 h-24 bg-slate-900 rounded-full border-2 border-dashed border-yellow-700/50 flex items-center justify-center mx-auto mb-6">
                     <Brain size={40} className="text-yellow-500/70" />
@@ -710,20 +848,21 @@ export default function DigitalTwinSection({
                       const latest = scores[scores.length - 1];
                       const maxScore = testType === "MMSE" ? 30 : testType === "ADAS" ? 70 : 30;
                       const pct = latest != null ? Math.round((latest / maxScore) * 100) : null;
-                      const color =
+                      const tone =
                         pct == null ? "slate" : pct >= 70 ? "green" : pct >= 40 ? "yellow" : "red";
+                      const toneClass = SCORE_TONE_CLASS[tone] || SCORE_TONE_CLASS.slate;
                       return (
                         <div key={testType} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs text-slate-400 uppercase font-medium">{testType}</span>
-                            <span className={`text-lg font-bold text-${color}-400`}>
+                            <span className={`text-lg font-bold ${toneClass.text}`}>
                               {latest ?? "—"}<span className="text-xs text-slate-500">/{maxScore}</span>
                             </span>
                           </div>
                           {pct != null && (
                             <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mb-2">
                               <div
-                                className={`h-full rounded-full bg-${color}-500`}
+                                className={`h-full rounded-full ${toneClass.bar}`}
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
@@ -733,7 +872,7 @@ export default function DigitalTwinSection({
                               {scores.map((s, i) => (
                                 <div
                                   key={i}
-                                  className={`flex-1 rounded-t ${i === scores.length - 1 ? `bg-${color}-500` : "bg-slate-600"}`}
+                                  className={`flex-1 rounded-t ${i === scores.length - 1 ? toneClass.bar : "bg-slate-600"}`}
                                   style={{ height: `${Math.round((s / maxScore) * 100)}%` }}
                                 />
                               ))}
@@ -756,223 +895,264 @@ export default function DigitalTwinSection({
             )}
           </div>
 
-          {regions.length > 0 && (
-            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <Activity className="mr-2 text-blue-400" size={20} />
-                Brain Region Analysis
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {regions.map((region, idx) => (
-                  <div
-                    key={idx}
-                    className={`bg-slate-800/50 border rounded-xl p-4 transition-all hover:scale-105 ${
-                      region.color === "red"
-                        ? "border-red-500/30 hover:border-red-500/50"
-                        : region.color === "yellow"
-                        ? "border-yellow-500/30 hover:border-yellow-500/50"
-                        : "border-green-500/30 hover:border-green-500/50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <span className="text-2xl">{region.icon || "🧠"}</span>
-                      {region.status && (
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                            region.color === "red"
-                              ? "bg-red-500/20 text-red-400"
-                              : region.color === "yellow"
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : "bg-green-500/20 text-green-400"
-                          }`}
-                        >
-                          {region.status}
-                        </span>
-                      )}
-                    </div>
-                    <h4 className="text-white font-semibold text-sm mb-1">
-                      {region.region}
-                    </h4>
-                    {region.desc && (
-                      <p className="text-slate-500 text-xs mb-3">{region.desc}</p>
-                    )}
-                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-1000 ${
-                          region.color === "red"
-                            ? "bg-gradient-to-r from-red-600 to-red-400"
-                            : region.color === "yellow"
-                            ? "bg-gradient-to-r from-yellow-600 to-yellow-400"
-                            : "bg-gradient-to-r from-green-600 to-green-400"
-                        }`}
-                        style={{ width: `${numericOr(region.score, 0)}%` }}
-                      />
-                    </div>
-                    <p className="text-right text-xs text-slate-400 mt-1">
-                      {numericOr(region.score, 0)}%
-                    </p>
-                  </div>
-                ))}
+          <div className="bg-slate-900/45 border border-slate-800 rounded-2xl p-4 sm:p-5">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between mb-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-cyan-300">
+                  Step 4 · Clinical Detail Workspace
+                </p>
+                <h3 className="text-lg font-semibold text-white mt-1">Focused Data Review</h3>
+                <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                  {activeDetailMeta.helper ||
+                    "Review one data domain at a time to keep decision-making focused and clinically interpretable."}
+                </p>
               </div>
-            </div>
-          )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <BarChart3 className="mr-2 text-cyan-400" size={20} />
-                Cognitive Test History
-              </h3>
-              {cognitiveTests.length === 0 ? (
-                <EmptyBlock>No cognitive tests recorded.</EmptyBlock>
-              ) : (
-                <div className="space-y-4">
-                  {cognitiveTests.map((test, idx) => {
-                    const scores = Array.isArray(test.scores) ? test.scores : [];
-                    const max = numericOr(test.max, 30);
-                    return (
-                      <div key={idx} className="bg-slate-800/30 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-white font-medium text-sm">
-                            {test.test}
-                          </span>
-                          <span className="text-cyan-400 font-bold">
-                            {numericOr(test.current, "—")}/{max}
-                          </span>
-                        </div>
-                        {scores.length > 0 && (
-                          <>
-                            <div className="flex items-end space-x-1 h-12">
-                              {scores.map((score, i) => (
-                                <div
-                                  key={i}
-                                  className="flex-1 flex flex-col items-center"
-                                >
-                                  <div
-                                    className={`w-full rounded-t ${
-                                      i === scores.length - 1
-                                        ? "bg-cyan-500"
-                                        : "bg-slate-600"
-                                    }`}
-                                    style={{
-                                      height: `${(score / max) * 100}%`,
-                                    }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                            <div className="flex justify-between mt-1">
-                              <span className="text-[10px] text-slate-500">
-                                Earliest
-                              </span>
-                              <span className="text-[10px] text-slate-500">
-                                Current
-                              </span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <Smartphone className="mr-2 text-green-400" size={20} />
-                Device Physiological Data
-              </h3>
-              {deviceMetrics.length === 0 ? (
-                <EmptyBlock>No device data recorded.</EmptyBlock>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {deviceMetrics.map((item) => (
-                    <div
-                      key={item.key}
-                      className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50"
+              <div className="flex flex-wrap gap-2">
+                {detailTabs.map((tab) => {
+                  const TabIcon = tab.icon;
+                  const active = activeDetailTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveDetailTab(tab.id)}
+                      className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all ${
+                        active
+                          ? "bg-cyan-500/15 border-cyan-400 text-cyan-200"
+                          : "bg-slate-800/70 border-slate-700 text-slate-300 hover:border-cyan-500/40"
+                      }`}
                     >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-lg">{item.icon}</span>
-                        <Minus size={14} className="text-slate-400" />
+                      <TabIcon size={14} />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {activeDetailTab === "regions" && (
+              <div>
+                {regions.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                    {regions.map((region, idx) => (
+                      <div
+                        key={idx}
+                        className={`bg-slate-800/50 border rounded-xl p-4 transition-all hover:scale-[1.02] ${
+                          region.color === "red"
+                            ? "border-red-500/30 hover:border-red-500/50"
+                            : region.color === "yellow"
+                            ? "border-yellow-500/30 hover:border-yellow-500/50"
+                            : "border-green-500/30 hover:border-green-500/50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <span className="text-2xl">{region.icon || "🧠"}</span>
+                          {region.status && (
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                region.color === "red"
+                                  ? "bg-red-500/20 text-red-400"
+                                  : region.color === "yellow"
+                                  ? "bg-yellow-500/20 text-yellow-400"
+                                  : "bg-green-500/20 text-green-400"
+                              }`}
+                            >
+                              {region.status}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-white font-semibold text-sm mb-1">
+                          {region.region}
+                        </h4>
+                        {region.desc && (
+                          <p className="text-slate-500 text-xs mb-3">{region.desc}</p>
+                        )}
+                        <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-1000 ${
+                              region.color === "red"
+                                ? "bg-gradient-to-r from-red-600 to-red-400"
+                                : region.color === "yellow"
+                                ? "bg-gradient-to-r from-yellow-600 to-yellow-400"
+                                : "bg-gradient-to-r from-green-600 to-green-400"
+                            }`}
+                            style={{ width: `${numericOr(region.score, 0)}%` }}
+                          />
+                        </div>
+                        <p className="text-right text-xs text-slate-400 mt-1">
+                          {numericOr(region.score, 0)}%
+                        </p>
                       </div>
-                      <p className="text-white font-semibold text-sm">
-                        {item.value}
-                      </p>
-                      <p className="text-slate-500 text-xs">{item.label}</p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyBlock>No region analysis available yet.</EmptyBlock>
+                )}
+              </div>
+            )}
+
+            {activeDetailTab === "cognitive" && (
+              <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                  <BarChart3 className="mr-2 text-cyan-400" size={20} />
+                  Cognitive Test History
+                </h3>
+                {cognitiveTests.length === 0 ? (
+                  <EmptyBlock>No cognitive tests recorded.</EmptyBlock>
+                ) : (
+                  <div className="space-y-4">
+                    {cognitiveTests.map((test, idx) => {
+                      const scores = Array.isArray(test.scores) ? test.scores : [];
+                      const max = numericOr(test.max, 30);
+                      return (
+                        <div key={idx} className="bg-slate-800/30 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-white font-medium text-sm">
+                              {test.test}
+                            </span>
+                            <span className="text-cyan-400 font-bold">
+                              {numericOr(test.current, "—")}/{max}
+                            </span>
+                          </div>
+                          {scores.length > 0 && (
+                            <>
+                              <div className="flex items-end space-x-1 h-12">
+                                {scores.map((score, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex-1 flex flex-col items-center"
+                                  >
+                                    <div
+                                      className={`w-full rounded-t ${
+                                        i === scores.length - 1
+                                          ? "bg-cyan-500"
+                                          : "bg-slate-600"
+                                      }`}
+                                      style={{
+                                        height: `${(score / max) * 100}%`,
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex justify-between mt-1">
+                                <span className="text-[10px] text-slate-500">
+                                  Earliest
+                                </span>
+                                <span className="text-[10px] text-slate-500">
+                                  Current
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeDetailTab === "physiology" && (
+              <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                  <Smartphone className="mr-2 text-green-400" size={20} />
+                  Device Physiological Data
+                </h3>
+                {deviceMetrics.length === 0 ? (
+                  <EmptyBlock>No device data recorded.</EmptyBlock>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {deviceMetrics.map((item) => (
+                      <div
+                        key={item.key}
+                        className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-lg">{item.icon}</span>
+                          <Minus size={14} className="text-slate-400" />
+                        </div>
+                        <p className="text-white font-semibold text-sm">
+                          {item.value}
+                        </p>
+                        <p className="text-slate-500 text-xs">{item.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeDetailTab === "treatment" && (
+              <div className="bg-gradient-to-r from-slate-900 via-blue-900/10 to-slate-900 border border-blue-500/20 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white flex items-center">
+                    <Pill className="mr-2 text-blue-400" size={20} />
+                    Treatment Notes & Recommendations
+                  </h3>
+                  <button
+                    onClick={onShowNotesModal}
+                    className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                  >
+                    <Plus size={16} />
+                    <span>Add Note</span>
+                  </button>
                 </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-r from-slate-900 via-blue-900/10 to-slate-900 border border-blue-500/20 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white flex items-center">
-                <Pill className="mr-2 text-blue-400" size={20} />
-                Treatment Notes & Recommendations
-              </h3>
-              <button
-                onClick={onShowNotesModal}
-                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
-              >
-                <Plus size={16} />
-                <span>Add Note</span>
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                <h4 className="text-white font-medium mb-2 flex items-center">
-                  <FileText size={16} className="mr-2 text-purple-400" />
-                  Current Treatment Plan
-                </h4>
-                {treatmentPlan.length === 0 ? (
-                  <EmptyBlock>No treatment plan recorded.</EmptyBlock>
-                ) : (
-                  <ul className="space-y-2 text-sm text-slate-300">
-                    {treatmentPlan.map((item, idx) => (
-                      <li key={idx} className="flex items-start space-x-2">
-                        <CheckCircle
-                          size={14}
-                          className="text-green-400 mt-0.5 flex-shrink-0"
-                        />
-                        <span>
-                          {typeof item === "string" ? item : item.text || ""}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                    <h4 className="text-white font-medium mb-2 flex items-center">
+                      <FileText size={16} className="mr-2 text-purple-400" />
+                      Current Treatment Plan
+                    </h4>
+                    {treatmentPlan.length === 0 ? (
+                      <EmptyBlock>No treatment plan recorded.</EmptyBlock>
+                    ) : (
+                      <ul className="space-y-2 text-sm text-slate-300">
+                        {treatmentPlan.map((item, idx) => (
+                          <li key={idx} className="flex items-start space-x-2">
+                            <CheckCircle
+                              size={14}
+                              className="text-green-400 mt-0.5 flex-shrink-0"
+                            />
+                            <span>
+                              {typeof item === "string" ? item : item.text || ""}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                    <h4 className="text-white font-medium mb-2 flex items-center">
+                      <Stethoscope size={16} className="mr-2 text-cyan-400" />
+                      Clinical Recommendations
+                    </h4>
+                    {recommendations.length === 0 ? (
+                      <EmptyBlock>No recommendations recorded.</EmptyBlock>
+                    ) : (
+                      <ul className="space-y-2 text-sm text-slate-300">
+                        {recommendations.map((item, idx) => (
+                          <li key={idx} className="flex items-start space-x-2">
+                            <ChevronRight
+                              size={14}
+                              className="text-cyan-400 mt-0.5 flex-shrink-0"
+                            />
+                            <span>
+                              {typeof item === "string" ? item : item.text || ""}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                <h4 className="text-white font-medium mb-2 flex items-center">
-                  <Stethoscope size={16} className="mr-2 text-cyan-400" />
-                  Clinical Recommendations
-                </h4>
-                {recommendations.length === 0 ? (
-                  <EmptyBlock>No recommendations recorded.</EmptyBlock>
-                ) : (
-                  <ul className="space-y-2 text-sm text-slate-300">
-                    {recommendations.map((item, idx) => (
-                      <li key={idx} className="flex items-start space-x-2">
-                        <ChevronRight
-                          size={14}
-                          className="text-cyan-400 mt-0.5 flex-shrink-0"
-                        />
-                        <span>
-                          {typeof item === "string" ? item : item.text || ""}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </div>
+            )}
 
-          {/* RAG-powered Clinician Recommendation */}
-          <RagRecommendationPanel patient={selectedPatientForDT} />
+            {activeDetailTab === "support" && (
+              <ClinicalTreatmentSupportPanel patient={selectedPatientForDT} />
+            )}
+          </div>
         </>
       ) : (
         <div className="bg-gradient-to-br from-slate-900 via-purple-900/10 to-slate-900 border border-purple-500/20 rounded-xl p-16 text-center">
