@@ -20,6 +20,30 @@ const sortTestTypes = (a, b) => {
   return a.localeCompare(b);
 };
 
+const getPredictionErrorMessage = (error) => {
+  const status = error?.response?.status;
+  const responseData = error?.response?.data;
+  const responseText =
+    typeof responseData === "string"
+      ? responseData
+      : JSON.stringify(responseData || "");
+
+  if (status === 403 && /site disabled|web app is stopped/i.test(responseText)) {
+    return "Cognitive prediction API is unavailable because the Azure web app is stopped (403 Site Disabled). Start the backend app service or point /api/cognitive to a running endpoint.";
+  }
+
+  if (status === 403) {
+    return "Cognitive prediction API denied this request (403). Check backend authorization and deployment status.";
+  }
+
+  return (
+    error?.response?.data?.error ||
+    error?.response?.data?.message ||
+    error?.message ||
+    "Prediction request failed."
+  );
+};
+
 export default function CognitiveTestsSection({ patients }) {
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -106,11 +130,7 @@ export default function CognitiveTestsSection({ patients }) {
         },
       }));
     } catch (error) {
-      const message =
-        error?.response?.data?.error ||
-        error?.response?.data?.message ||
-        error?.message ||
-        "Prediction request failed.";
+      const message = getPredictionErrorMessage(error);
 
       setPredictionByType((prev) => ({
         ...prev,

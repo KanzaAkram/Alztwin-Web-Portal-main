@@ -1407,6 +1407,14 @@ const handleViewPatient = async (patientId) => {
         setDtAiHistory(h);
       })
       .catch(() => setDtAiHistory([]));
+
+    getPatientCognitiveTestsByType(selectedPatientForDT)
+      .then((grouped) => {
+        setDtCognitiveTests(grouped || {});
+      })
+      .catch(() => {
+        setDtCognitiveTests({});
+      });
   }, [selectedPatientForDT?.id]);
 
   useEffect(() => {

@@ -46,15 +46,56 @@ const DEVICE_FIELD_META = {
 const numericOr = (v, fallback) =>
   typeof v === "number" && Number.isFinite(v) ? v : fallback;
 
+const getStageIndexFromLabel = (stageLabel) => {
+  const normalized = String(stageLabel || "").toLowerCase().trim();
+  if (!normalized) return -1;
+
+  const exact = STAGE_LADDER.findIndex(
+    (s) => s.stage.toLowerCase() === normalized
+  );
+  if (exact >= 0) return exact;
+
+  if (normalized === "cn" || normalized.includes("normal")) return 0;
+  if (
+    normalized.includes("mci") ||
+    normalized.includes("smc") ||
+    normalized.includes("emci") ||
+    normalized.includes("lmci")
+  )
+    return 1;
+  if (normalized.includes("mild")) return 2;
+  if (normalized.includes("moderate")) return 3;
+  if (normalized.includes("severe")) return 4;
+  if (normalized === "ad" || normalized.includes("alzheimer")) return 3;
+
+  return -1;
+};
+
+const parseTrajectoryMonths = (value) => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(1, value);
+  }
+  const match = String(value || "").match(/(\d+)/);
+  if (!match) return 12;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 12;
+};
+
 const getActiveStageIndex = (patient) => {
   if (!patient) return -1;
-  if (typeof patient.stageLevel === "number") return patient.stageLevel;
-  if (patient.stage) {
-    const idx = STAGE_LADDER.findIndex(
-      (s) => s.stage.toLowerCase() === patient.stage.toLowerCase()
+  if (typeof patient.stageLevel === "number") {
+    return Math.max(
+      0,
+      Math.min(STAGE_LADDER.length - 1, Math.round(patient.stageLevel))
     );
+  }
+
+  const candidates = [patient.currentStage, patient.stage, patient.diagnosis];
+  for (const candidate of candidates) {
+    const idx = getStageIndexFromLabel(candidate);
     if (idx >= 0) return idx;
   }
+
   return -1;
 };
 
@@ -77,10 +118,73 @@ export default function DigitalTwinSection({
 }) {
   const progression = selectedPatientForDT?.progression || [];
   const regions = selectedPatientForDT?.regions || [];
-  const cognitiveTests = selectedPatientForDT?.cognitiveTests || [];
+  const patientCognitiveTests = selectedPatientForDT?.cognitiveTests || [];
+  const fallbackCognitiveTests = useMemo(
+    () =>
+      Object.entries(dtCognitiveTests || {}).map(([testType, group]) => {
+        const scores = Array.isArray(group?.pastScores) ? group.pastScores : [];
+        const current = scores.length > 0 ? scores[scores.length - 1] : null;
+        const max = testType === "MMSE" ? 30 : testType === "ADAS" ? 70 : 30;
+        return {
+          test: testType,
+          current,
+          max,
+          scores,
+        };
+      }),
+    [dtCognitiveTests]
+  );
+  const cognitiveTests =
+    patientCognitiveTests.length > 0 ? patientCognitiveTests : fallbackCognitiveTests;
   const treatmentPlan = selectedPatientForDT?.treatmentPlan || [];
   const recommendations = selectedPatientForDT?.recommendations || [];
   const activeStageIdx = getActiveStageIndex(selectedPatientForDT);
+
+  const progressionModel = useMemo(() => {
+    if (Array.isArray(progression) && progression.length > 0) {
+      return { points: progression, isFallback: false };
+    }
+
+    if (!selectedPatientForDT) {
+      return { points: [], isFallback: false };
+    }
+
+    const resolvedStageIdx =
+      activeStageIdx >= 0 ? activeStageIdx : 1;
+    const timelineMonths = parseTrajectoryMonths(
+      selectedPatientForDT.trajectoryMonths
+    );
+    const stageAdvance = timelineMonths <= 12 ? 2 : 1;
+    const endStageIdx = Math.min(
+      STAGE_LADDER.length - 1,
+      resolvedStageIdx + stageAdvance
+    );
+
+    const startProgressMap = [18, 34, 50, 68, 82];
+    const endProgressMap = [35, 52, 70, 85, 95];
+    const startProgress = startProgressMap[resolvedStageIdx] ?? 34;
+    const endProgress = endProgressMap[endStageIdx] ?? 70;
+
+    const points = [0, 1, 2, 3, 4].map((step) => {
+      const ratio = step / 4;
+      const monthOffset = Math.max(1, Math.round(timelineMonths * ratio));
+      const stageIdx = Math.min(
+        STAGE_LADDER.length - 1,
+        resolvedStageIdx + Math.round((endStageIdx - resolvedStageIdx) * ratio)
+      );
+
+      return {
+        month: step === 0 ? "Current" : `+${monthOffset}m`,
+        stage: STAGE_LADDER[stageIdx].stage,
+        progress: Math.round(
+          startProgress + (endProgress - startProgress) * ratio
+        ),
+        predicted: step > 0,
+      };
+    });
+
+    return { points, isFallback: true };
+  }, [activeStageIdx, progression, selectedPatientForDT]);
 
   const deviceMetrics = useMemo(() => {
     const deviceData = selectedPatientForDT?.deviceData;
@@ -298,15 +402,17 @@ export default function DigitalTwinSection({
                 <TrendingUp className="mr-2 text-orange-400" size={20} />
                 Disease Progression Prediction
               </h3>
-              {progression.length === 0 ? (
-                <EmptyBlock>
-                  No progression prediction available for this patient.
-                </EmptyBlock>
-              ) : (
+              {progressionModel.points.length > 0 ? (
                 <>
+                  {progressionModel.isFallback && (
+                    <div className="mb-3 text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+                      Detailed progression points are unavailable, so this chart is an estimated trajectory based on latest stage and timeline.
+                    </div>
+                  )}
+
                   <div className="relative h-48">
                     <div className="absolute inset-0 flex items-end justify-between px-4">
-                      {progression.map((point, idx) => (
+                      {progressionModel.points.map((point, idx) => (
                         <div
                           key={idx}
                           className="flex flex-col items-center flex-1"
@@ -358,6 +464,10 @@ export default function DigitalTwinSection({
                     )}
                   </div>
                 </>
+              ) : (
+                <EmptyBlock>
+                  No progression prediction available for this patient.
+                </EmptyBlock>
               )}
             </div>
 
@@ -646,16 +756,12 @@ export default function DigitalTwinSection({
             )}
           </div>
 
-          <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-              <Activity className="mr-2 text-blue-400" size={20} />
-              Brain Region Analysis
-            </h3>
-            {regions.length === 0 ? (
-              <EmptyBlock>
-                No region analysis available for this patient.
-              </EmptyBlock>
-            ) : (
+          {regions.length > 0 && (
+            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                <Activity className="mr-2 text-blue-400" size={20} />
+                Brain Region Analysis
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {regions.map((region, idx) => (
                   <div
@@ -708,8 +814,8 @@ export default function DigitalTwinSection({
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
