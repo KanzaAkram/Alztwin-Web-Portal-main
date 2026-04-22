@@ -387,31 +387,93 @@ const Dashboard = ({ user, onLogout }) => {
           .filter(Boolean)
       : [];
 
-  const buildCaregiverReportPreview = () => {
-    if (!selectedPatientForDT) return null;
+  const getCognitiveMaxScore = (testType) =>
+    testType === "MMSE" ? 30 : testType === "ADAS" ? 70 : 30;
 
-    const cognitiveScores = Object.entries(dtCognitiveTests || {}).map(
-      ([testType, group]) => {
-        const pastScores = Array.isArray(group?.pastScores)
-          ? group.pastScores
-          : [];
-        const latestScore =
-          pastScores.length > 0 ? pastScores[pastScores.length - 1] : null;
-        const maxScore =
-          testType === "MMSE" ? 30 : testType === "ADAS" ? 70 : 30;
-        return {
+  const toFiniteNumber = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const buildPreviewCognitiveScores = (groupedTests = dtCognitiveTests) => {
+    if (!selectedPatientForDT) return [];
+
+    const byTestType = new Map();
+    const patientTests = Array.isArray(selectedPatientForDT.cognitiveTests)
+      ? selectedPatientForDT.cognitiveTests
+      : [];
+
+    patientTests.forEach((entry, idx) => {
+      const testType =
+        String(entry?.test || entry?.testType || `Test ${idx + 1}`).trim() ||
+        `Test ${idx + 1}`;
+      const scores = Array.isArray(entry?.scores)
+        ? entry.scores.map(toFiniteNumber).filter((v) => v != null)
+        : [];
+      const current =
+        toFiniteNumber(entry?.current) != null
+          ? toFiniteNumber(entry?.current)
+          : scores.length > 0
+          ? scores[scores.length - 1]
+          : null;
+      const maxScore =
+        toFiniteNumber(entry?.max) != null
+          ? Number(entry.max)
+          : getCognitiveMaxScore(testType);
+
+      byTestType.set(testType, {
+        testType,
+        latestScore: current,
+        maxScore,
+        scorePercent:
+          current != null ? Math.round((current / maxScore) * 100) : null,
+        pastScores: scores,
+        recordsCount: scores.length,
+      });
+    });
+
+    Object.entries(groupedTests || {}).forEach(([testType, group]) => {
+      const pastScores = Array.isArray(group?.pastScores)
+        ? group.pastScores.map(toFiniteNumber).filter((v) => v != null)
+        : [];
+      const latestScore =
+        pastScores.length > 0 ? pastScores[pastScores.length - 1] : null;
+      const maxScore = getCognitiveMaxScore(testType);
+      const existing = byTestType.get(testType);
+
+      if (!existing) {
+        byTestType.set(testType, {
           testType,
           latestScore,
           maxScore,
           scorePercent:
-            typeof latestScore === "number"
+            latestScore != null
               ? Math.round((latestScore / maxScore) * 100)
               : null,
           pastScores,
-          recordsCount: Array.isArray(group?.history) ? group.history.length : 0,
-        };
+          recordsCount: Array.isArray(group?.history) ? group.history.length : pastScores.length,
+        });
+        return;
       }
+
+      if (existing.latestScore == null && latestScore != null) {
+        byTestType.set(testType, {
+          ...existing,
+          latestScore,
+          scorePercent: Math.round((latestScore / existing.maxScore) * 100),
+        });
+      }
+    });
+
+    return Array.from(byTestType.values()).sort((a, b) =>
+      a.testType.localeCompare(b.testType)
     );
+  };
+
+  const buildCaregiverReportPreview = (groupedTests = dtCognitiveTests) => {
+    if (!selectedPatientForDT) return null;
+
+    const cognitiveScores = buildPreviewCognitiveScores(groupedTests);
 
     const clinicalNoteLines = normalizeNoteList(treatmentNotes);
     const recommendationLines = normalizeNoteList(recommendationPlan);
@@ -573,7 +635,7 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
-  const openCaregiverReportPreview = () => {
+  const openCaregiverReportPreview = async () => {
     if (!selectedPatientForDT) {
       alert("Please select a patient first.");
       return;
@@ -587,7 +649,23 @@ const Dashboard = ({ user, onLogout }) => {
       return;
     }
 
-    const preview = buildCaregiverReportPreview();
+    let cognitiveSnapshot = dtCognitiveTests;
+    const hasGroupedTests = Object.keys(cognitiveSnapshot || {}).length > 0;
+    const hasPatientCognitiveTests =
+      Array.isArray(selectedPatientForDT.cognitiveTests) &&
+      selectedPatientForDT.cognitiveTests.length > 0;
+
+    if (!hasGroupedTests && !hasPatientCognitiveTests) {
+      try {
+        const grouped = await getPatientCognitiveTestsByType(selectedPatientForDT);
+        cognitiveSnapshot = grouped || {};
+        setDtCognitiveTests(grouped || {});
+      } catch (error) {
+        console.warn("Could not load cognitive tests for report preview:", error);
+      }
+    }
+
+    const preview = buildCaregiverReportPreview(cognitiveSnapshot || {});
     if (!preview) return;
     setCaregiverReportPreview(preview);
     setShowCaregiverReportPreview(true);
@@ -634,13 +712,21 @@ const Dashboard = ({ user, onLogout }) => {
   const extractBase64FromImageLike = (value) => {
     if (!value) return null;
     if (typeof value === "string") return value;
-    return (
-      value.base64Data ||
-      value.imageBase64 ||
-      value.base64 ||
-      value.imageData ||
-      null
-    );
+
+    const candidates = [
+      value.base64Data,
+      value.imageBase64,
+      value.base64,
+      value.imageData,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === "string" && candidate.trim().length > 0) {
+        return candidate;
+      }
+    }
+
+    return null;
   };
 
   const getCandidatesFromBatchData = (batchData = {}, fallbackName = "scan.dcm") => {
@@ -649,6 +735,7 @@ const Dashboard = ({ user, onLogout }) => {
         .map((img, idx) => ({
           base64Data: extractBase64FromImageLike(img),
           fileName: img?.fileName || batchData.fileName || `${fallbackName}_${idx}.dcm`,
+          fileType: img?.fileType || batchData.fileType || null,
         }))
         .filter((entry) => !!entry.base64Data);
     }
@@ -660,22 +747,44 @@ const Dashboard = ({ user, onLogout }) => {
       {
         base64Data: single,
         fileName: batchData.fileName || fallbackName,
+        fileType: batchData.fileType || null,
       },
     ];
+  };
+
+  const getDiagnosticCandidatePriority = (candidate = {}) => {
+    const fileName = String(candidate.fileName || "").toLowerCase();
+    const fileType = String(candidate.fileType || "").toLowerCase();
+
+    if (
+      fileType.includes("dicom") ||
+      fileName.endsWith(".dcm") ||
+      fileName.endsWith(".dicom")
+    ) {
+      return 0;
+    }
+
+    if (fileName.endsWith(".nii") || fileName.endsWith(".nii.gz")) {
+      return 1;
+    }
+
+    return 2;
   };
 
   const resolveDiagnosticScanForPatient = async (patient) => {
     if (!patient?.id) return null;
     const scans = Array.isArray(patient.mriScans) ? patient.mriScans : [];
+    const collectedCandidates = [];
 
     // A) Direct scan payload on patient doc (clinician format).
     for (const scan of scans) {
       const direct = extractBase64FromImageLike(scan);
       if (direct) {
-        return {
+        collectedCandidates.push({
           base64Data: direct,
           fileName: scan.fileName || "scan.dcm",
-        };
+          fileType: scan.fileType || scan.type || null,
+        });
       }
     }
 
@@ -695,27 +804,48 @@ const Dashboard = ({ user, onLogout }) => {
           batchDoc.data(),
           `${mriId}.dcm`
         );
-        if (candidates.length > 0) return candidates[0];
+        if (candidates.length > 0) {
+          collectedCandidates.push(...candidates);
+        }
       }
     }
 
     // C) Final fallback: scan all subcollection docs in case mriId summaries are absent.
-    const allSnap = await getDocs(patientMriCollection);
-    const sortedAll = [...allSnap.docs].sort((a, b) => {
-      const aBatch = a.data().batchNumber;
-      const bBatch = b.data().batchNumber;
-      if (Number.isFinite(aBatch) && Number.isFinite(bBatch)) return aBatch - bBatch;
-      if (Number.isFinite(aBatch)) return -1;
-      if (Number.isFinite(bBatch)) return 1;
-      return 0;
-    });
+    if (collectedCandidates.length === 0) {
+      const allSnap = await getDocs(patientMriCollection);
+      const sortedAll = [...allSnap.docs].sort((a, b) => {
+        const aBatch = a.data().batchNumber;
+        const bBatch = b.data().batchNumber;
+        if (Number.isFinite(aBatch) && Number.isFinite(bBatch)) return aBatch - bBatch;
+        if (Number.isFinite(aBatch)) return -1;
+        if (Number.isFinite(bBatch)) return 1;
+        return 0;
+      });
 
-    for (const batchDoc of sortedAll) {
-      const candidates = getCandidatesFromBatchData(batchDoc.data());
-      if (candidates.length > 0) return candidates[0];
+      for (const batchDoc of sortedAll) {
+        const candidates = getCandidatesFromBatchData(batchDoc.data());
+        if (candidates.length > 0) {
+          collectedCandidates.push(...candidates);
+        }
+      }
     }
 
-    return null;
+    if (collectedCandidates.length === 0) return null;
+
+    const seen = new Set();
+    const deduped = collectedCandidates.filter((candidate) => {
+      const payloadKey = String(candidate.base64Data || "").slice(0, 64);
+      const key = `${candidate.fileName || "scan"}:${payloadKey}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    deduped.sort(
+      (a, b) => getDiagnosticCandidatePriority(a) - getDiagnosticCandidatePriority(b)
+    );
+
+    return deduped[0] || null;
   };
 
   // === 3D FOLDER UPLOAD LOGIC ===
@@ -1528,8 +1658,19 @@ const handleViewPatient = async (patientId) => {
       let mriFile = null;
       if (resolvedScan?.base64Data) {
         const blob = base64ToBlob(resolvedScan.base64Data);
-        const fileName = resolvedScan.fileName || "scan.dcm";
+        if (!blob || blob.size === 0) {
+          throw new Error("Resolved MRI payload is empty after base64 decoding.");
+        }
+        const rawName = resolvedScan.fileName || "patient_scan.dcm";
+        const fileName = /\.(dcm|dicom)$/i.test(rawName)
+          ? rawName
+          : "patient_scan.dcm";
         mriFile = new File([blob], fileName, { type: "application/dicom" });
+        console.log("DT diagnostics scan selected:", {
+          fileName,
+          fileType: resolvedScan.fileType || "unknown",
+          size: blob.size,
+        });
       }
 
       if (!mriFile) {
@@ -1636,7 +1777,12 @@ const handleViewPatient = async (patientId) => {
 
     } catch (err) {
       console.error("DT AI Analysis Error:", err);
-      alert(`AI Analysis Failed: ${err.response?.data?.error || err.message}`);
+      const status = err?.response?.status;
+      const endpoint = err?.config?.url;
+      const msg = err?.response?.data?.error || err?.message || "Unknown error";
+      alert(
+        `AI Analysis Failed${status ? ` (${status})` : ""}${endpoint ? ` at ${endpoint}` : ""}: ${msg}`
+      );
     }
     setAnalyzing(false);
   };

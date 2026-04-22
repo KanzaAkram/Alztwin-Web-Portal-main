@@ -14,8 +14,11 @@ import { Dashboard as ClinicianDashboard } from "./components/Dashboard";
 import { PatientDashboard } from "./components/PatientDashboard";
 import { CaregiverDashboard } from "./components/CaregiverDashboard";
 import { ClinicianOnboardingForm } from "./components/ClinicianOnboardingForm";
+import { ThemeProvider, useTheme } from "./components/ThemeContext";
+import { ThemeToggle } from "./components/ThemeToggle";
 
-function App() {
+function AppContent() {
+  const { isLight } = useTheme();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [user, setUser] = useState(null);
@@ -110,58 +113,99 @@ function App() {
   // Show loading screen while checking auth state
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-400">Loading...</p>
+      <>
+        <div
+          className={`min-h-screen flex items-center justify-center ${
+            isLight
+              ? "bg-gradient-to-br from-emerald-50 via-emerald-100 to-teal-100"
+              : "bg-slate-950"
+          }`}
+        >
+          <div className="flex flex-col items-center space-y-4">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className={isLight ? "text-emerald-800" : "text-slate-400"}>Loading...</p>
+          </div>
         </div>
-      </div>
+        <ThemeToggle />
+      </>
     );
   }
 
   // Show clinician onboarding form for new users
   if (user && showOnboarding) {
     return (
-      <ClinicianOnboardingForm
-        user={user}
-        onComplete={handleOnboardingComplete}
-      />
+      <>
+        <ClinicianOnboardingForm
+          user={user}
+          onComplete={handleOnboardingComplete}
+        />
+        <ThemeToggle />
+      </>
     );
   }
 
   // Route to appropriate dashboard based on role
   if (user && userRole) {
+    let dashboard = null;
     switch (userRole) {
       case "clinician":
-        return <ClinicianDashboard user={user} onLogout={handleLogout} />;
+        dashboard = <ClinicianDashboard user={user} onLogout={handleLogout} />;
+        break;
       case "patient":
-        return <PatientDashboard user={user} onLogout={handleLogout} />;
+        dashboard = <PatientDashboard user={user} onLogout={handleLogout} />;
+        break;
       case "caregiver":
-        return <CaregiverDashboard user={user} onLogout={handleLogout} />;
+        dashboard = <CaregiverDashboard user={user} onLogout={handleLogout} />;
+        break;
       default:
-        return <ClinicianDashboard user={user} onLogout={handleLogout} />;
+        dashboard = <ClinicianDashboard user={user} onLogout={handleLogout} />;
+        break;
     }
+
+    return (
+      <>
+        {dashboard}
+        <ThemeToggle />
+      </>
+    );
   }
 
   // Show landing page if not logged in
   return (
-    <div className="min-h-screen bg-midnight-900 text-slate-50 font-sans selection:bg-brand-500 selection:text-white">
-      <Header onLogin={openLogin} onSignup={openSignup} />
-      <main>
-        <Hero onSignup={openSignup} />
-        <InteractiveBrainModel />
-        <Features />
-        <DashboardPreview />
-        <Methodology />
-      </main>
-      <Footer />
+    <>
+      <div
+        className={`min-h-screen font-sans ${
+          isLight
+            ? "bg-gradient-to-br from-emerald-50 via-emerald-100 to-teal-100 text-emerald-950 selection:bg-emerald-700 selection:text-emerald-50"
+            : "bg-midnight-900 text-slate-50 selection:bg-brand-500 selection:text-white"
+        }`}
+      >
+        <Header onLogin={openLogin} onSignup={openSignup} />
+        <main>
+          <Hero onSignup={openSignup} />
+          <InteractiveBrainModel />
+          <Features />
+          <DashboardPreview />
+          <Methodology />
+        </main>
+        <Footer />
 
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        initialMode={authMode}
-      />
-    </div>
+        <AuthModal
+          isOpen={isAuthOpen}
+          onClose={() => setIsAuthOpen(false)}
+          initialMode={authMode}
+        />
+      </div>
+      <ThemeToggle />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 
