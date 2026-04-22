@@ -18,6 +18,7 @@ import {
   CheckCircle,
   Info,
   History,
+  Eye,
 } from "lucide-react";
 import ThreeBrainView from "../ThreeBrainView";
 import RagRecommendationPanel from "../RagRecommendationPanel";
@@ -70,6 +71,7 @@ export default function DigitalTwinSection({
   onFolderUpload,
   onShowNotesModal,
   onRunDiagnostics,
+  onOpenCaregiverPreview,
   dtAiHistory = [],
   dtCognitiveTests = {},
 }) {
@@ -422,18 +424,34 @@ export default function DigitalTwinSection({
                 <Activity className="mr-2 text-blue-400" size={22} />
                 AI Diagnostics
               </h3>
-              <button
-                onClick={onRunDiagnostics}
-                disabled={analyzing}
-                className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-5 py-2 rounded-xl font-bold transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20"
-              >
-                {analyzing ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <Activity size={16} />
-                )}
-                <span>{analyzing ? "Analyzing..." : "Run AI Diagnostics"}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onOpenCaregiverPreview}
+                  disabled={
+                    analyzing ||
+                    !selectedPatientForDT?.currentStage ||
+                    selectedPatientForDT.currentStage === "Pending Analysis"
+                  }
+                  className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl font-semibold transition-all disabled:opacity-50 border border-slate-700"
+                  title="Preview caregiver report"
+                >
+                  <Eye size={16} />
+                  <span>Preview Report</span>
+                </button>
+
+                <button
+                  onClick={onRunDiagnostics}
+                  disabled={analyzing}
+                  className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-5 py-2 rounded-xl font-bold transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20"
+                >
+                  {analyzing ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Activity size={16} />
+                  )}
+                  <span>{analyzing ? "Analyzing..." : "Run AI Diagnostics"}</span>
+                </button>
+              </div>
             </div>
 
             {selectedPatientForDT?.currentStage &&

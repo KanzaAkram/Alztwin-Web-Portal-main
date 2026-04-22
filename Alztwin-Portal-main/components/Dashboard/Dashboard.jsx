@@ -210,6 +210,10 @@ const Dashboard = ({ user, onLogout }) => {
   const [recommendationPlan, setRecommendationPlan] = useState("");
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [showCaregiverReportPreview, setShowCaregiverReportPreview] =
+    useState(false);
+  const [caregiverReportPreview, setCaregiverReportPreview] = useState(null);
+  const [sendingCaregiverReport, setSendingCaregiverReport] = useState(false);
 
   // Teleconsultation Data State
   const [consultations, setConsultations] = useState([]);
@@ -366,6 +370,258 @@ const Dashboard = ({ user, onLogout }) => {
     }
     setLoading(false);
   };
+
+  const normalizeNoteList = (value) =>
+    String(value || "")
+      .split("\n")
+      .map((line) => line.replace(/^[\s\u2022-]+/, "").trim())
+      .filter(Boolean);
+
+  const normalizeExistingList = (items) =>
+    Array.isArray(items)
+      ? items
+          .map((item) =>
+            typeof item === "string" ? item : item?.text || ""
+          )
+          .map((entry) => String(entry || "").trim())
+          .filter(Boolean)
+      : [];
+
+  const buildCaregiverReportPreview = () => {
+    if (!selectedPatientForDT) return null;
+
+    const cognitiveScores = Object.entries(dtCognitiveTests || {}).map(
+      ([testType, group]) => {
+        const pastScores = Array.isArray(group?.pastScores)
+          ? group.pastScores
+          : [];
+        const latestScore =
+          pastScores.length > 0 ? pastScores[pastScores.length - 1] : null;
+        const maxScore =
+          testType === "MMSE" ? 30 : testType === "ADAS" ? 70 : 30;
+        return {
+          testType,
+          latestScore,
+          maxScore,
+          scorePercent:
+            typeof latestScore === "number"
+              ? Math.round((latestScore / maxScore) * 100)
+              : null,
+          pastScores,
+          recordsCount: Array.isArray(group?.history) ? group.history.length : 0,
+        };
+      }
+    );
+
+    const clinicalNoteLines = normalizeNoteList(treatmentNotes);
+    const recommendationLines = normalizeNoteList(recommendationPlan);
+    const fallbackClinical = normalizeExistingList(selectedPatientForDT.treatmentPlan);
+    const fallbackRecommendations = normalizeExistingList(
+      selectedPatientForDT.recommendations
+    );
+
+    const caregiverIds = [
+      selectedPatientForDT.caregiverId,
+      selectedPatientForDT.createdBy,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value));
+
+    const uniqueCaregiverIds = [...new Set(caregiverIds)];
+
+    return {
+      reportName: "caregiver_report",
+      caregiverReportName: "caregiver_report",
+      reportType: "digital_twin_summary",
+      previewGeneratedAt: new Date().toISOString(),
+      clinician: {
+        id: user?.uid || null,
+        name: user?.displayName || null,
+        email: user?.email || null,
+      },
+      patient: {
+        id: selectedPatientForDT.id,
+        userId: selectedPatientForDT.userId || null,
+        name: selectedPatientForDT.name || "Unknown Patient",
+        age: selectedPatientForDT.age || null,
+        gender: selectedPatientForDT.gender || null,
+        diagnosis: selectedPatientForDT.diagnosis || null,
+      },
+      primaryCaregiverId: uniqueCaregiverIds[0] || null,
+      caregiverIds: uniqueCaregiverIds,
+      currentStageResult: {
+        stage:
+          selectedPatientForDT.currentStage ||
+          selectedPatientForDT.stage ||
+          "Unknown",
+        stageLevel:
+          typeof selectedPatientForDT.stageLevel === "number"
+            ? selectedPatientForDT.stageLevel
+            : null,
+        confidence: selectedPatientForDT.aiConfidence ?? null,
+        inferenceText: selectedPatientForDT.inferenceText || null,
+      },
+      trajectory: {
+        predictedDecline: selectedPatientForDT.predictedDecline || "Stable",
+        trajectoryMonths: selectedPatientForDT.trajectoryMonths || "12 (Est.)",
+        insight: selectedPatientForDT.trajInference || null,
+        progression: Array.isArray(selectedPatientForDT.progression)
+          ? selectedPatientForDT.progression
+          : [],
+      },
+      cognitiveScores,
+      clinicianNotes: {
+        clinicalNotes:
+          clinicalNoteLines.length > 0
+            ? clinicalNoteLines.join("\n")
+            : fallbackClinical.join("\n"),
+        recommendationPlan:
+          recommendationLines.length > 0
+            ? recommendationLines.join("\n")
+            : fallbackRecommendations.join("\n"),
+      },
+      latestAnalysis: {
+        runCount: dtAiHistory.length,
+        lastAnalysisAt: selectedPatientForDT.lastAnalysisAt || null,
+        lastAnalysisId: dtAiHistory[0]?.id || null,
+      },
+      sourcePatientDocPath: `patients/${selectedPatientForDT.id}`,
+    };
+  };
+
+  const openTreatmentNotesModal = () => {
+    if (!selectedPatientForDT) {
+      alert("Please select a patient first.");
+      return;
+    }
+
+    if (!treatmentNotes.trim()) {
+      const seededClinical = normalizeExistingList(selectedPatientForDT.treatmentPlan);
+      if (seededClinical.length > 0) {
+        setTreatmentNotes(seededClinical.join("\n"));
+      }
+    }
+
+    if (!recommendationPlan.trim()) {
+      const seededRecommendations = normalizeExistingList(
+        selectedPatientForDT.recommendations
+      );
+      if (seededRecommendations.length > 0) {
+        setRecommendationPlan(seededRecommendations.join("\n"));
+      }
+    }
+
+    setShowNotesModal(true);
+  };
+
+  const handleSaveTreatmentNotes = async () => {
+    if (!selectedPatientForDT?.id) {
+      alert("Please select a patient first.");
+      return;
+    }
+
+    setSavingNotes(true);
+    try {
+      const clinicalItems = normalizeNoteList(treatmentNotes);
+      const recommendationItems = normalizeNoteList(recommendationPlan);
+
+      await updateDoc(doc(db, "patients", selectedPatientForDT.id), {
+        treatmentPlan: clinicalItems,
+        recommendations: recommendationItems,
+        treatmentNotesUpdatedAt: serverTimestamp(),
+        treatmentNotesUpdatedBy: user?.uid || null,
+      });
+
+      setSelectedPatientForDT((prev) =>
+        prev
+          ? {
+              ...prev,
+              treatmentPlan: clinicalItems,
+              recommendations: recommendationItems,
+            }
+          : prev
+      );
+
+      setPatients((prev) =>
+        prev.map((patient) =>
+          patient.id === selectedPatientForDT.id
+            ? {
+                ...patient,
+                treatmentPlan: clinicalItems,
+                recommendations: recommendationItems,
+              }
+            : patient
+        )
+      );
+
+      setShowNotesModal(false);
+      alert("Notes saved successfully!");
+    } catch (error) {
+      console.error("Failed to save treatment notes:", error);
+      alert("Failed to save notes. Please try again.");
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
+  const openCaregiverReportPreview = () => {
+    if (!selectedPatientForDT) {
+      alert("Please select a patient first.");
+      return;
+    }
+
+    if (
+      !selectedPatientForDT.currentStage ||
+      selectedPatientForDT.currentStage === "Pending Analysis"
+    ) {
+      alert("Run AI Diagnostics first to generate report-ready results.");
+      return;
+    }
+
+    const preview = buildCaregiverReportPreview();
+    if (!preview) return;
+    setCaregiverReportPreview(preview);
+    setShowCaregiverReportPreview(true);
+  };
+
+  const handleSendCaregiverReport = async () => {
+    if (!caregiverReportPreview || !selectedPatientForDT?.id) return;
+
+    setSendingCaregiverReport(true);
+    try {
+      const reportDoc = {
+        ...caregiverReportPreview,
+        patientId: caregiverReportPreview.patient.id,
+        status: "sent",
+        sentAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        source: "clinician_dashboard_digital_twin",
+      };
+
+      const docRef = await addDoc(collection(db, "caregiverReports"), reportDoc);
+
+      try {
+        await updateDoc(doc(db, "patients", selectedPatientForDT.id), {
+          lastCaregiverReportId: docRef.id,
+          lastCaregiverReportAt: serverTimestamp(),
+        });
+      } catch (syncError) {
+        console.warn(
+          "Failed to sync patient with caregiver report reference:",
+          syncError
+        );
+      }
+
+      setShowCaregiverReportPreview(false);
+      alert(`Caregiver report sent successfully! Report ID: ${docRef.id}`);
+    } catch (error) {
+      console.error("Failed to send caregiver report:", error);
+      alert("Failed to send report. Please try again.");
+    } finally {
+      setSendingCaregiverReport(false);
+    }
+  };
+
   // === 3D FOLDER UPLOAD LOGIC ===
   const handleFolderUpload = async (e) => {
     if (!selectedPatientForDT) {
@@ -1153,6 +1409,11 @@ const handleViewPatient = async (patientId) => {
       .catch(() => setDtAiHistory([]));
   }, [selectedPatientForDT?.id]);
 
+  useEffect(() => {
+    setTreatmentNotes("");
+    setRecommendationPlan("");
+  }, [selectedPatientForDT?.id]);
+
   // --- 4c. AI DIAGNOSTICS FOR DIGITAL TWIN ---
   const analyzePatientForDT = async () => {
     if (!selectedPatientForDT) return;
@@ -1446,8 +1707,9 @@ const handleViewPatient = async (patientId) => {
               analyzing={analyzing}
               generating3D={generating3D}
               onFolderUpload={handleFolderUpload}
-              onShowNotesModal={() => setShowNotesModal(true)}
+              onShowNotesModal={openTreatmentNotesModal}
               onRunDiagnostics={analyzePatientForDT}
+              onOpenCaregiverPreview={openCaregiverReportPreview}
               dtAiHistory={dtAiHistory}
               dtCognitiveTests={dtCognitiveTests}
             />
@@ -2321,11 +2583,7 @@ const handleViewPatient = async (patientId) => {
                     Cancel
                   </button>
                   <button
-                    onClick={() => {
-                      // Save notes logic here
-                      setShowNotesModal(false);
-                      alert("Notes saved successfully!");
-                    }}
+                    onClick={handleSaveTreatmentNotes}
                     disabled={savingNotes}
                     className="flex items-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl font-medium transition-all disabled:opacity-50"
                   >
@@ -2335,6 +2593,207 @@ const handleViewPatient = async (patientId) => {
                       <Save size={18} />
                     )}
                     <span>Save Notes</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* === CAREGIVER REPORT PREVIEW MODAL === */}
+          {showCaregiverReportPreview && caregiverReportPreview && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[75] flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+                <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 to-emerald-900/20">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                      <Eye size={20} className="text-emerald-300" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">
+                        Caregiver Report Preview
+                      </h3>
+                      <p className="text-slate-400 text-sm">
+                        Patient: {caregiverReportPreview.patient.name}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowCaregiverReportPreview(false)}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-all"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-5 overflow-y-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 uppercase mb-1">
+                        Current Stage Result
+                      </p>
+                      <p className="text-2xl font-bold text-white mb-2">
+                        {caregiverReportPreview.currentStageResult.stage}
+                      </p>
+                      {caregiverReportPreview.currentStageResult.confidence != null && (
+                        <p className="text-sm text-slate-300">
+                          Confidence:{" "}
+                          {Math.round(
+                            caregiverReportPreview.currentStageResult.confidence *
+                              100
+                          )}
+                          %
+                        </p>
+                      )}
+                      {caregiverReportPreview.currentStageResult.inferenceText && (
+                        <p className="text-sm text-slate-400 mt-2 italic">
+                          "
+                          {caregiverReportPreview.currentStageResult.inferenceText}
+                          "
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 uppercase mb-1">
+                        Trajectory Progression
+                      </p>
+                      <p className="text-lg font-semibold text-white mb-1">
+                        {caregiverReportPreview.trajectory.predictedDecline}
+                      </p>
+                      <p className="text-sm text-slate-300 mb-2">
+                        Timeline: {caregiverReportPreview.trajectory.trajectoryMonths}
+                      </p>
+                      {caregiverReportPreview.trajectory.insight && (
+                        <p className="text-sm text-slate-400 italic">
+                          "{caregiverReportPreview.trajectory.insight}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {Array.isArray(caregiverReportPreview.trajectory.progression) &&
+                    caregiverReportPreview.trajectory.progression.length > 0 && (
+                      <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+                        <p className="text-xs text-slate-400 uppercase mb-2">
+                          Progression Points
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {caregiverReportPreview.trajectory.progression
+                            .slice(0, 8)
+                            .map((point, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-1 rounded-lg text-xs border border-slate-600 bg-slate-800 text-slate-300"
+                              >
+                                {(point.month || `Point ${idx + 1}`) +
+                                  ": " +
+                                  (point.stage || `${point.progress || 0}%`)}
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+                    <h4 className="text-white font-semibold mb-3">Cognitive Scores</h4>
+                    {caregiverReportPreview.cognitiveScores.length === 0 ? (
+                      <p className="text-sm text-slate-400">
+                        No cognitive test scores available yet.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {caregiverReportPreview.cognitiveScores.map((score) => (
+                          <div
+                            key={score.testType}
+                            className="bg-slate-800/60 border border-slate-700 rounded-lg p-3"
+                          >
+                            <p className="text-xs text-slate-400 uppercase mb-1">
+                              {score.testType}
+                            </p>
+                            <p className="text-lg font-bold text-white">
+                              {score.latestScore ?? "-"}
+                              <span className="text-xs text-slate-500">
+                                /{score.maxScore}
+                              </span>
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {score.scorePercent != null
+                                ? `${score.scorePercent}% of max score`
+                                : "No scored result yet"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+                      <h4 className="text-white font-semibold mb-2">Clinician Notes</h4>
+                      <p className="text-sm text-slate-300 whitespace-pre-wrap">
+                        {caregiverReportPreview.clinicianNotes.clinicalNotes ||
+                          "No clinician notes added."}
+                      </p>
+                    </div>
+                    <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+                      <h4 className="text-white font-semibold mb-2">
+                        Recommendation Plan
+                      </h4>
+                      <p className="text-sm text-slate-300 whitespace-pre-wrap">
+                        {caregiverReportPreview.clinicianNotes.recommendationPlan ||
+                          "No recommendation plan added."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 text-xs text-slate-400 space-y-1">
+                    <p>Report Name: {caregiverReportPreview.caregiverReportName}</p>
+                    <p>Patient ID: {caregiverReportPreview.patient.id}</p>
+                    <p>
+                      Caregiver IDs:{" "}
+                      {caregiverReportPreview.caregiverIds.length > 0
+                        ? caregiverReportPreview.caregiverIds.join(", ")
+                        : "Not linked in patient profile"}
+                    </p>
+                    <p>
+                      Generated At: {new Date(caregiverReportPreview.previewGeneratedAt).toLocaleString()}
+                    </p>
+                  </div>
+
+                  {caregiverReportPreview.caregiverIds.length === 0 && (
+                    <div className="flex items-start space-x-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                      <AlertCircle size={16} className="text-yellow-400 mt-0.5" />
+                      <p className="text-xs text-yellow-200">
+                        No caregiver ID is linked to this patient yet. The report
+                        will still be saved in caregiverReports and can be fetched
+                        by patientId in the mobile app.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 border-t border-slate-800 flex items-center justify-end space-x-3 bg-slate-900/50">
+                  <button
+                    onClick={() => setShowCaregiverReportPreview(false)}
+                    className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendCaregiverReport}
+                    disabled={sendingCaregiverReport}
+                    className="flex items-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white rounded-xl font-medium transition-all disabled:opacity-50"
+                  >
+                    {sendingCaregiverReport ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Send size={18} />
+                    )}
+                    <span>
+                      {sendingCaregiverReport
+                        ? "Sending..."
+                        : "Send to Caregiver"}
+                    </span>
                   </button>
                 </div>
               </div>
