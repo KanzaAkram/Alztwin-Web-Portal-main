@@ -117,7 +117,7 @@ function AppContent() {
         <div
           className={`min-h-screen flex items-center justify-center ${
             isLight
-              ? "bg-gradient-to-br from-emerald-50 via-emerald-100 to-teal-100"
+              ? "bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_32%),linear-gradient(135deg,_#f8fafc_0%,_#eef6f2_45%,_#e6f1ed_100%)]"
               : "bg-slate-950"
           }`}
         >
@@ -176,7 +176,7 @@ function AppContent() {
       <div
         className={`min-h-screen font-sans ${
           isLight
-            ? "bg-gradient-to-br from-emerald-50 via-emerald-100 to-teal-100 text-emerald-950 selection:bg-emerald-700 selection:text-emerald-50"
+            ? "bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef6f2_52%,_#f6f8f7_100%)] text-slate-950 selection:bg-emerald-800 selection:text-emerald-50"
             : "bg-midnight-900 text-slate-50 selection:bg-brand-500 selection:text-white"
         }`}
       >

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useTheme } from "../ThemeContext";
 import axios from "axios";
 import JSZip from "jszip";
 import {
@@ -149,6 +150,7 @@ const getTrajectoryInferenceText = (payload = {}) =>
   null;
 
 const Dashboard = ({ user, onLogout }) => {
+  const { isLight } = useTheme();
   const fileInputRef = useRef(null); // Reference for hidden input
   const [uploading, setUploading] = useState(false); // Loading state for upload
   const [searchQuery, setSearchQuery] = useState("");
@@ -1901,7 +1903,7 @@ const handleViewPatient = async (patientId) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex font-sans">
+    <div className={`min-h-screen flex font-sans ${isLight ? "bg-[linear-gradient(180deg,#f7faf8_0%,#eef4f1_100%)]" : "bg-slate-950"}`}>
       <DashboardSidebar
         user={user}
         onLogout={onLogout}
@@ -1918,14 +1920,14 @@ const handleViewPatient = async (patientId) => {
         />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-white mb-2">
-              {activeSection === "digitalTwin" ? "Digital Twin Analysis 🧠" : 
+          <div className={`mb-8 ${isLight ? "rounded-[28px] px-6 py-6 bg-white/70 border border-slate-200 shadow-[0_18px_45px_rgba(15,23,42,0.05)]" : ""}`}>
+            <h1 className={`text-2xl font-bold mb-2 ${isLight ? "text-slate-950" : "text-white"}`}>
+              {activeSection === "digitalTwin" ? "Digital Twin Analysis 🧠" :
                activeSection === "cognitiveTests" ? "Cognitive Tests and Forecasts 📊" :
-               activeSection === "teleconsultation" ? "Teleconsultation Hub 📹" : 
+               activeSection === "teleconsultation" ? "Teleconsultation Hub 📹" :
                "Welcome back! 👋"}
             </h1>
-            <p className="text-slate-400">
+            <p className={isLight ? "text-slate-600" : "text-slate-400"}>
               {activeSection === "patients" ? "Monitor your patients from the Firestore Registry." : 
                activeSection === "requests" ? "Review access requests from caregivers." :
                activeSection === "cognitiveTests" ? "Fetch patient-specific test history and run AI predictions by test type." :
@@ -1997,17 +1999,17 @@ const handleViewPatient = async (patientId) => {
 
           {/* === PATIENT DETAILS MODAL + AI === */}
           {showPatientModal && selectedPatientDetails && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isLight ? "bg-slate-950/35 backdrop-blur-md" : "bg-black/80 backdrop-blur-sm"}`}>
+              <div className={`rounded-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col shadow-2xl ${isLight ? "bg-[#fffdfa] border border-slate-200 shadow-[0_35px_90px_rgba(15,23,42,0.18)]" : "bg-slate-900 border border-slate-800"}`}>
                 
                 {/* Header */}
-                <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+                <div className={`p-6 flex justify-between items-center ${isLight ? "border-b border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f4f8f6_100%)]" : "border-b border-slate-800 bg-slate-900"}`}>
                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-xl font-bold">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-xl font-bold ${isLight ? "bg-[linear-gradient(135deg,#0f766e,#155e75)]" : "bg-gradient-to-br from-blue-600 to-purple-600"}`}>
                         {selectedPatientDetails.avatar}
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-white">{selectedPatientDetails.name}</h2>
+                        <h2 className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.name}</h2>
                         <p className="text-slate-400 text-sm">ID: {selectedPatientDetails.id} • Age: {selectedPatientDetails.age}</p>
                       </div>
                    </div>
@@ -2027,7 +2029,7 @@ const handleViewPatient = async (patientId) => {
                          {analyzing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <Activity size={18}/>}
                          <span>Run AI Diagnostics</span>
                       </button>
-                      <button onClick={() => setShowPatientModal(false)} className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg">
+                      <button onClick={() => setShowPatientModal(false)} className={`p-2 rounded-lg ${isLight ? "bg-slate-100 hover:bg-slate-200 text-slate-700" : "bg-slate-800 hover:bg-slate-700 text-white"}`}>
                         <X size={20}/>
                       </button>
                    </div>
@@ -2041,31 +2043,31 @@ const handleViewPatient = async (patientId) => {
                        
                        {/* Vitals */}
                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl flex justify-between items-center">
+                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
                              <div>
-                                <p className="text-slate-400 text-xs uppercase">Heart Rate</p>
-                                <p className="text-2xl font-bold text-white">{selectedPatientDetails.heartRate || 72} <span className="text-sm font-normal text-slate-500">bpm</span></p>
+                                <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Heart Rate</p>
+                                <p className={`text-2xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.heartRate || 72} <span className="text-sm font-normal text-slate-500">bpm</span></p>
                              </div>
                              <Heart className="text-red-400" size={24} />
                           </div>
-                          <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl flex justify-between items-center">
+                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
                              <div>
                                 <p className="text-slate-400 text-xs uppercase">Temperature</p>
                                 <p className="text-2xl font-bold text-white">{selectedPatientDetails.temperature || 36.8} <span className="text-sm font-normal text-slate-500">°C</span></p>
                              </div>
                              <Thermometer className="text-blue-400" size={24} />
                           </div>
-                          <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl flex justify-between items-center">
+                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
                              <div>
-                                <p className="text-slate-400 text-xs uppercase">Blood Pressure</p>
-                                <p className="text-2xl font-bold text-white">{selectedPatientDetails.bloodPressure || "128/82"}</p>
+                                <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Blood Pressure</p>
+                                <p className={`text-2xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.bloodPressure || "128/82"}</p>
                              </div>
                              <Activity className="text-green-400" size={24} />
                           </div>
-                          <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl flex justify-between items-center">
+                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
                              <div>
-                                <p className="text-slate-400 text-xs uppercase">SpO2</p>
-                                <p className="text-2xl font-bold text-white">{selectedPatientDetails.spo2 || 98} <span className="text-sm font-normal text-slate-500">%</span></p>
+                                <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>SpO2</p>
+                                <p className={`text-2xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.spo2 || 98} <span className="text-sm font-normal text-slate-500">%</span></p>
                              </div>
                              <Wind className="text-cyan-400" size={24} />
                           </div>
@@ -2073,49 +2075,49 @@ const handleViewPatient = async (patientId) => {
 
                        {/* Additional Vitals Row */}
                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl">
+                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-slate-400 text-xs uppercase">Sleep Quality</p>
+                                <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Sleep Quality</p>
                                 <Moon className="text-purple-400" size={18} />
                              </div>
-                             <p className="text-xl font-bold text-white">{selectedPatientDetails.sleepHours || 6.5} <span className="text-sm font-normal text-slate-500">hrs</span></p>
+                             <p className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.sleepHours || 6.5} <span className="text-sm font-normal text-slate-500">hrs</span></p>
                              <p className="text-xs text-yellow-400 mt-1">Below optimal</p>
                           </div>
-                          <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl">
+                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-slate-400 text-xs uppercase">Steps Today</p>
+                                <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Steps Today</p>
                                 <Footprints className="text-orange-400" size={18} />
                              </div>
-                             <p className="text-xl font-bold text-white">{selectedPatientDetails.steps || "4,250"}</p>
+                             <p className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.steps || "4,250"}</p>
                              <p className="text-xs text-green-400 mt-1">+12% from yesterday</p>
                           </div>
-                          <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl">
+                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-slate-400 text-xs uppercase">Glucose</p>
+                                <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Glucose</p>
                                 <Droplets className="text-pink-400" size={18} />
                              </div>
-                             <p className="text-xl font-bold text-white">{selectedPatientDetails.glucose || 105} <span className="text-sm font-normal text-slate-500">mg/dL</span></p>
+                             <p className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.glucose || 105} <span className="text-sm font-normal text-slate-500">mg/dL</span></p>
                              <p className="text-xs text-green-400 mt-1">Normal range</p>
                           </div>
-                          <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl">
+                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-slate-400 text-xs uppercase">Weight</p>
+                                <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Weight</p>
                                 <Gauge className="text-blue-400" size={18} />
                              </div>
-                             <p className="text-xl font-bold text-white">{selectedPatientDetails.weight || 68} <span className="text-sm font-normal text-slate-500">kg</span></p>
-                             <p className="text-xs text-slate-400 mt-1">Stable</p>
+                             <p className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.weight || 68} <span className="text-sm font-normal text-slate-500">kg</span></p>
+                             <p className={`text-xs mt-1 ${isLight ? "text-slate-500" : "text-slate-400"}`}>Stable</p>
                           </div>
                        </div>
 
                        {/* AI Stage Result */}
-                     <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
-  <h3 className="text-white font-semibold flex items-center mb-4">
+                     <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
+  <h3 className={`${isLight ? "text-slate-950" : "text-white"} font-semibold flex items-center mb-4`}>
     <Brain className="mr-2 text-blue-400" size={20}/> 
     Disease Stage Assessment
   </h3>
   
   {/* Progress Bar */}
-  <div className="h-2 bg-slate-700 rounded-full flex mb-2">
+  <div className={`h-2 rounded-full flex mb-2 ${isLight ? "bg-slate-200" : "bg-slate-700"}`}>
     {[0, 1, 2, 3].map(step => (
       <div 
         key={step} 
@@ -2129,10 +2131,10 @@ const handleViewPatient = async (patientId) => {
   </div>
 
   {/* Top Row: Stage Info & Status Badge */}
-  <div className="p-4 bg-slate-800 rounded-t-xl border-x border-t border-slate-700 flex justify-between items-center">
+  <div className={`p-4 rounded-t-xl border-x border-t flex justify-between items-center ${isLight ? "bg-slate-50 border-slate-200" : "bg-slate-800 border-slate-700"}`}>
     <div>
-      <p className="text-xs text-slate-400 uppercase">Current Stage</p>
-      <p className="text-xl font-bold text-white leading-tight">
+      <p className={`text-xs uppercase ${isLight ? "text-slate-600" : "text-slate-400"}`}>Current Stage</p>
+      <p className={`text-xl font-bold leading-tight ${isLight ? "text-slate-950" : "text-white"}`}>
         {selectedPatientDetails.currentStage || "Mild Cognitive Impairment"}
       </p>
     </div>
@@ -2145,12 +2147,12 @@ const handleViewPatient = async (patientId) => {
 
   {/* Bottom Row: AI Insight (Full Width) */}
   {selectedPatientDetails.inferenceText && (
-    <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-b-xl border-t-0">
+    <div className={`p-4 border rounded-b-xl border-t-0 ${isLight ? "bg-slate-50/80 border-slate-200" : "bg-slate-800/50 border-slate-700"}`}>
       <div className="p-3 bg-blue-500/10 border-l-2 border-blue-500 rounded">
         <p className="text-xs text-blue-400 font-bold uppercase mb-1 flex items-center">
           <Info size={12} className="mr-1"/> AI Clinical Insight
         </p>
-        <p className="text-sm text-slate-300 italic leading-relaxed">
+        <p className={`text-sm italic leading-relaxed ${isLight ? "text-slate-700" : "text-slate-300"}`}>
           "{selectedPatientDetails.inferenceText}"
         </p>
       </div>
@@ -2159,24 +2161,24 @@ const handleViewPatient = async (patientId) => {
 </div>
 
 {/* AI Trajectory Result */}
-<div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
-  <h3 className="text-white font-semibold flex items-center mb-4">
+<div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
+  <h3 className={`${isLight ? "text-slate-950" : "text-white"} font-semibold flex items-center mb-4`}>
     <TrendingDown className="mr-2 text-purple-400" size={20}/> 
     Progression Trajectory
   </h3>
 
   {/* Grid for small data points */}
   <div className="grid grid-cols-2 gap-4 mb-4">
-    <div className="p-4 bg-slate-800 rounded-xl border border-slate-700">
-      <p className="text-xs text-slate-400 uppercase mb-1">Decline Rate</p>
-      <p className="text-xl font-bold text-white">
+    <div className={`p-4 rounded-xl border ${isLight ? "bg-slate-50 border-slate-200" : "bg-slate-800 border-slate-700"}`}>
+      <p className={`text-xs uppercase mb-1 ${isLight ? "text-slate-600" : "text-slate-400"}`}>Decline Rate</p>
+      <p className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>
         {selectedPatientDetails.predictedDecline || "2.3% / month"}
       </p>
     </div>
 
-    <div className="p-4 bg-slate-800 rounded-xl border border-slate-700">
-      <p className="text-xs text-slate-400 uppercase mb-1">Time to Next Stage</p>
-      <p className="text-xl font-bold text-white">
+    <div className={`p-4 rounded-xl border ${isLight ? "bg-slate-50 border-slate-200" : "bg-slate-800 border-slate-700"}`}>
+      <p className={`text-xs uppercase mb-1 ${isLight ? "text-slate-600" : "text-slate-400"}`}>Time to Next Stage</p>
+      <p className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>
         {selectedPatientDetails.trajectoryMonths > 0 
           ? `${selectedPatientDetails.trajectoryMonths} Months` 
           : "~18 Months"}
@@ -2195,7 +2197,7 @@ const handleViewPatient = async (patientId) => {
           AI Clinical Insight
         </h4>
       </div>
-      <p className="text-sm text-slate-300 italic leading-relaxed">
+      <p className={`text-sm italic leading-relaxed ${isLight ? "text-slate-700" : "text-slate-300"}`}>
         "{selectedPatientDetails.inferenceText}"
       </p>
     </div>
@@ -2218,8 +2220,8 @@ const handleViewPatient = async (patientId) => {
   )}
 
   {selectedPatientDetails.trajectoryDebug?.pastStagesSent?.length > 0 && (
-    <div className="mt-4 bg-slate-900/70 border border-slate-700 rounded-xl p-4">
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+    <div className={`mt-4 rounded-xl p-4 border ${isLight ? "bg-slate-50 border-slate-200" : "bg-slate-900/70 border-slate-700"}`}>
+      <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${isLight ? "text-slate-600" : "text-slate-400"}`}>
         Past Stages Sent to Trajectory API
       </p>
       <div className="flex flex-wrap gap-2">
@@ -2245,9 +2247,9 @@ const handleViewPatient = async (patientId) => {
 <MriComparisonCharts aiHistory={aiHistory} />
 
 {/* AI Analysis History & Comparison */}
-<div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
+<div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
   <div className="flex items-center justify-between mb-4">
-    <h3 className="text-white font-semibold flex items-center">
+    <h3 className={`${isLight ? "text-slate-950" : "text-white"} font-semibold flex items-center`}>
       <History className="mr-2 text-cyan-400" size={20}/>
       Analysis History
       <span className="ml-2 text-xs text-slate-400 font-normal">
@@ -2258,7 +2260,7 @@ const handleViewPatient = async (patientId) => {
       <select
         value={compareWithId || ""}
         onChange={(e) => setCompareWithId(e.target.value || null)}
-        className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1"
+        className={`${isLight ? "bg-white border border-slate-300 text-slate-700" : "bg-slate-800 border border-slate-700 text-slate-200"} text-xs rounded px-2 py-1`}
       >
         <option value="">Compare with…</option>
         {aiHistory.slice(1).map((h) => (
@@ -2290,7 +2292,7 @@ const handleViewPatient = async (patientId) => {
             }`}
           >
             <div>
-              <p className="text-white font-medium">
+              <p className={`${isLight ? "text-slate-950" : "text-white"} font-medium`}>
                 {h.currentStage}
                 {idx === 0 && (
                   <span className="ml-2 text-[10px] uppercase tracking-wider text-blue-400 font-bold">
@@ -2298,7 +2300,7 @@ const handleViewPatient = async (patientId) => {
                   </span>
                 )}
               </p>
-              <p className="text-xs text-slate-400">
+              <p className={`text-xs ${isLight ? "text-slate-600" : "text-slate-400"}`}>
                 {formatDate(h.createdAt)} · Decline:{" "}
                 {h.predictedDecline || "—"} · Conf:{" "}
                 {h.stageApi?.confidence != null
@@ -2334,8 +2336,8 @@ const handleViewPatient = async (patientId) => {
         );
         const stageChanged = prev.currentStage !== curr.currentStage;
         return (
-          <div className="bg-slate-900/60 border border-slate-700 rounded-lg p-4">
-            <div className="grid grid-cols-3 gap-2 pb-2 border-b border-slate-700 text-xs uppercase tracking-wider">
+          <div className={`${isLight ? "bg-slate-50 border border-slate-200" : "bg-slate-900/60 border border-slate-700"} rounded-lg p-4`}>
+            <div className={`grid grid-cols-3 gap-2 pb-2 border-b text-xs uppercase tracking-wider ${isLight ? "border-slate-200" : "border-slate-700"}`}>
               <span className="text-slate-500">Metric</span>
               <span className="text-purple-400">
                 Previous ({formatDate(prev.createdAt)})
@@ -2392,19 +2394,19 @@ const handleViewPatient = async (patientId) => {
                     <div className="space-y-6">
                         
                         {/* IoT Info */}
-                        <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
-                           <h3 className="text-white font-semibold flex items-center mb-4"><Smartphone className="mr-2 text-green-400" size={20}/> Device Status</h3>
+                        <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
+                           <h3 className={`${isLight ? "text-slate-950" : "text-white"} font-semibold flex items-center mb-4`}><Smartphone className="mr-2 text-green-400" size={20}/> Device Status</h3>
                            <div className="space-y-3 text-sm">
-                              <div className="flex justify-between border-b border-slate-700 pb-2">
-                                 <span className="text-slate-400">ID</span>
-                                 <span className="text-white font-mono">{selectedPatientDetails.id.substring(0,8)}...</span>
+                              <div className={`flex justify-between pb-2 border-b ${isLight ? "border-slate-200" : "border-slate-700"}`}>
+                                 <span className={`${isLight ? "text-slate-600" : "text-slate-400"}`}>ID</span>
+                                 <span className={`${isLight ? "text-slate-950" : "text-white"} font-mono`}>{selectedPatientDetails.id.substring(0,8)}...</span>
                               </div>
-                              <div className="flex justify-between border-b border-slate-700 pb-2">
-                                 <span className="text-slate-400">Sync</span>
-                                 <span className="text-white">{selectedPatientDetails.lastUpdate}</span>
+                              <div className={`flex justify-between pb-2 border-b ${isLight ? "border-slate-200" : "border-slate-700"}`}>
+                                 <span className={`${isLight ? "text-slate-600" : "text-slate-400"}`}>Sync</span>
+                                 <span className={`${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.lastUpdate}</span>
                               </div>
                               <div className="flex justify-between">
-                                 <span className="text-slate-400">Connection</span>
+                                 <span className={`${isLight ? "text-slate-600" : "text-slate-400"}`}>Connection</span>
                                  <span className="text-green-400">● Active</span>
                               </div>
                            </div>

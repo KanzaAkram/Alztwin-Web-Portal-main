@@ -8,16 +8,16 @@ export function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className={`fixed bottom-6 right-6 z-[120] inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold shadow-xl transition-all duration-300 ${
+      className={`fixed bottom-6 right-6 z-[120] inline-flex items-center gap-2.5 rounded-full px-5 py-3 text-sm font-semibold shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 ${
         isLight
-          ? "bg-[#0f2f41] text-emerald-100 border border-[#265b73] hover:bg-[#133a4f]"
-          : "bg-slate-900/95 text-cyan-200 border border-slate-700 hover:border-cyan-500/40"
+          ? "bg-emerald-900 text-emerald-100 border border-emerald-700 hover:bg-emerald-800 shadow-emerald-900/30"
+          : "bg-white/10 text-white border border-white/20 hover:bg-white/20 backdrop-blur-md shadow-black/30"
       }`}
       aria-label={isLight ? "Switch to dark mode" : "Switch to light mode"}
       title={isLight ? "Switch to dark mode" : "Switch to light mode"}
     >
-      {isLight ? <Moon size={16} /> : <Sun size={16} />}
-      <span>{isLight ? "Dark" : "Light"} Mode</span>
+      {isLight ? <Moon size={16} /> : <Sun size={16} className="text-yellow-300" />}
+      <span>{isLight ? "Dark Mode" : "Light Mode"}</span>
     </button>
   );
 }
