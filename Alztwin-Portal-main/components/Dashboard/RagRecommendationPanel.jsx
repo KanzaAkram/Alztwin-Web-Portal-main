@@ -21,6 +21,7 @@ import {
   API_RAG_URL,
   mapStageToRag,
 } from "./config";
+import { useTheme } from "../ThemeContext";
 import { db } from "../../firebase";
 import {
   collection,
@@ -100,6 +101,7 @@ const extractVitalsFromPatient = (patient) => {
 };
 
 export default function RagRecommendationPanel({ patient }) {
+  const { isLight } = useTheme();
   const defaultVitals = useMemo(
     () => extractVitalsFromPatient(patient),
     [patient]
@@ -290,19 +292,33 @@ export default function RagRecommendationPanel({ patient }) {
 
   const rec = result?.recommendation;
   const sources = result?.sources || [];
+  const panelClass = isLight
+    ? "rag-light bg-white border border-cyan-200 shadow-[0_22px_60px_rgba(15,23,42,0.09)]"
+    : "bg-gradient-to-br from-slate-900 via-cyan-900/10 to-slate-900 border border-cyan-500/30 shadow-xl shadow-cyan-500/5";
+  const titleClass = isLight ? "text-slate-950" : "text-white";
+  const mutedClass = isLight ? "text-slate-600" : "text-slate-400";
+  const iconShellClass = isLight
+    ? "bg-cyan-50 border-cyan-200"
+    : "bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border-cyan-500/30";
+  const inputPanelClass = isLight
+    ? "bg-slate-50 border border-slate-200 shadow-inner shadow-slate-200/40"
+    : "bg-slate-900/60 border border-slate-800";
+  const emptyStateClass = isLight
+    ? "text-center py-8 border-2 border-dashed border-cyan-200 bg-cyan-50/40 rounded-xl"
+    : "text-center py-8 border-2 border-dashed border-slate-700 rounded-xl";
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-cyan-900/10 to-slate-900 border border-cyan-500/30 rounded-2xl p-6 shadow-xl shadow-cyan-500/5">
+    <div className={`${panelClass} rounded-2xl p-6`}>
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-lg border border-cyan-500/30">
-            <Sparkles className="text-cyan-300" size={22} />
+          <div className={`p-2 rounded-lg border ${iconShellClass}`}>
+            <Sparkles className={isLight ? "text-cyan-700" : "text-cyan-300"} size={22} />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">
+            <h3 className={`text-lg font-bold ${titleClass}`}>
               Clinical Trials-backed Treatment Support
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className={`text-xs ${mutedClass}`}>
               AI-assisted support plans grounded in published clinical trial and PubMed evidence
             </p>
           </div>
@@ -335,7 +351,7 @@ export default function RagRecommendationPanel({ patient }) {
       {latestAi && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
           {/* Current Stage */}
-          <div className="bg-slate-900/60 border border-blue-500/30 rounded-xl p-4">
+          <div className={`${isLight ? "bg-blue-50/70 border border-blue-200" : "bg-slate-900/60 border border-blue-500/30"} rounded-xl p-4`}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
                 <Brain size={16} className="text-blue-400" />
@@ -349,15 +365,15 @@ export default function RagRecommendationPanel({ patient }) {
                 </span>
               )}
             </div>
-            <p className="text-lg font-bold text-white leading-tight mb-1">
+            <p className={`text-lg font-bold ${titleClass} leading-tight mb-1`}>
               {latestAi.currentStage || latestAi.stageApi?.stage || "—"}
             </p>
             <div className="flex items-center space-x-2 mb-2">
-              <div className="h-1.5 flex-1 bg-slate-800 rounded-full flex overflow-hidden">
+              <div className={`h-1.5 flex-1 ${isLight ? "bg-slate-200" : "bg-slate-800"} rounded-full flex overflow-hidden`}>
                 {[0, 1, 2, 3].map((step) => (
                   <div
                     key={step}
-                    className={`flex-1 border-r border-slate-900 last:border-0 ${
+                    className={`flex-1 border-r ${isLight ? "border-white" : "border-slate-900"} last:border-0 ${
                       step <= (latestAi.stageLevel ?? 0)
                         ? step >= 3
                           ? "bg-red-500"
@@ -387,7 +403,7 @@ export default function RagRecommendationPanel({ patient }) {
           </div>
 
           {/* Future Progression */}
-          <div className="bg-slate-900/60 border border-cyan-500/30 rounded-xl p-4">
+          <div className={`${isLight ? "bg-cyan-50/70 border border-cyan-200" : "bg-slate-900/60 border border-cyan-500/30"} rounded-xl p-4`}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
                 <TrendingDown size={16} className="text-cyan-400" />
@@ -401,7 +417,7 @@ export default function RagRecommendationPanel({ patient }) {
                 </span>
               )}
             </div>
-            <p className="text-lg font-bold text-white leading-tight mb-1">
+            <p className={`text-lg font-bold ${titleClass} leading-tight mb-1`}>
               {latestAi.predictedDecline ||
                 (latestAi.progressionApi?.next_stage_prediction?.length
                   ? latestAi.progressionApi.next_stage_prediction.join(" → ")
@@ -442,8 +458,8 @@ export default function RagRecommendationPanel({ patient }) {
       )}
 
       {/* Input summary (editable) */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 mb-5">
-        <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-3">
+      <div className={`${inputPanelClass} rounded-xl p-4 mb-5`}>
+        <p className={`text-[10px] uppercase tracking-wider ${isLight ? "text-slate-700" : "text-slate-500"} font-semibold mb-3`}>
           Clinical Inputs (editable)
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -555,9 +571,9 @@ export default function RagRecommendationPanel({ patient }) {
 
       {/* Empty state (no saved history either) */}
       {!result && !loading && !error && history.length === 0 && !loadingHistory && (
-        <div className="text-center py-8 border-2 border-dashed border-slate-700 rounded-xl">
-          <Sparkles size={28} className="text-slate-600 mx-auto mb-2" />
-          <p className="text-slate-500 text-sm">
+        <div className={emptyStateClass}>
+          <Sparkles size={28} className={`${isLight ? "text-cyan-600" : "text-slate-600"} mx-auto mb-2`} />
+          <p className={`${isLight ? "text-slate-600" : "text-slate-500"} text-sm`}>
             No previous support plans. Click{" "}
             <span className="text-cyan-400 font-medium">
               Generate Support Plan
@@ -876,6 +892,80 @@ export default function RagRecommendationPanel({ patient }) {
         .input-dark:focus {
           border-color: rgb(129 140 248);
           box-shadow: 0 0 0 2px rgb(129 140 248 / 0.2);
+        }
+        .rag-light .bg-slate-900\\/60,
+        .rag-light .bg-slate-900\\/50,
+        .rag-light .bg-slate-800\\/60,
+        .rag-light .bg-slate-800\\/50,
+        .rag-light .bg-slate-800\\/30 {
+          background: rgb(255 255 255 / 0.94) !important;
+        }
+        .rag-light .hover\\:bg-slate-800\\/60:hover {
+          background: rgb(240 253 250 / 0.9) !important;
+        }
+        .rag-light .border-slate-800,
+        .rag-light .border-slate-700,
+        .rag-light .hover\\:border-slate-600:hover {
+          border-color: rgb(203 213 225) !important;
+        }
+        .rag-light .text-white,
+        .rag-light .text-slate-200,
+        .rag-light .text-slate-300 {
+          color: rgb(15 23 42) !important;
+        }
+        .rag-light .text-slate-400 {
+          color: rgb(71 85 105) !important;
+        }
+        .rag-light .text-slate-500,
+        .rag-light .text-slate-600 {
+          color: rgb(100 116 139) !important;
+        }
+        .rag-light .text-slate-700 {
+          color: rgb(51 65 85) !important;
+        }
+        .rag-light .text-yellow-200\\/90 {
+          color: rgb(133 77 14 / 0.95) !important;
+        }
+        .rag-light .text-red-300 {
+          color: rgb(185 28 28) !important;
+        }
+        .rag-light .text-cyan-300,
+        .rag-light .group:hover .group-hover\\:text-cyan-300 {
+          color: rgb(8 145 178) !important;
+        }
+        .rag-light .text-blue-300,
+        .rag-light .text-blue-400 {
+          color: rgb(37 99 235) !important;
+        }
+        .rag-light .bg-cyan-500\\/10 {
+          background: rgb(207 250 254 / 0.9) !important;
+        }
+        .rag-light .bg-slate-800 {
+          background: rgb(241 245 249) !important;
+        }
+        .rag-light .input-dark {
+          width: 100%;
+          background: white !important;
+          border: 1px solid rgb(203 213 225) !important;
+          color: rgb(15 23 42) !important;
+          font-size: 0.875rem;
+          padding: 0.5rem 0.65rem;
+          border-radius: 0.5rem;
+          outline: none;
+          box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+        }
+        .rag-light .input-dark::placeholder {
+          color: rgb(16 185 129) !important;
+        }
+        .rag-light .input-dark:focus {
+          border-color: rgb(6 182 212) !important;
+          box-shadow: 0 0 0 4px rgb(6 182 212 / 0.14) !important;
+        }
+        .rag-light label span {
+          color: rgb(71 85 105) !important;
+        }
+        .rag-light .border-t.border-slate-800 {
+          border-top-color: rgb(203 213 225) !important;
         }
       `}</style>
     </div>

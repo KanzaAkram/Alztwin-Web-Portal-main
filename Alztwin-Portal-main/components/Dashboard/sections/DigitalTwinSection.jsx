@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import ThreeBrainView from "../ThreeBrainView";
 import ClinicalTreatmentSupportPanel from "../RagRecommendationPanel";
+import { useTheme } from "../../ThemeContext";
 
 const STAGE_LADDER = [
   { stage: "Normal", color: "green" },
@@ -148,6 +149,7 @@ export default function DigitalTwinSection({
   dtAiHistory = [],
   dtCognitiveTests = {},
 }) {
+  const { isLight } = useTheme();
   const progression = selectedPatientForDT?.progression || [];
   const regions = selectedPatientForDT?.regions || [];
   const patientCognitiveTests = selectedPatientForDT?.cognitiveTests || [];
@@ -299,7 +301,173 @@ export default function DigitalTwinSection({
   }, [selectedPatientForDT]);
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${isLight ? "dt-light text-slate-900" : ""}`}>
+      {isLight && (
+        <style>{`
+          .dt-light .bg-slate-950,
+          .dt-light .bg-slate-950\\/80,
+          .dt-light .bg-slate-900,
+          .dt-light .bg-slate-900\\/70,
+          .dt-light .bg-slate-900\\/50,
+          .dt-light .bg-slate-900\\/45,
+          .dt-light .bg-slate-900\\/80,
+          .dt-light .bg-slate-900\\/90,
+          .dt-light .bg-slate-800,
+          .dt-light .bg-slate-800\\/80,
+          .dt-light .bg-slate-800\\/70,
+          .dt-light .bg-slate-800\\/50,
+          .dt-light .bg-slate-800\\/40,
+          .dt-light .bg-slate-800\\/30 {
+            background: rgba(255, 255, 255, 0.94) !important;
+          }
+
+          .dt-light .bg-gradient-to-br.from-slate-900,
+          .dt-light .bg-gradient-to-br.from-slate-900\\/80,
+          .dt-light .bg-gradient-to-r.from-slate-900 {
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdfa 55%, #eff6ff 100%) !important;
+          }
+
+          .dt-light .border-slate-800,
+          .dt-light .border-slate-700,
+          .dt-light .border-slate-700\\/50,
+          .dt-light .border-slate-600 {
+            border-color: #e2e8f0 !important;
+          }
+
+          .dt-light .text-white,
+          .dt-light .text-slate-300,
+          .dt-light .text-slate-200 {
+            color: #0f172a !important;
+          }
+
+          .dt-light .text-slate-400 {
+            color: #475569 !important;
+          }
+
+          .dt-light .text-slate-500 {
+            color: #64748b !important;
+          }
+
+          .dt-light .bg-slate-700,
+          .dt-light .bg-slate-700\\/50 {
+            background: #f1f5f9 !important;
+          }
+
+          .dt-light .border-slate-900 {
+            border-color: #ffffff !important;
+          }
+
+          .dt-light button.bg-slate-800,
+          .dt-light button.bg-slate-800\\/70,
+          .dt-light label.bg-slate-700 {
+            background: #f8fafc !important;
+            color: #334155 !important;
+            border-color: #cbd5e1 !important;
+          }
+
+          .dt-light button.bg-slate-800:hover,
+          .dt-light button.bg-slate-800\\/70:hover,
+          .dt-light label.bg-slate-700:hover {
+            background: #ecfdf5 !important;
+            color: #047857 !important;
+            border-color: #6ee7b7 !important;
+          }
+
+          .dt-light .rounded-2xl,
+          .dt-light .rounded-xl {
+            box-shadow: 0 16px 38px rgba(15, 23, 42, 0.055);
+          }
+
+          .dt-light input,
+          .dt-light select,
+          .dt-light textarea {
+            background: #ffffff !important;
+            color: #0f172a !important;
+            border-color: #cbd5e1 !important;
+          }
+
+          .dt-light input:focus,
+          .dt-light select:focus,
+          .dt-light textarea:focus {
+            border-color: #059669 !important;
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.14) !important;
+          }
+
+          .dt-light .shadow-cyan-500\\/10,
+          .dt-light .shadow-blue-500\\/20,
+          .dt-light .shadow-lg {
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08) !important;
+          }
+
+          .dt-light .bg-cyan-500\\/10,
+          .dt-light .bg-blue-500\\/10 {
+            background: #ecfeff !important;
+          }
+
+          .dt-light .bg-purple-500\\/10,
+          .dt-light .bg-purple-500\\/20 {
+            background: #f5f3ff !important;
+          }
+
+          .dt-light .bg-amber-500\\/10,
+          .dt-light .bg-yellow-500\\/20 {
+            background: #fffbeb !important;
+          }
+
+          .dt-light .bg-red-500\\/15,
+          .dt-light .bg-red-500\\/20 {
+            background: #fef2f2 !important;
+          }
+
+          .dt-light .bg-emerald-500\\/15,
+          .dt-light .bg-green-500\\/20 {
+            background: #ecfdf5 !important;
+          }
+
+          .dt-light .text-cyan-300,
+          .dt-light .text-cyan-400 {
+            color: #0891b2 !important;
+          }
+
+          .dt-light .text-blue-300,
+          .dt-light .text-blue-400 {
+            color: #2563eb !important;
+          }
+
+          .dt-light .text-purple-300,
+          .dt-light .text-purple-400 {
+            color: #7c3aed !important;
+          }
+
+          .dt-light .text-emerald-300,
+          .dt-light .text-green-300,
+          .dt-light .text-green-400 {
+            color: #059669 !important;
+          }
+
+          .dt-light .text-yellow-300,
+          .dt-light .text-yellow-400,
+          .dt-light .text-amber-300,
+          .dt-light .text-orange-400 {
+            color: #d97706 !important;
+          }
+
+          .dt-light .text-red-300,
+          .dt-light .text-red-400 {
+            color: #dc2626 !important;
+          }
+
+          .dt-light .ring-cyan-500\\/30 {
+            --tw-ring-color: rgba(6, 182, 212, 0.22) !important;
+          }
+
+          .dt-light .h-2.bg-slate-700,
+          .dt-light .h-1\\.5.bg-slate-700,
+          .dt-light .h-1\\.5.bg-slate-800 {
+            background: #e2e8f0 !important;
+          }
+        `}</style>
+      )}
       <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 sm:p-6 backdrop-blur-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>

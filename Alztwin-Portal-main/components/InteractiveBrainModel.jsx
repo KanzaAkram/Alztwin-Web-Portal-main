@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Settings2,
 } from "lucide-react";
+import { useTheme } from "./ThemeContext";
 
 const REGIONS = [
   {
@@ -75,6 +76,7 @@ const STAT_DEFINITIONS = {
 };
 
 export const InteractiveBrainModel = () => {
+  const { isLight } = useTheme();
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [hoveredRegion, setHoveredRegion] = useState(null);
@@ -464,7 +466,11 @@ export const InteractiveBrainModel = () => {
   };
 
   return (
-    <section className="relative py-24 bg-slate-950 border-t border-slate-900 overflow-hidden">
+    <section className={`relative py-24 border-t overflow-hidden ${
+      isLight
+        ? "bg-[linear-gradient(180deg,#ffffff_0%,#f3faf7_50%,#ffffff_100%)] border-slate-200"
+        : "bg-slate-950 border-slate-900"
+    }`}>
       {/* Decorative Grid & Glows - Made subtle */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(30,41,59,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(30,41,59,0.2)_1px,transparent_1px)] bg-[size:40px_40px] opacity-5"></div>
@@ -474,43 +480,54 @@ export const InteractiveBrainModel = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         {/* Section Header */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center space-x-2 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full mb-4">
+          <div className={`inline-flex items-center space-x-2 border px-3 py-1 rounded-full mb-4 ${
+            isLight ? "home-section-kicker" : "bg-blue-500/10 border-blue-500/20"
+          }`}>
             <Zap size={14} className="text-blue-400" />
-            <span className="text-xs font-bold text-blue-300 uppercase tracking-widest">
+            <span className={`text-xs font-bold uppercase tracking-widest ${isLight ? "text-emerald-800" : "text-blue-300"}`}>
               Interactive Demo
             </span>
           </div>
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
-            Volumetric Digital Twin
+          <h2 className={`text-3xl md:text-5xl font-bold mb-4 ${isLight ? "text-slate-950" : "text-white"}`}>
+            Volumetric{" "}
+            <span className={isLight ? "home-highlight-block" : "text-white"}>
+              Digital Twin
+            </span>
           </h2>
-          <p className="text-slate-400 max-w-2xl mx-auto">
-            Explore the generated 3D neural map. Hover over regions to inspect
-            localized biomarker data derived from MRI analysis.
+          <p className={`${isLight ? "text-slate-600" : "text-slate-400"} max-w-2xl mx-auto`}>
+            Explore the generated <span className={isLight ? "home-inline-highlight" : "text-slate-300"}>3D neural map</span>. Hover over regions to inspect
+            localized biomarker data derived from <span className={isLight ? "home-inline-highlight" : "text-slate-300"}>MRI analysis</span>.
           </p>
         </div>
 
         {/* Main Interactive Container */}
-        <div className="relative rounded-3xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm overflow-hidden shadow-2xl">
+        <div className={`relative rounded-3xl border backdrop-blur-sm overflow-hidden shadow-2xl ${
+          isLight
+            ? "bg-white border-slate-200 shadow-[0_30px_90px_rgba(15,23,42,0.10)]"
+            : "bg-slate-900/50 border-slate-800"
+        }`}>
           {/* Header Bar */}
-          <div className="h-12 border-b border-slate-800 bg-slate-900/80 flex items-center justify-between px-6">
+          <div className={`h-12 border-b flex items-center justify-between px-6 ${
+            isLight ? "bg-slate-50 border-slate-200" : "bg-slate-900/80 border-slate-800"
+          }`}>
             <div className="flex items-center space-x-4">
               <div className="flex space-x-1.5">
                 <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
                 <div className="w-2 h-2 rounded-full bg-yellow-500/50"></div>
                 <div className="w-2 h-2 rounded-full bg-green-500/50"></div>
               </div>
-              <span className="text-xs font-mono text-slate-500">
+              <span className={`text-xs font-mono ${isLight ? "text-slate-500" : "text-slate-500"}`}>
                 ID: PAT-8832-X • LIVE SESSION
               </span>
             </div>
-            <div className="flex items-center space-x-4 text-slate-500">
+            <div className={`flex items-center space-x-4 ${isLight ? "text-slate-500" : "text-slate-500"}`}>
               <Share2
                 size={16}
-                className="hover:text-white cursor-pointer transition-colors"
+                className={`${isLight ? "hover:text-slate-950" : "hover:text-white"} cursor-pointer transition-colors`}
               />
               <Maximize2
                 size={16}
-                className="hover:text-white cursor-pointer transition-colors"
+                className={`${isLight ? "hover:text-slate-950" : "hover:text-white"} cursor-pointer transition-colors`}
               />
             </div>
           </div>
@@ -518,7 +535,9 @@ export const InteractiveBrainModel = () => {
           {/* Canvas Area */}
           <div
             ref={containerRef}
-            className="relative h-[600px] w-full cursor-crosshair active:cursor-grabbing"
+            className={`relative h-[600px] w-full cursor-crosshair active:cursor-grabbing ${
+              isLight ? "bg-[radial-gradient(circle_at_center,rgba(14,165,233,0.08),transparent_58%)]" : ""
+            }`}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
           >
@@ -639,7 +658,9 @@ export const InteractiveBrainModel = () => {
           </div>
 
           {/* Footer Controls Bar */}
-          <div className="h-16 border-t border-slate-800 bg-slate-900/80 flex flex-col md:flex-row items-center justify-between px-6 gap-4 py-2">
+          <div className={`h-16 border-t flex flex-col md:flex-row items-center justify-between px-6 gap-4 py-2 ${
+            isLight ? "bg-slate-50 border-slate-200" : "bg-slate-900/80 border-slate-800"
+          }`}>
             {/* Legend (Left) */}
             <div className="hidden md:flex items-center space-x-6">
               <div className="flex items-center space-x-2">

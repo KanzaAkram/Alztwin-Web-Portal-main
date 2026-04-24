@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { API_COGNITIVE_URL, formatDate } from "../config";
 import { getPatientCognitiveTestsByType } from "../../../services/userService";
+import { useTheme } from "../../ThemeContext";
 
 const sortTestTypes = (a, b) => {
   const priority = { FAQ: 0, MMSE: 1, ADAS: 2 };
@@ -45,6 +46,7 @@ const getPredictionErrorMessage = (error) => {
 };
 
 export default function CognitiveTestsSection({ patients }) {
+  const { isLight } = useTheme();
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [testsByType, setTestsByType] = useState({});
@@ -279,7 +281,134 @@ export default function CognitiveTestsSection({ patients }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${isLight ? "cog-light text-slate-900" : ""}`}>
+      {isLight && (
+        <style>{`
+          .cog-light .bg-gradient-to-br.from-slate-900,
+          .cog-light .bg-gradient-to-br.from-amber-500\\/20,
+          .cog-light .bg-gradient-to-br.from-cyan-500\\/20,
+          .cog-light .bg-gradient-to-br.from-purple-500\\/20,
+          .cog-light .bg-gradient-to-br.from-blue-500\\/10 {
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdfa 54%, #eff6ff 100%) !important;
+          }
+
+          .cog-light .bg-slate-900\\/60,
+          .cog-light .bg-slate-900\\/50,
+          .cog-light .bg-slate-900\\/40,
+          .cog-light .bg-slate-800,
+          .cog-light .bg-slate-800\\/90,
+          .cog-light .bg-slate-800\\/80,
+          .cog-light .bg-slate-800\\/70 {
+            background: rgba(255, 255, 255, 0.95) !important;
+          }
+
+          .cog-light .border-slate-800,
+          .cog-light .border-slate-800\\/80,
+          .cog-light .border-slate-700,
+          .cog-light .border-slate-700\\/60 {
+            border-color: #e2e8f0 !important;
+          }
+
+          .cog-light .border-cyan-700\\/30,
+          .cog-light .border-cyan-400\\/30,
+          .cog-light .border-cyan-500\\/30 {
+            border-color: #bae6fd !important;
+          }
+
+          .cog-light .border-amber-400\\/30,
+          .cog-light .border-yellow-500\\/30 {
+            border-color: #fde68a !important;
+          }
+
+          .cog-light .border-purple-400\\/30 {
+            border-color: #ddd6fe !important;
+          }
+
+          .cog-light .text-white,
+          .cog-light .text-slate-200,
+          .cog-light .text-slate-300 {
+            color: #0f172a !important;
+          }
+
+          .cog-light .text-slate-400 {
+            color: #475569 !important;
+          }
+
+          .cog-light .text-slate-500 {
+            color: #64748b !important;
+          }
+
+          .cog-light .text-cyan-200,
+          .cog-light .text-cyan-200\\/90,
+          .cog-light .text-cyan-300 {
+            color: #0891b2 !important;
+          }
+
+          .cog-light .text-emerald-200,
+          .cog-light .text-emerald-300 {
+            color: #047857 !important;
+          }
+
+          .cog-light .text-yellow-300,
+          .cog-light .text-yellow-400 {
+            color: #b45309 !important;
+          }
+
+          .cog-light .text-red-300 {
+            color: #dc2626 !important;
+          }
+
+          .cog-light .bg-cyan-600\\/20,
+          .cog-light .bg-emerald-500\\/20,
+          .cog-light .bg-emerald-500\\/10 {
+            background: #ecfdf5 !important;
+          }
+
+          .cog-light .bg-yellow-500\\/10 {
+            background: #fffbeb !important;
+          }
+
+          .cog-light .bg-red-500\\/10 {
+            background: #fef2f2 !important;
+          }
+
+          .cog-light .bg-gradient-to-br.from-emerald-500\\/10 {
+            background: #ecfdf5 !important;
+          }
+
+          .cog-light .bg-gradient-to-br.from-red-500\\/10 {
+            background: #fef2f2 !important;
+          }
+
+          .cog-light select {
+            background: #ffffff !important;
+            color: #0f172a !important;
+            border-color: #cbd5e1 !important;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+          }
+
+          .cog-light select:focus {
+            border-color: #0891b2 !important;
+            box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.14) !important;
+          }
+
+          .cog-light .shadow-slate-950\\/50,
+          .cog-light .shadow-cyan-900\\/10,
+          .cog-light .shadow-xl,
+          .cog-light .shadow-lg {
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.075) !important;
+          }
+
+          .cog-light .rounded-2xl,
+          .cog-light .rounded-xl {
+            box-shadow: 0 16px 38px rgba(15, 23, 42, 0.055);
+          }
+
+          .cog-light img {
+            background: #ffffff;
+          }
+        `}</style>
+      )}
       <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/40 border border-cyan-700/30 rounded-2xl p-6 shadow-xl shadow-cyan-900/10">
         <div className="absolute -right-12 -top-12 w-40 h-40 rounded-full bg-cyan-500/10 blur-2xl" />
         <div className="absolute -left-8 -bottom-10 w-36 h-36 rounded-full bg-blue-500/10 blur-2xl" />

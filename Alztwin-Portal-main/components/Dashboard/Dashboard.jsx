@@ -2454,12 +2454,41 @@ const handleViewPatient = async (patientId) => {
                 : { label: "Unstable", color: "text-red-400" };
             const riskColor =
               p.riskLevel === "high"
-                ? "text-red-400"
+                ? isLight ? "text-red-600" : "text-red-400"
                 : p.riskLevel === "medium"
-                ? "text-yellow-400"
+                ? isLight ? "text-amber-600" : "text-yellow-400"
                 : p.riskLevel === "low"
-                ? "text-green-400"
-                : "text-slate-400";
+                ? isLight ? "text-emerald-600" : "text-green-400"
+                : isLight ? "text-slate-600" : "text-slate-400";
+            const callShell = isLight
+              ? "bg-[linear-gradient(180deg,#f8fbfa_0%,#eef4f1_100%)] text-slate-950"
+              : "bg-slate-950";
+            const callHeader = isLight
+              ? "bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-[0_12px_32px_rgba(15,23,42,0.08)]"
+              : "bg-slate-900/95 backdrop-blur-sm border-b border-slate-800";
+            const callStage = isLight
+              ? "bg-[linear-gradient(135deg,#f8fafc_0%,#ecfdf5_52%,#eff6ff_100%)]"
+              : "bg-slate-900";
+            const stageOverlay = isLight ? "bg-white/82" : "bg-slate-900/80";
+            const panelSurface = isLight
+              ? "bg-white/95 backdrop-blur-sm border-l border-slate-200 shadow-[-18px_0_42px_rgba(15,23,42,0.06)]"
+              : "bg-slate-900/95 backdrop-blur-sm border-l border-slate-800";
+            const panelBorder = isLight ? "border-slate-200" : "border-slate-800";
+            const callHeading = isLight ? "text-slate-950" : "text-white";
+            const callMuted = isLight ? "text-slate-600" : "text-slate-400";
+            const callSubtle = isLight ? "text-slate-500" : "text-slate-500";
+            const iconButton = isLight
+              ? "p-2 text-slate-500 hover:text-slate-950 hover:bg-slate-100 rounded-lg transition-colors"
+              : "p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors";
+            const liveControl = isLight
+              ? "bg-white/95 backdrop-blur-sm border border-slate-200 shadow-[0_16px_40px_rgba(15,23,42,0.14)]"
+              : "bg-slate-900/95 backdrop-blur-sm border border-slate-700 shadow-2xl";
+            const enabledControl = isLight
+              ? "bg-slate-100 hover:bg-slate-200 text-slate-800"
+              : "bg-slate-700 hover:bg-slate-600 text-white";
+            const notesInput = isLight
+              ? "w-full flex-1 min-h-[120px] bg-white border border-slate-300 rounded-lg p-2.5 text-slate-950 text-sm placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 resize-none"
+              : "w-full flex-1 min-h-[120px] bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-emerald-500 resize-none";
             const copySessionId = () => {
               if (!sessionIdRef.current) return;
               navigator.clipboard?.writeText(sessionIdRef.current).catch(() => {});
@@ -2467,23 +2496,23 @@ const handleViewPatient = async (patientId) => {
               setTimeout(() => setCopiedSessionId(false), 1500);
             };
             return (
-              <div className="fixed inset-0 bg-slate-950 z-[60] flex flex-col">
+              <div className={`fixed inset-0 z-[60] flex flex-col ${callShell}`}>
                 {/* Header */}
-                <div className="flex items-center justify-between p-3 px-5 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800">
+                <div className={`flex items-center justify-between p-3 px-5 ${callHeader}`}>
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
                       {p.avatar || "P"}
                     </div>
                     <div>
-                      <h3 className="text-white font-semibold leading-tight">
+                      <h3 className={`${callHeading} font-semibold leading-tight`}>
                         {p.name || "Patient"}
-                        <span className="text-slate-500 font-normal ml-2 text-sm">
+                        <span className={`${callSubtle} font-normal ml-2 text-sm`}>
                           · {p.age || "—"}y · {p.diagnosis || "Unknown"}
                         </span>
                       </h3>
                       <div className="flex items-center space-x-2 mt-0.5">
                         <span className={`w-2 h-2 rounded-full ${statePill.dot}`} />
-                        <span className="text-xs text-slate-400">{statePill.label}</span>
+                        <span className={`text-xs ${callMuted}`}>{statePill.label}</span>
                         <span className="text-slate-700">•</span>
                         <span className={`text-xs ${netQuality.color}`}>
                           {netQuality.label}
@@ -2500,7 +2529,11 @@ const handleViewPatient = async (patientId) => {
                           setTimeout(() => setCopiedSessionId(false), 1500);
                         }}
                         title={`Room: ${currentRoomId} — click to copy`}
-                        className="group flex items-center space-x-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 transition-colors"
+                        className={`group flex items-center space-x-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
+                          isLight
+                            ? "bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700"
+                            : "bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300"
+                        }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         <span className="uppercase tracking-wider text-[10px] opacity-70">
@@ -2518,13 +2551,13 @@ const handleViewPatient = async (patientId) => {
                     <button
                       onClick={() => setShowPatientPanel((v) => !v)}
                       title="Toggle patient panel"
-                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                      className={iconButton}
                     >
                       <FileText size={18} />
                     </button>
                     <button
                       onClick={endVideoCall}
-                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                      className={iconButton}
                     >
                       <X size={20} />
                     </button>
@@ -2534,7 +2567,7 @@ const handleViewPatient = async (patientId) => {
                 {/* Body */}
                 <div className="flex-1 flex overflow-hidden">
                   {/* Video stage */}
-                  <div className="flex-1 relative bg-slate-900 overflow-hidden">
+                  <div className={`flex-1 relative overflow-hidden ${callStage}`}>
                     <video
                       ref={remoteVideoRef}
                       autoPlay
@@ -2542,17 +2575,17 @@ const handleViewPatient = async (patientId) => {
                       className="w-full h-full object-cover"
                     />
                     {callStatus !== "connected" && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
+                      <div className={`absolute inset-0 flex items-center justify-center ${stageOverlay}`}>
                         <div className="text-center max-w-md px-6">
                           <div className="w-28 h-28 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center mx-auto mb-5 shadow-2xl">
                             <span className="text-4xl font-bold text-white">
                               {p.avatar || "P"}
                             </span>
                           </div>
-                          <h3 className="text-2xl text-white font-semibold mb-1">
+                          <h3 className={`text-2xl ${callHeading} font-semibold mb-1`}>
                             {p.name || "Patient"}
                           </h3>
-                          <p className="text-slate-400 text-sm mb-5">
+                          <p className={`${callMuted} text-sm mb-5`}>
                             {callStatus === "connecting"
                               ? sessionIdRef.current
                                 ? "Joined — waiting for caregiver's stream to arrive…"
@@ -2571,7 +2604,9 @@ const handleViewPatient = async (patientId) => {
                     )}
 
                     {/* Local PiP */}
-                    <div className="absolute bottom-24 right-4 w-48 h-36 rounded-xl overflow-hidden border-2 border-slate-700 shadow-2xl bg-slate-800">
+                    <div className={`absolute bottom-24 right-4 w-48 h-36 rounded-xl overflow-hidden border-2 shadow-2xl ${
+                      isLight ? "border-white bg-slate-100" : "border-slate-700 bg-slate-800"
+                    }`}>
                       <video
                         ref={localVideoRef}
                         autoPlay
@@ -2580,32 +2615,34 @@ const handleViewPatient = async (patientId) => {
                         className="w-full h-full object-cover"
                       />
                       {!isVideoOn && (
-                        <div className="absolute inset-0 bg-slate-800 flex items-center justify-center">
+                        <div className={`absolute inset-0 flex items-center justify-center ${isLight ? "bg-slate-100" : "bg-slate-800"}`}>
                           <VideoOff size={28} className="text-slate-500" />
                         </div>
                       )}
-                      <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 bg-slate-900/90 rounded text-[10px] text-white uppercase tracking-wider font-medium">
+                      <div className={`absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-medium ${
+                        isLight ? "bg-white/90 text-slate-800 shadow-sm" : "bg-slate-900/90 text-white"
+                      }`}>
                         You
                       </div>
                     </div>
 
                     {/* Controls */}
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center space-x-3 bg-slate-900/95 backdrop-blur-sm rounded-full px-5 py-2.5 border border-slate-700 shadow-2xl">
+                    <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center space-x-3 rounded-full px-5 py-2.5 ${liveControl}`}>
                       <button
                         onClick={toggleAudio}
-                        className={`p-3 rounded-full transition-colors ${isAudioOn ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}`}
+                        className={`p-3 rounded-full transition-colors ${isAudioOn ? enabledControl : "bg-red-500 hover:bg-red-600 text-white"}`}
                         title={isAudioOn ? "Mute" : "Unmute"}
                       >
                         {isAudioOn ? <Mic size={18} /> : <MicOff size={18} />}
                       </button>
                       <button
                         onClick={toggleVideo}
-                        className={`p-3 rounded-full transition-colors ${isVideoOn ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}`}
+                        className={`p-3 rounded-full transition-colors ${isVideoOn ? enabledControl : "bg-red-500 hover:bg-red-600 text-white"}`}
                         title={isVideoOn ? "Turn off camera" : "Turn on camera"}
                       >
                         {isVideoOn ? <Video size={18} /> : <VideoOff size={18} />}
                       </button>
-                      <div className="w-px h-6 bg-slate-700 mx-1" />
+                      <div className={`w-px h-6 mx-1 ${isLight ? "bg-slate-200" : "bg-slate-700"}`} />
                       <button
                         onClick={endVideoCall}
                         className="flex items-center space-x-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors font-medium text-sm"
@@ -2619,28 +2656,30 @@ const handleViewPatient = async (patientId) => {
 
                   {/* Clinical side panel */}
                   {showPatientPanel && (
-                    <aside className="w-80 bg-slate-900/95 backdrop-blur-sm border-l border-slate-800 overflow-y-auto flex flex-col">
-                      <div className="p-4 border-b border-slate-800">
-                        <h4 className="text-white font-semibold text-sm flex items-center">
+                    <aside className={`w-80 overflow-y-auto flex flex-col ${panelSurface} ${
+                      isLight ? "[&_.text-white]:text-slate-950 [&_.text-slate-300]:text-slate-600 [&_.text-slate-400]:text-slate-600" : ""
+                    }`}>
+                      <div className={`p-4 border-b ${panelBorder}`}>
+                        <h4 className={`${callHeading} font-semibold text-sm flex items-center`}>
                           <Stethoscope size={15} className="mr-2 text-emerald-400" />
                           Clinical Summary
                         </h4>
                       </div>
 
                       {/* Vitals */}
-                      <div className="p-4 border-b border-slate-800 space-y-2 text-sm">
+                      <div className={`p-4 border-b ${panelBorder} space-y-2 text-sm`}>
                         <div className="flex justify-between">
-                          <span className="text-slate-500">Age</span>
+                          <span className={callSubtle}>Age</span>
                           <span className="text-white">{p.age || "—"}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-500">Gender</span>
-                          <span className="text-white capitalize">
+                          <span className={callSubtle}>Gender</span>
+                          <span className={`${callHeading} capitalize`}>
                             {p.gender || "—"}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-500">Risk level</span>
+                          <span className={callSubtle}>Risk level</span>
                           <span className={`${riskColor} font-medium capitalize`}>
                             {p.riskLevel || "unknown"}
                             {typeof p.riskScore === "number" && p.riskScore > 0
@@ -2649,41 +2688,41 @@ const handleViewPatient = async (patientId) => {
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-500">BP</span>
-                          <span className="text-white">
+                          <span className={callSubtle}>BP</span>
+                          <span className={callHeading}>
                             {p.bloodPressure || "—"}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-500">HR</span>
-                          <span className="text-white">
+                          <span className={callSubtle}>HR</span>
+                          <span className={callHeading}>
                             {p.heartRate ? `${p.heartRate} bpm` : "—"}
                           </span>
                         </div>
                       </div>
 
                       {/* AI context */}
-                      <div className="p-4 border-b border-slate-800">
+                      <div className={`p-4 border-b ${panelBorder}`}>
                         <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2">
                           Latest AI Analysis
                         </p>
                         {p.currentStage ? (
                           <>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-white font-medium text-sm">
+                              <span className={`${callHeading} font-medium text-sm`}>
                                 {p.currentStage}
                               </span>
                               {p.aiConfidence != null && (
-                                <span className="text-[11px] text-blue-300 font-mono">
+                                <span className={`text-[11px] ${isLight ? "text-blue-700" : "text-blue-300"} font-mono`}>
                                   {(p.aiConfidence * 100).toFixed(1)}%
                                 </span>
                               )}
                             </div>
-                            <div className="h-1.5 bg-slate-800 rounded-full flex overflow-hidden mb-2">
+                            <div className={`h-1.5 rounded-full flex overflow-hidden mb-2 ${isLight ? "bg-slate-100" : "bg-slate-800"}`}>
                               {[0, 1, 2, 3].map((step) => (
                                 <div
                                   key={step}
-                                  className={`flex-1 border-r border-slate-900 last:border-0 ${
+                                  className={`flex-1 border-r last:border-0 ${isLight ? "border-white" : "border-slate-900"} ${
                                     step <= (p.stageLevel ?? 0)
                                       ? step >= 3
                                         ? "bg-red-500"
@@ -2698,8 +2737,8 @@ const handleViewPatient = async (patientId) => {
                               ))}
                             </div>
                             {p.predictedDecline && (
-                              <p className="text-[11px] text-slate-400">
-                                Forecast: <span className="text-white">{p.predictedDecline}</span>
+                              <p className={`text-[11px] ${callMuted}`}>
+                                Forecast: <span className={callHeading}>{p.predictedDecline}</span>
                               </p>
                             )}
                           </>
@@ -2712,14 +2751,14 @@ const handleViewPatient = async (patientId) => {
 
                       {/* Medications */}
                       {Array.isArray(p.medications) && p.medications.length > 0 && (
-                        <div className="p-4 border-b border-slate-800">
+                        <div className={`p-4 border-b ${panelBorder}`}>
                           <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2 flex items-center">
                             <Pill size={11} className="mr-1" />
                             Current Medications
                           </p>
                           <ul className="space-y-1">
                             {p.medications.slice(0, 5).map((m, i) => (
-                              <li key={i} className="text-xs text-slate-300">
+                              <li key={i} className={`text-xs ${callMuted}`}>
                                 • {m}
                               </li>
                             ))}
@@ -2732,7 +2771,7 @@ const handleViewPatient = async (patientId) => {
                         <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2 flex items-center">
                           <FileText size={11} className="mr-1" />
                           Call Notes
-                          <span className="ml-auto text-slate-600 normal-case tracking-normal font-normal">
+                          <span className={`ml-auto ${isLight ? "text-slate-400" : "text-slate-600"} normal-case tracking-normal font-normal`}>
                             saved on end
                           </span>
                         </p>
@@ -2740,7 +2779,7 @@ const handleViewPatient = async (patientId) => {
                           value={callNotes}
                           onChange={(e) => setCallNotes(e.target.value)}
                           placeholder="Symptoms observed, plan adjustments, follow-ups…"
-                          className="w-full flex-1 min-h-[120px] bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-emerald-500 resize-none"
+                          className={notesInput}
                         />
                         <p className="text-[10px] text-slate-600 mt-2">
                           Notes are written to the consultation_sessions doc when you end the call.
@@ -3096,17 +3135,29 @@ const handleViewPatient = async (patientId) => {
 
           {/* === SCHEDULE CONSULTATION MODAL === */}
           {showScheduleModal && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className={`fixed inset-0 backdrop-blur-sm z-[70] flex items-center justify-center p-4 ${
+              isLight ? "bg-slate-950/35" : "bg-black/80"
+            }`}>
+              <div className={`rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl ${
+                isLight
+                  ? "bg-white border border-slate-200 shadow-[0_35px_90px_rgba(15,23,42,0.18)]"
+                  : "bg-slate-900 border border-slate-700"
+              }`}>
                 {/* Header */}
-                <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 to-green-900/20">
+                <div className={`p-6 border-b flex items-center justify-between ${
+                  isLight
+                    ? "border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#ecfdf5_100%)]"
+                    : "border-slate-800 bg-gradient-to-r from-slate-900 to-green-900/20"
+                }`}>
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      isLight ? "bg-emerald-50 border border-emerald-100" : "bg-green-500/20"
+                    }`}>
                       <CalendarPlus size={20} className="text-green-400" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-white">Schedule Consultation</h3>
-                      <p className="text-slate-400 text-sm">Set up a video consultation session</p>
+                      <h3 className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>Schedule Consultation</h3>
+                      <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-sm`}>Set up a video consultation session</p>
                     </div>
                   </div>
                   <button 
@@ -3114,7 +3165,11 @@ const handleViewPatient = async (patientId) => {
                       setShowScheduleModal(false);
                       setSelectedPatientForSchedule(null);
                     }}
-                    className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-all"
+                    className={`p-2 rounded-lg transition-all ${
+                      isLight
+                        ? "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                        : "bg-slate-800 hover:bg-slate-700 text-white"
+                    }`}
                   >
                     <X size={20} />
                   </button>
@@ -3124,14 +3179,18 @@ const handleViewPatient = async (patientId) => {
                 <div className="p-6 space-y-5">
                   {/* Patient Selection */}
                   <div>
-                    <label className="block text-white font-medium mb-2">Select Patient</label>
+                    <label className={`block font-medium mb-2 ${isLight ? "text-slate-800" : "text-white"}`}>Select Patient</label>
                     <select 
                       value={selectedPatientForSchedule?.id || ""}
                       onChange={(e) => {
                         const patient = patients.find(p => p.id === e.target.value);
                         setSelectedPatientForSchedule(patient);
                       }}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-green-500"
+                      className={`w-full border rounded-xl p-3 focus:outline-none ${
+                        isLight
+                          ? "bg-white border-slate-300 text-slate-950 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+                          : "bg-slate-800 border-slate-700 text-white focus:border-green-500"
+                      }`}
                     >
                       <option value="">Choose a patient...</option>
                       {patients.map(patient => (
@@ -3143,33 +3202,45 @@ const handleViewPatient = async (patientId) => {
                   {/* Date & Time */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-white font-medium mb-2">Date</label>
+                      <label className={`block font-medium mb-2 ${isLight ? "text-slate-800" : "text-white"}`}>Date</label>
                       <input
                         type="date"
                         value={scheduleDate}
                         onChange={(e) => setScheduleDate(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-green-500"
+                        className={`w-full border rounded-xl p-3 focus:outline-none ${
+                          isLight
+                            ? "bg-white border-slate-300 text-slate-950 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+                            : "bg-slate-800 border-slate-700 text-white focus:border-green-500"
+                        }`}
                       />
                     </div>
                     <div>
-                      <label className="block text-white font-medium mb-2">Time</label>
+                      <label className={`block font-medium mb-2 ${isLight ? "text-slate-800" : "text-white"}`}>Time</label>
                       <input
                         type="time"
                         value={scheduleTime}
                         onChange={(e) => setScheduleTime(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-green-500"
+                        className={`w-full border rounded-xl p-3 focus:outline-none ${
+                          isLight
+                            ? "bg-white border-slate-300 text-slate-950 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+                            : "bg-slate-800 border-slate-700 text-white focus:border-green-500"
+                        }`}
                       />
                     </div>
                   </div>
 
                   {/* Consultation Type */}
                   <div>
-                    <label className="block text-white font-medium mb-2">Consultation Type</label>
+                    <label className={`block font-medium mb-2 ${isLight ? "text-slate-800" : "text-white"}`}>Consultation Type</label>
                     <div className="grid grid-cols-3 gap-2">
                       {["Follow-up", "Initial", "Emergency"].map((type) => (
                         <button
                           key={type}
-                          className="p-3 bg-slate-800 hover:bg-green-600/20 border border-slate-700 hover:border-green-500/50 rounded-xl text-white text-sm font-medium transition-all"
+                          className={`p-3 border rounded-xl text-sm font-medium transition-all ${
+                            isLight
+                              ? "bg-slate-50 hover:bg-emerald-50 border-slate-200 hover:border-emerald-300 text-slate-700 hover:text-emerald-700"
+                              : "bg-slate-800 hover:bg-green-600/20 border-slate-700 hover:border-green-500/50 text-white"
+                          }`}
                         >
                           {type}
                         </button>
@@ -3179,30 +3250,42 @@ const handleViewPatient = async (patientId) => {
 
                   {/* Notes */}
                   <div>
-                    <label className="block text-white font-medium mb-2">Notes (Optional)</label>
+                    <label className={`block font-medium mb-2 ${isLight ? "text-slate-800" : "text-white"}`}>Notes (Optional)</label>
                     <textarea
                       value={scheduleNotes}
                       onChange={(e) => setScheduleNotes(e.target.value)}
                       placeholder="Add any notes for this appointment..."
-                      className="w-full h-20 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:border-green-500 resize-none"
+                      className={`w-full h-20 border rounded-xl p-3 resize-none focus:outline-none ${
+                        isLight
+                          ? "bg-white border-slate-300 text-slate-950 placeholder-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+                          : "bg-slate-800 border-slate-700 text-white placeholder-slate-500 focus:border-green-500"
+                      }`}
                     />
                   </div>
 
                   {/* Notification */}
-                  <div className="flex items-center space-x-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                  <div className={`flex items-center space-x-3 p-3 border rounded-xl ${
+                    isLight ? "bg-emerald-50 border-emerald-200" : "bg-green-500/10 border-green-500/20"
+                  }`}>
                     <Bell size={18} className="text-green-400" />
-                    <p className="text-sm text-slate-300">Patient and caregiver will be notified via email and app notification.</p>
+                    <p className={`text-sm ${isLight ? "text-slate-700" : "text-slate-300"}`}>Patient and caregiver will be notified via email and app notification.</p>
                   </div>
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 border-t border-slate-800 flex items-center justify-end space-x-3 bg-slate-900/50">
+                <div className={`p-6 border-t flex items-center justify-end space-x-3 ${
+                  isLight ? "border-slate-200 bg-slate-50/80" : "border-slate-800 bg-slate-900/50"
+                }`}>
                   <button
                     onClick={() => {
                       setShowScheduleModal(false);
                       setSelectedPatientForSchedule(null);
                     }}
-                    className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-all"
+                    className={`px-6 py-2.5 rounded-xl font-medium transition-all ${
+                      isLight
+                        ? "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
+                        : "bg-slate-800 hover:bg-slate-700 text-white"
+                    }`}
                   >
                     Cancel
                   </button>

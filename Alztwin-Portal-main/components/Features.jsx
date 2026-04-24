@@ -70,7 +70,7 @@ export const Features = () => {
           <div
             className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full mb-8 shadow-sm border ${
               isLight
-                ? "bg-gradient-to-r from-emerald-50 to-cyan-50 border-emerald-200/70"
+                ? "home-section-kicker"
                 : "bg-slate-900/70 border-slate-700"
             }`}
           >
@@ -91,11 +91,11 @@ export const Features = () => {
             <br />
             <span className="relative inline-block mt-2">
               <span
-                className={`bg-clip-text text-transparent ${
+                className={`${
                   isLight
-                    ? "bg-gradient-to-r from-slate-900 via-emerald-800 to-cyan-700"
+                    ? "home-highlight-block"
                     : "bg-gradient-to-r from-blue-400 via-indigo-400 to-cyan-300"
-                }`}
+                } ${isLight ? "" : "bg-clip-text text-transparent"}`}
               >
                 Precision Healthcare
               </span>
@@ -109,7 +109,7 @@ export const Features = () => {
           >
             AlzTwin integrates advanced neuroimaging with daily living metrics
             to provide a{" "}
-            <span className={isLight ? "text-slate-900 font-semibold" : "text-white font-semibold"}>
+            <span className={isLight ? "home-inline-highlight" : "text-white font-semibold"}>
               holistic view
             </span>{" "}
             of patient health.

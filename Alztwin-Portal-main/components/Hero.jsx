@@ -105,7 +105,7 @@ export const Hero = ({ onSignup }) => {
                   Precision Care via
                 </span>
                 {isLight ? (
-                  <span className="bg-clip-text text-transparent bg-[linear-gradient(to_right,#0f172a,#0f766e,#0f766e,#155e75)] bg-[length:200%_auto] animate-shimmer">
+                  <span className="home-highlight-block home-highlight-hero">
                     Digital Twins
                   </span>
                 ) : (
@@ -124,19 +124,19 @@ export const Hero = ({ onSignup }) => {
             >
               AlzTwin unifies{" "}
               <span
-                className={isLight ? "text-slate-900 font-semibold" : "text-blue-200"}
+                className={isLight ? "home-inline-highlight" : "text-blue-200"}
               >
                 MRI brain modeling
               </span>
               ,{" "}
               <span
-                className={isLight ? "text-slate-900 font-semibold" : "text-blue-200"}
+                className={isLight ? "home-inline-highlight" : "text-blue-200"}
               >
                 IoT monitoring
               </span>
               , and{" "}
               <span
-                className={isLight ? "text-slate-900 font-semibold" : "text-blue-200"}
+                className={isLight ? "home-inline-highlight" : "text-blue-200"}
               >
                 AI prediction
               </span>{" "}
@@ -149,14 +149,14 @@ export const Hero = ({ onSignup }) => {
             >
               <button
                 onClick={onSignup}
-                className={`group relative overflow-hidden rounded-lg px-8 py-4 font-semibold text-white shadow-xl transition-all hover:scale-[1.02] ${
+                className={`home-preserve-white group relative overflow-hidden rounded-lg px-8 py-4 font-semibold text-white shadow-xl transition-all hover:scale-[1.02] ${
                   isLight
                     ? "bg-[linear-gradient(135deg,#0f766e,#115e59)] shadow-[0_24px_48px_rgba(15,118,110,0.24)] hover:brightness-110"
                     : "bg-blue-600 shadow-blue-500/20 hover:bg-blue-500 hover:shadow-blue-500/40"
                 }`}
               >
                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                <span className="relative flex items-center justify-center space-x-2">
+                <span className="home-preserve-white relative flex items-center justify-center space-x-2">
                   <span>Request Clinical Access</span>
                   <ChevronRight size={18} />
                 </span>

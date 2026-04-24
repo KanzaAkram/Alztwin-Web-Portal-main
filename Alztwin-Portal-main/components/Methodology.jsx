@@ -30,7 +30,7 @@ export const Methodology = () => {
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div>
             <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full mb-6 border ${
-              isLight ? "bg-gray-100 border-gray-200 text-gray-600" : "bg-slate-900/50 border-slate-700/50 text-brand-200"
+              isLight ? "home-section-kicker" : "bg-slate-900/50 border-slate-700/50 text-brand-200"
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${isLight ? "bg-emerald-500" : "bg-brand-400"}`}></span>
               <span className="text-xs font-medium uppercase tracking-wide">Technical Architecture</span>
@@ -38,13 +38,13 @@ export const Methodology = () => {
 
             <h2 className={`text-3xl md:text-4xl font-bold mb-6 tracking-tight ${isLight ? "text-gray-900" : "text-white"}`}>
               Built for{" "}
-              <span className={isLight ? "text-gray-900" : "text-brand-400"}>Reliability</span>{" "}
+              <span className={isLight ? "home-highlight-block" : "text-brand-400"}>Reliability</span>{" "}
               &{" "}
-              <span className={isLight ? "text-gray-900" : "text-indigo-400"}>Scale</span>
+              <span className={isLight ? "home-highlight-block" : "text-indigo-400"}>Scale</span>
             </h2>
 
             <p className={`text-lg mb-10 leading-relaxed ${isLight ? "text-gray-600" : "text-slate-400"}`}>
-              AlzTwin utilizes an agile development methodology with a sophisticated tech stack designed for security, scalability, and real-time processing of sensitive medical data.
+              AlzTwin utilizes an agile development methodology with a sophisticated tech stack designed for <span className={isLight ? "home-inline-highlight" : "text-slate-300"}>security</span>, <span className={isLight ? "home-inline-highlight" : "text-slate-300"}>scalability</span>, and real-time processing of sensitive medical data.
             </p>
 
             <div className="space-y-4">

@@ -19,6 +19,7 @@ import {
   Waves,
 } from "lucide-react";
 import { formatDate } from "../config";
+import { useTheme } from "../../ThemeContext";
 
 const toDate = (ts) => {
   if (!ts) return null;
@@ -63,6 +64,12 @@ const RISK_STYLE = {
   low: "bg-green-500/15 text-green-400 border-green-500/30",
 };
 
+const RISK_STYLE_LIGHT = {
+  high: "bg-red-50 text-red-700 border-red-200",
+  medium: "bg-amber-50 text-amber-700 border-amber-200",
+  low: "bg-emerald-50 text-emerald-700 border-emerald-200",
+};
+
 export default function TeleconsultationSection({
   patients = [],
   consultations = [],
@@ -71,8 +78,27 @@ export default function TeleconsultationSection({
   onViewDigitalTwin,
   onStartCall,
 }) {
+  const { isLight } = useTheme();
   const [search, setSearch] = useState("");
   const [riskFilter, setRiskFilter] = useState("all");
+
+  const shell = isLight ? "space-y-6 text-slate-900" : "space-y-6";
+  const panel = isLight
+    ? "bg-white/92 border border-slate-200 shadow-[0_18px_42px_rgba(15,23,42,0.06)]"
+    : "bg-slate-900/50 border border-slate-800";
+  const panelHeader = isLight ? "border-slate-200" : "border-slate-800";
+  const divider = isLight ? "divide-slate-200" : "divide-slate-800";
+  const heading = isLight ? "text-slate-950" : "text-white";
+  const muted = isLight ? "text-slate-600" : "text-slate-400";
+  const subtle = isLight ? "text-slate-500" : "text-slate-500";
+  const iconRingBorder = isLight ? "border-white" : "border-slate-900";
+  const statSurface = isLight
+    ? "bg-white/95 border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.05)] hover:border-emerald-200"
+    : "bg-slate-900/60 border border-slate-800 hover:border-slate-600";
+  const inputClass = isLight
+    ? "w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-950 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+    : "w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500";
+  const emptyText = isLight ? "text-slate-500" : "text-slate-500";
 
   // Index consultations by patient for quick lookup
   const consultsByPatient = useMemo(() => {
@@ -251,22 +277,28 @@ export default function TeleconsultationSection({
   }, [enrichedPatients]);
 
   return (
-    <div className="space-y-6">
+    <div className={shell}>
       {/* Playful hero header */}
-      <div className="relative overflow-hidden bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
+      <div
+        className={`relative overflow-hidden rounded-2xl p-6 ${
+          isLight
+            ? "bg-[linear-gradient(135deg,#ffffff_0%,#eefbf7_50%,#eff6ff_100%)] border border-slate-200 shadow-[0_22px_55px_rgba(15,23,42,0.08)]"
+            : "bg-slate-900/60 border border-slate-800"
+        }`}
+      >
         {/* Animated blobs */}
-        <div className="pointer-events-none absolute -top-20 -right-10 w-72 h-72 bg-emerald-500/20 rounded-full blur-3xl animate-pulse" />
+        <div className={`pointer-events-none absolute -top-20 -right-10 w-72 h-72 rounded-full blur-3xl animate-pulse ${isLight ? "bg-emerald-200/70" : "bg-emerald-500/20"}`} />
         <div
-          className="pointer-events-none absolute -bottom-16 left-1/3 w-64 h-64 bg-cyan-500/15 rounded-full blur-3xl animate-pulse"
+          className={`pointer-events-none absolute -bottom-16 left-1/3 w-64 h-64 rounded-full blur-3xl animate-pulse ${isLight ? "bg-cyan-200/55" : "bg-cyan-500/15"}`}
           style={{ animationDelay: "1.5s" }}
         />
-        <div className="pointer-events-none absolute top-8 right-1/4 w-32 h-32 bg-purple-500/15 rounded-full blur-2xl" />
+        <div className={`pointer-events-none absolute top-8 right-1/4 w-32 h-32 rounded-full blur-2xl ${isLight ? "bg-blue-200/45" : "bg-purple-500/15"}`} />
         {/* Dotted grid overlay */}
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.04]"
           style={{
             backgroundImage:
-              "radial-gradient(circle, #ffffff 1px, transparent 1px)",
+              `radial-gradient(circle, ${isLight ? "#0f766e" : "#ffffff"} 1px, transparent 1px)`,
             backgroundSize: "24px 24px",
           }}
         />
@@ -277,20 +309,24 @@ export default function TeleconsultationSection({
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/40">
                 <Video size={26} className="text-white" />
               </div>
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full border-2 border-slate-900 animate-ping" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full border-2 border-slate-900" />
+              <span className={`absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full border-2 ${iconRingBorder} animate-ping`} />
+              <span className={`absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full border-2 ${iconRingBorder}`} />
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-2xl font-bold text-white tracking-tight">
+                <h2 className={`text-2xl font-bold tracking-tight ${heading}`}>
                   Teleconsultation
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-200 border border-emerald-500/40 flex items-center gap-1">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border flex items-center gap-1 ${
+                  isLight
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-200 border-emerald-500/40"
+                }`}>
                   <Sparkles size={10} className="animate-pulse" />
                   Live
                 </span>
               </div>
-              <p className="text-slate-400 text-sm max-w-xl">
+              <p className={`${muted} text-sm max-w-xl`}>
                 One-click video calls with live Digital Twin data, auto-saved
                 notes, and full consultation history at your fingertips.
               </p>
@@ -314,21 +350,21 @@ export default function TeleconsultationSection({
         {stats.map((s, i) => (
           <div
             key={i}
-            className={`group relative overflow-hidden bg-slate-900/60 border border-slate-800 rounded-xl p-4 hover:border-slate-600 hover:-translate-y-0.5 transition-all duration-300 ${s.ring}`}
+            className={`group relative overflow-hidden rounded-xl p-4 hover:-translate-y-0.5 transition-all duration-300 ${statSurface} ${s.ring}`}
           >
             <div
-              className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${s.gradient} opacity-60 group-hover:opacity-100 transition-opacity`}
+                  className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${s.gradient} ${isLight ? "opacity-35" : "opacity-60"} group-hover:opacity-100 transition-opacity`}
             />
             <div className="relative">
               <div className="flex items-center justify-between mb-3">
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${s.iconBg}`}>
                   <s.icon size={16} />
                 </div>
-                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                <span className={`text-[10px] uppercase tracking-wider ${subtle} font-semibold`}>
                   {s.label}
                 </span>
               </div>
-              <p className="text-3xl font-bold text-white leading-none tracking-tight flex items-baseline gap-2">
+              <p className={`text-3xl font-bold leading-none tracking-tight flex items-baseline gap-2 ${heading}`}>
                 {s.value}
                 {s.live && (
                   <span className="inline-flex items-center gap-1 text-[10px] text-rose-300 font-bold uppercase tracking-widest">
@@ -340,7 +376,7 @@ export default function TeleconsultationSection({
                   </span>
                 )}
               </p>
-              <p className="text-[11px] text-slate-500 mt-2">{s.sub}</p>
+              <p className={`text-[11px] ${subtle} mt-2`}>{s.sub}</p>
             </div>
           </div>
         ))}
@@ -349,12 +385,12 @@ export default function TeleconsultationSection({
       {/* Patient list + Upcoming */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Patient picker */}
-        <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-3 flex-wrap">
-            <h3 className="text-base font-semibold text-white flex items-center">
+        <div className={`lg:col-span-2 rounded-xl overflow-hidden ${panel}`}>
+          <div className={`p-4 border-b ${panelHeader} flex items-center justify-between gap-3 flex-wrap`}>
+            <h3 className={`text-base font-semibold ${heading} flex items-center`}>
               <Users size={18} className="mr-2 text-blue-400" />
               Start a Consultation
-              <span className="ml-2 text-xs text-slate-500 font-normal">
+              <span className={`ml-2 text-xs ${subtle} font-normal`}>
                 ({filteredPatients.length}/{enrichedPatients.length})
               </span>
             </h3>
@@ -368,13 +404,13 @@ export default function TeleconsultationSection({
                 onChange={(e) => setSearch(e.target.value)}
                 type="text"
                 placeholder="Search patients..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                className={inputClass}
               />
             </div>
           </div>
 
           {/* Risk filter chips */}
-          <div className="px-4 py-2 border-b border-slate-800 flex items-center gap-2 overflow-x-auto">
+          <div className={`px-4 py-2 border-b ${panelHeader} flex items-center gap-2 overflow-x-auto`}>
             <Filter size={12} className="text-slate-500 flex-shrink-0" />
             {["all", "high", "medium", "low"].map((r) => (
               <button
@@ -382,8 +418,12 @@ export default function TeleconsultationSection({
                 onClick={() => setRiskFilter(r)}
                 className={`text-[11px] uppercase tracking-wider px-2.5 py-1 rounded-md border transition-colors flex-shrink-0 ${
                   riskFilter === r
-                    ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
-                    : "bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white"
+                    ? isLight
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                      : "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
+                    : isLight
+                      ? "bg-white text-slate-600 border-slate-200 hover:text-slate-950 hover:border-slate-300 hover:bg-slate-50"
+                      : "bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white"
                 }`}
               >
                 {r} · {riskCounts[r]}
@@ -391,9 +431,9 @@ export default function TeleconsultationSection({
             ))}
           </div>
 
-          <div className="divide-y divide-slate-800 max-h-[460px] overflow-y-auto">
+          <div className={`divide-y ${divider} max-h-[460px] overflow-y-auto`}>
             {filteredPatients.length === 0 ? (
-              <div className="p-10 text-center text-slate-500 text-sm">
+              <div className={`p-10 text-center ${emptyText} text-sm`}>
                 {enrichedPatients.length === 0
                   ? "No patients yet. Accept a request to get started."
                   : "No patients match the current filter."}
@@ -409,6 +449,7 @@ export default function TeleconsultationSection({
                     onOpenScheduleModal();
                   }}
                   onViewTwin={() => onViewDigitalTwin(patient)}
+                  isLight={isLight}
                 />
               ))
             )}
@@ -416,13 +457,13 @@ export default function TeleconsultationSection({
         </div>
 
         {/* Upcoming panel */}
-        <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-white flex items-center">
+        <div className={`rounded-xl overflow-hidden ${panel}`}>
+          <div className={`p-4 border-b ${panelHeader} flex items-center justify-between`}>
+            <h3 className={`text-base font-semibold ${heading} flex items-center`}>
               <CalendarPlus size={18} className="mr-2 text-emerald-400" />
               Upcoming
             </h3>
-            <span className="text-xs text-slate-500">{upcoming.length}</span>
+            <span className={`text-xs ${subtle}`}>{upcoming.length}</span>
           </div>
           <div className="p-3 space-y-2 max-h-[460px] overflow-y-auto">
             {upcoming.length === 0 ? (
@@ -430,17 +471,21 @@ export default function TeleconsultationSection({
                 onClick={onOpenScheduleModal}
                 className="group w-full p-8 rounded-xl relative overflow-hidden transition-all"
               >
-                <div className="absolute inset-0 rounded-xl border-2 border-dashed border-slate-700 group-hover:border-emerald-500/50 transition-colors" />
+                <div className={`absolute inset-0 rounded-xl border-2 border-dashed transition-colors ${
+                  isLight ? "border-slate-300 group-hover:border-emerald-500/60" : "border-slate-700 group-hover:border-emerald-500/50"
+                }`} />
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-cyan-500/0 group-hover:from-emerald-500/10 group-hover:to-cyan-500/10 transition-all" />
                 <div className="relative flex flex-col items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                    isLight ? "bg-emerald-50 border border-emerald-100" : "bg-gradient-to-br from-emerald-500/20 to-cyan-500/20"
+                  }`}>
                     <CalendarPlus size={22} className="text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-slate-300 font-medium text-sm group-hover:text-emerald-300 transition-colors">
+                    <p className={`${isLight ? "text-slate-700 group-hover:text-emerald-700" : "text-slate-300 group-hover:text-emerald-300"} font-medium text-sm transition-colors`}>
                       Nothing scheduled
                     </p>
-                    <p className="text-slate-500 text-[11px] mt-0.5">
+                    <p className={`${subtle} text-[11px] mt-0.5`}>
                       Click to book a consultation
                     </p>
                   </div>
@@ -450,7 +495,11 @@ export default function TeleconsultationSection({
               upcoming.map((apt, idx) => (
                 <div
                   key={apt.id}
-                  className="group relative overflow-hidden bg-gradient-to-br from-slate-800/70 to-slate-800/40 border border-slate-700 hover:border-emerald-500/50 rounded-xl p-3 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/10"
+                  className={`group relative overflow-hidden rounded-xl p-3 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/10 ${
+                    isLight
+                      ? "bg-white border border-slate-200 hover:border-emerald-300 shadow-sm"
+                      : "bg-gradient-to-br from-slate-800/70 to-slate-800/40 border border-slate-700 hover:border-emerald-500/50"
+                  }`}
                 >
                   {apt.status === "active" && (
                     <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/40">
@@ -466,15 +515,15 @@ export default function TeleconsultationSection({
                   <div className="flex items-center gap-2 mb-2">
                     <div className="relative">
                       <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 blur-md opacity-40 group-hover:opacity-70 transition-opacity" />
-                      <div className="relative w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-xs ring-2 ring-slate-900">
+                      <div className={`relative w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-xs ring-2 ${isLight ? "ring-white" : "ring-slate-900"}`}>
                         {apt.avatar}
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-semibold text-sm truncate">
+                      <p className={`${heading} font-semibold text-sm truncate`}>
                         {apt.patientName}
                       </p>
-                      <p className="text-slate-400 text-[11px] flex items-center gap-1 mt-0.5">
+                      <p className={`${muted} text-[11px] flex items-center gap-1 mt-0.5`}>
                         <Clock size={10} className="text-emerald-400" />
                         {formatDateTime(apt.when)}
                       </p>
@@ -483,7 +532,11 @@ export default function TeleconsultationSection({
                   {apt.patient && (
                     <button
                       onClick={() => onStartCall(apt.patient)}
-                      className="group/j relative overflow-hidden w-full flex items-center justify-center space-x-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 py-2 rounded-lg text-xs font-semibold transition-all border border-emerald-500/30 hover:border-emerald-400/60"
+                      className={`group/j relative overflow-hidden w-full flex items-center justify-center space-x-1.5 py-2 rounded-lg text-xs font-semibold transition-all border ${
+                        isLight
+                          ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 hover:border-emerald-300"
+                          : "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/30 hover:border-emerald-400/60"
+                      }`}
                     >
                       <span className="absolute inset-0 bg-emerald-400/10 translate-x-[-200%] group-hover/j:translate-x-[200%] transition-transform duration-700" />
                       <Play size={11} className="relative fill-emerald-300" />
@@ -498,24 +551,24 @@ export default function TeleconsultationSection({
       </div>
 
       {/* History */}
-      <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-white flex items-center">
+      <div className={`rounded-xl overflow-hidden ${panel}`}>
+        <div className={`p-4 border-b ${panelHeader} flex items-center justify-between`}>
+          <h3 className={`text-base font-semibold ${heading} flex items-center`}>
             <Clock size={18} className="mr-2 text-purple-400" />
             Consultation History
-            <span className="ml-2 text-xs text-slate-500 font-normal">
+            <span className={`ml-2 text-xs ${subtle} font-normal`}>
               ({history.length})
             </span>
           </h3>
         </div>
         <div className="overflow-x-auto">
           {history.length === 0 ? (
-            <div className="p-10 text-center text-slate-500 text-sm">
+            <div className={`p-10 text-center ${emptyText} text-sm`}>
               No past consultations. Completed calls will appear here.
             </div>
           ) : (
             <table className="w-full">
-              <thead className="bg-slate-800/40 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+              <thead className={`${isLight ? "bg-slate-100/90 text-slate-600" : "bg-slate-800/40 text-slate-400"} text-[10px] uppercase tracking-wider font-semibold`}>
                 <tr>
                   <th className="px-5 py-3 text-left">Patient</th>
                   <th className="px-5 py-3 text-left">Ended</th>
@@ -525,32 +578,34 @@ export default function TeleconsultationSection({
                   <th className="px-5 py-3 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className={`divide-y ${divider}`}>
                 {history.slice(0, 20).map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-800/30">
+                  <tr key={c.id} className={isLight ? "hover:bg-emerald-50/60" : "hover:bg-slate-800/30"}>
                     <td className="px-5 py-3">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-xs">
                           {c.avatar}
                         </div>
-                        <span className="text-white font-medium text-sm">
+                        <span className={`${heading} font-medium text-sm`}>
                           {c.patientName}
                         </span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-slate-300 text-sm whitespace-nowrap">
+                    <td className={`px-5 py-3 ${isLight ? "text-slate-600" : "text-slate-300"} text-sm whitespace-nowrap`}>
                       {formatDateTime(c.endedAt)}
                     </td>
-                    <td className="px-5 py-3 text-slate-300 text-sm">
+                    <td className={`px-5 py-3 ${isLight ? "text-slate-600" : "text-slate-300"} text-sm`}>
                       {formatDuration(c.durationMin)}
                     </td>
                     <td className="px-5 py-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-700 text-slate-300 uppercase">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase ${
+                        isLight ? "bg-slate-100 text-slate-700" : "bg-slate-700 text-slate-300"
+                      }`}>
                         {c.type || "General"}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-slate-400 text-sm max-w-xs truncate">
-                      {c.notes || <span className="text-slate-600">—</span>}
+                    <td className={`px-5 py-3 ${muted} text-sm max-w-xs truncate`}>
+                      {c.notes || <span className={isLight ? "text-slate-400" : "text-slate-600"}>—</span>}
                     </td>
                     <td className="px-5 py-3 text-right">
                       {c.patient && (
@@ -574,10 +629,19 @@ export default function TeleconsultationSection({
   );
 }
 
-function PatientRow({ patient, onCall, onSchedule, onViewTwin }) {
+function PatientRow({ patient, onCall, onSchedule, onViewTwin, isLight }) {
   const risk = patient.riskLevel || "unknown";
-  const riskCls = RISK_STYLE[risk] || "bg-slate-700/40 text-slate-400 border-slate-700";
+  const riskCls = isLight
+    ? RISK_STYLE_LIGHT[risk] || "bg-slate-100 text-slate-600 border-slate-200"
+    : RISK_STYLE[risk] || "bg-slate-700/40 text-slate-400 border-slate-700";
   const hasAnalysis = !!patient.lastAnalysisAt;
+  const heading = isLight ? "text-slate-950" : "text-white";
+  const muted = isLight ? "text-slate-600" : "text-slate-400";
+  const subtle = isLight ? "text-slate-500" : "text-slate-500";
+  const ring = isLight ? "ring-white" : "ring-slate-900";
+  const iconButton = isLight
+    ? "p-2 bg-slate-100 hover:bg-slate-200 hover:scale-110 text-slate-500 rounded-lg transition-all active:scale-95"
+    : "p-2 bg-slate-800/60 hover:scale-110 text-slate-400 rounded-lg transition-all active:scale-95";
   // Gradient avatars — pick by hash of id for variety
   const avatarGradients = [
     "from-blue-500 to-purple-500",
@@ -591,7 +655,11 @@ function PatientRow({ patient, onCall, onSchedule, onViewTwin }) {
   const avatarGrad = avatarGradients[gradIdx];
 
   return (
-    <div className="group relative p-4 transition-all duration-300 hover:bg-gradient-to-r hover:from-emerald-500/5 hover:via-transparent hover:to-transparent">
+    <div className={`group relative p-4 transition-all duration-300 ${
+      isLight
+        ? "hover:bg-gradient-to-r hover:from-emerald-50/90 hover:via-white hover:to-transparent"
+        : "hover:bg-gradient-to-r hover:from-emerald-500/5 hover:via-transparent hover:to-transparent"
+    }`}>
       {/* Left accent bar on hover */}
       <span className="absolute left-0 top-1/2 -translate-y-1/2 h-0 group-hover:h-12 w-1 bg-gradient-to-b from-emerald-400 to-cyan-500 rounded-r transition-all duration-300" />
 
@@ -600,18 +668,18 @@ function PatientRow({ patient, onCall, onSchedule, onViewTwin }) {
           <div className="relative flex-shrink-0">
             {/* Glow ring */}
             <div className={`absolute inset-0 rounded-full bg-gradient-to-br ${avatarGrad} blur-lg opacity-0 group-hover:opacity-60 transition-opacity`} />
-            <div className={`relative w-12 h-12 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-bold shadow-lg ring-2 ring-slate-900 group-hover:scale-105 transition-transform`}>
+            <div className={`relative w-12 h-12 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-bold shadow-lg ring-2 ${ring} group-hover:scale-105 transition-transform`}>
               {patient.avatar}
             </div>
             {risk === "high" && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full border-2 border-slate-900 flex items-center justify-center animate-pulse">
+              <span className={`absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full border-2 ${isLight ? "border-white" : "border-slate-900"} flex items-center justify-center animate-pulse`}>
                 <AlertTriangle size={9} className="text-white" />
               </span>
             )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-white font-semibold text-sm truncate group-hover:text-emerald-300 transition-colors">
+              <p className={`${heading} font-semibold text-sm truncate ${isLight ? "group-hover:text-emerald-700" : "group-hover:text-emerald-300"} transition-colors`}>
                 {patient.name}
               </p>
               <span
@@ -623,34 +691,36 @@ function PatientRow({ patient, onCall, onSchedule, onViewTwin }) {
                   : ""}
               </span>
               {hasAnalysis && (
-                <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] bg-blue-500/15 text-blue-300 border border-blue-500/25">
+                <span className={`hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] border ${
+                  isLight ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-blue-500/15 text-blue-300 border-blue-500/25"
+                }`}>
                   <Brain size={9} />
                   AI
                 </span>
               )}
             </div>
-            <p className="text-slate-400 text-xs truncate mt-0.5">
+            <p className={`${muted} text-xs truncate mt-0.5`}>
               {hasAnalysis ? patient.diagnosis : (
-                <span className="italic text-yellow-400/70">
+                <span className={`italic ${isLight ? "text-amber-600" : "text-yellow-400/70"}`}>
                   Pending AI analysis
                 </span>
               )}
             </p>
-            <div className="flex items-center gap-2.5 mt-1.5 text-[11px] text-slate-500 flex-wrap">
+            <div className={`flex items-center gap-2.5 mt-1.5 text-[11px] ${subtle} flex-wrap`}>
               <span className="flex items-center gap-1">
-                <Clock size={10} className="text-slate-600" />
+                <Clock size={10} className={isLight ? "text-slate-400" : "text-slate-600"} />
                 {formatRelative(patient.lastConsultAt)}
               </span>
               {patient.totalConsults > 0 && (
                 <span className="flex items-center gap-1">
-                  <span className="w-0.5 h-0.5 rounded-full bg-slate-700" />
-                  <Phone size={9} className="text-slate-600" />
+                  <span className={`w-0.5 h-0.5 rounded-full ${isLight ? "bg-slate-300" : "bg-slate-700"}`} />
+                  <Phone size={9} className={isLight ? "text-slate-400" : "text-slate-600"} />
                   {patient.totalConsults}
                 </span>
               )}
               {patient.aiConfidence != null && (
                 <span className="flex items-center gap-1">
-                  <span className="w-0.5 h-0.5 rounded-full bg-slate-700" />
+                  <span className={`w-0.5 h-0.5 rounded-full ${isLight ? "bg-slate-300" : "bg-slate-700"}`} />
                   <Zap size={9} className="text-blue-400/70" />
                   {(patient.aiConfidence * 100).toFixed(0)}%
                 </span>
@@ -661,14 +731,14 @@ function PatientRow({ patient, onCall, onSchedule, onViewTwin }) {
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={onViewTwin}
-            className="p-2 bg-slate-800/60 hover:bg-purple-500/20 hover:scale-110 text-slate-400 hover:text-purple-300 rounded-lg transition-all active:scale-95"
+            className={`${iconButton} ${isLight ? "hover:text-purple-700" : "hover:bg-purple-500/20 hover:text-purple-300"}`}
             title="Open Digital Twin"
           >
             <Brain size={15} />
           </button>
           <button
             onClick={onSchedule}
-            className="p-2 bg-slate-800/60 hover:bg-blue-500/20 hover:scale-110 text-slate-400 hover:text-blue-300 rounded-lg transition-all active:scale-95"
+            className={`${iconButton} ${isLight ? "hover:text-blue-700" : "hover:bg-blue-500/20 hover:text-blue-300"}`}
             title="Schedule"
           >
             <Calendar size={15} />
