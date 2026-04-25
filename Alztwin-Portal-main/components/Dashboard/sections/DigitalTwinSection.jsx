@@ -20,6 +20,17 @@ import {
   History,
   Eye,
 } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart as RechartsLineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import ThreeBrainView from "../ThreeBrainView";
 import ClinicalTreatmentSupportPanel from "../RagRecommendationPanel";
 import { useTheme } from "../../ThemeContext";
@@ -348,6 +359,53 @@ export default function DigitalTwinSection({
     fourteenDayCount: 0,
     totalReadings: 0,
   };
+  const sensorTrendData = useMemo(() => {
+    const records = Array.isArray(selectedPatientForDT?.sensorData)
+      ? selectedPatientForDT.sensorData
+      : [];
+    return [...records]
+      .sort((a, b) => (a.timestampMs || 0) - (b.timestampMs || 0))
+      .map((record) => {
+        const date = record.timestampMs ? new Date(record.timestampMs) : null;
+        return {
+          label: date
+            ? date.toLocaleString([], {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+              })
+            : record.dateKey || "",
+          day: record.dateKey || "",
+          bpm: Number(record.bpm || 0),
+          pitch: Number(record.pitch || 0),
+          roll: Number(record.roll || 0),
+          outOfBound: record.outOfBound ? 1 : 0,
+          fall: record.fall ? 1 : 0,
+          outOfZone: record.outOfZone ? 1 : 0,
+          sleeping: record.sleeping ? 1 : 0,
+        };
+      });
+  }, [selectedPatientForDT]);
+  const dailySensorData = useMemo(() => {
+    const daily = new Map();
+    sensorTrendData.forEach((record) => {
+      const key = record.day || record.label;
+      const item =
+        daily.get(key) || {
+          day: key ? key.slice(5) : "",
+          outOfBound: 0,
+          fall: 0,
+          outOfZone: 0,
+          sleeping: 0,
+        };
+      item.outOfBound += record.outOfBound;
+      item.fall += record.fall;
+      item.outOfZone += record.outOfZone;
+      item.sleeping += record.sleeping;
+      daily.set(key, item);
+    });
+    return Array.from(daily.values());
+  }, [sensorTrendData]);
 
   return (
     <div className={`space-y-6 ${isLight ? "dt-light text-slate-900" : ""}`}>
@@ -1343,6 +1401,82 @@ export default function DigitalTwinSection({
                         );
                       })}
                     </div>
+                    {sensorTrendData.length > 0 && (
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <p className="text-white font-semibold text-sm">
+                                Motion and BPM Trend
+                              </p>
+                              <p className="text-slate-500 text-xs">
+                                Timestamp-based readings from Rafay's seeded wearable data
+                              </p>
+                            </div>
+                            <BarChart3 size={18} className="text-cyan-400" />
+                          </div>
+                          <div className="h-64">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <RechartsLineChart data={sensorTrendData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                <XAxis
+                                  dataKey="label"
+                                  stroke="#94a3b8"
+                                  tick={{ fontSize: 10 }}
+                                  interval="preserveStartEnd"
+                                />
+                                <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} />
+                                <Tooltip
+                                  contentStyle={{
+                                    background: "#0f172a",
+                                    border: "1px solid #334155",
+                                    borderRadius: 8,
+                                    color: "#e2e8f0",
+                                  }}
+                                />
+                                <Line type="monotone" dataKey="bpm" stroke="#fb7185" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="pitch" stroke="#a78bfa" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="roll" stroke="#38bdf8" strokeWidth={2} dot={false} />
+                              </RechartsLineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <p className="text-white font-semibold text-sm">
+                                Daily Sensor Flags
+                              </p>
+                              <p className="text-slate-500 text-xs">
+                                Counts per date for binary sensor states
+                              </p>
+                            </div>
+                            <Activity size={18} className="text-amber-400" />
+                          </div>
+                          <div className="h-64">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={dailySensorData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                <XAxis dataKey="day" stroke="#94a3b8" tick={{ fontSize: 10 }} />
+                                <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} allowDecimals={false} />
+                                <Tooltip
+                                  contentStyle={{
+                                    background: "#0f172a",
+                                    border: "1px solid #334155",
+                                    borderRadius: 8,
+                                    color: "#e2e8f0",
+                                  }}
+                                />
+                                <Bar dataKey="outOfBound" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+                                <Bar dataKey="outOfZone" fill="#22c55e" radius={[3, 3, 0, 0]} />
+                                <Bar dataKey="fall" fill="#ef4444" radius={[3, 3, 0, 0]} />
+                                <Bar dataKey="sleeping" fill="#818cf8" radius={[3, 3, 0, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {deviceMetrics.map((item) => (
                         <div
