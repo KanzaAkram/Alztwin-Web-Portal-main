@@ -3,6 +3,7 @@ import {
   Brain,
   Upload,
   Move,
+  Moon,
   Zap,
   TrendingUp,
   Activity,
@@ -16,9 +17,12 @@ import {
   FileText,
   Stethoscope,
   CheckCircle,
+  AlertTriangle,
+  Heart,
   Info,
   History,
   Eye,
+  Shield,
 } from "lucide-react";
 import {
   Bar,
@@ -65,6 +69,13 @@ const SENSOR_FIELD_META = {
   pitch: { label: "Pitch", icon: "P", decimals: 2 },
   roll: { label: "Roll", icon: "R", decimals: 2 },
   sleeping: { label: "Sleeping", icon: "SL" },
+};
+
+const chartTooltipStyle = {
+  background: "#0f172a",
+  border: "1px solid #334155",
+  borderRadius: 8,
+  color: "#e2e8f0",
 };
 
 const SCORE_TONE_CLASS = {
@@ -393,11 +404,17 @@ export default function DigitalTwinSection({
       const item =
         daily.get(key) || {
           day: key ? key.slice(5) : "",
+          bpmTotal: 0,
+          bpmCount: 0,
+          avgBpm: 0,
           outOfBound: 0,
           fall: 0,
           outOfZone: 0,
           sleeping: 0,
         };
+      item.bpmTotal += record.bpm;
+      item.bpmCount += 1;
+      item.avgBpm = Math.round((item.bpmTotal / item.bpmCount) * 10) / 10;
       item.outOfBound += record.outOfBound;
       item.fall += record.fall;
       item.outOfZone += record.outOfZone;
@@ -406,6 +423,190 @@ export default function DigitalTwinSection({
     });
     return Array.from(daily.values());
   }, [sensorTrendData]);
+  const sensorTotals = useMemo(
+    () =>
+      sensorTrendData.reduce(
+        (acc, record) => ({
+          readings: acc.readings + 1,
+          falls: acc.falls + record.fall,
+          outOfBound: acc.outOfBound + record.outOfBound,
+          outOfZone: acc.outOfZone + record.outOfZone,
+          sleeping: acc.sleeping + record.sleeping,
+        }),
+        { readings: 0, falls: 0, outOfBound: 0, outOfZone: 0, sleeping: 0 }
+      ),
+    [sensorTrendData]
+  );
+  const sensorAverages = useMemo(() => {
+    if (sensorTrendData.length === 0) {
+      return { bpm: 0, pitch: 0, roll: 0 };
+    }
+    const totals = sensorTrendData.reduce(
+      (acc, record) => ({
+        bpm: acc.bpm + record.bpm,
+        pitch: acc.pitch + record.pitch,
+        roll: acc.roll + record.roll,
+      }),
+      { bpm: 0, pitch: 0, roll: 0 }
+    );
+    return {
+      bpm: Math.round((totals.bpm / sensorTrendData.length) * 10) / 10,
+      pitch: Math.round((totals.pitch / sensorTrendData.length) * 10) / 10,
+      roll: Math.round((totals.roll / sensorTrendData.length) * 10) / 10,
+    };
+  }, [sensorTrendData]);
+  const sensorPanelClass = isLight
+    ? "bg-white border border-slate-200 shadow-[0_18px_42px_rgba(15,23,42,0.07)]"
+    : "bg-slate-900/60 border border-slate-800";
+  const sensorCardClass = isLight
+    ? "bg-slate-50 border border-slate-200"
+    : "bg-slate-800/50 border border-slate-700/50";
+  const chartGridStroke = isLight ? "#cbd5e1" : "#334155";
+  const chartAxisStroke = isLight ? "#64748b" : "#94a3b8";
+  const sensorOverview = sensorTrendData.length > 0 && (
+    <div className={`${sensorPanelClass} rounded-xl p-5`}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between mb-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.14em] text-cyan-400 font-semibold">
+            Wearable Sensor Overview
+          </p>
+          <h3 className={`text-lg font-semibold mt-1 ${isLight ? "text-slate-950" : "text-white"}`}>
+            Rafay's Safety and Movement Trends
+          </h3>
+          <p className={`text-sm mt-1 max-w-3xl ${isLight ? "text-slate-600" : "text-slate-400"}`}>
+            Simple charts for clinicians and caregivers: average heart rate, fall events, zone breaches,
+            sleep state, and motion changes from timestamped wearable readings.
+          </p>
+        </div>
+        <div className={`rounded-lg px-3 py-2 text-xs ${isLight ? "bg-cyan-50 text-cyan-800 border border-cyan-200" : "bg-cyan-500/10 text-cyan-300 border border-cyan-500/30"}`}>
+          {sensorTotals.readings} readings across {dailySensorData.length} days
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+        {[
+          { label: "Avg BPM", value: sensorAverages.bpm.toFixed(1), helper: "Heart rate", color: "text-red-400" },
+          { label: "Falls", value: sensorTotals.falls, helper: "fall=true", color: "text-red-400" },
+          { label: "Out of Bound", value: sensorTotals.outOfBound, helper: "outOfBound=1", color: "text-amber-400" },
+          { label: "Out of Zone", value: sensorTotals.outOfZone, helper: "outOfZone=true", color: "text-green-400" },
+          { label: "Avg Motion", value: `${sensorAverages.pitch.toFixed(1)} / ${sensorAverages.roll.toFixed(1)}`, helper: "pitch / roll", color: "text-purple-400" },
+        ].map((item) => (
+          <div key={item.label} className={`${sensorCardClass} rounded-lg p-3`}>
+            <p className={`text-[11px] uppercase ${isLight ? "text-slate-500" : "text-slate-500"}`}>
+              {item.label}
+            </p>
+            <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+            <p className={`text-xs ${isLight ? "text-slate-500" : "text-slate-500"}`}>{item.helper}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className={`${sensorCardClass} rounded-lg p-4`}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className={`font-semibold text-sm ${isLight ? "text-slate-950" : "text-white"}`}>
+                BPM Trend
+              </p>
+              <p className={`text-xs ${isLight ? "text-slate-500" : "text-slate-500"}`}>
+                Average daily BPM, easier for quick clinical review
+              </p>
+            </div>
+            <Heart className="text-red-400" size={18} />
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsLineChart data={dailySensorData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
+                <XAxis dataKey="day" stroke={chartAxisStroke} tick={{ fontSize: 10 }} />
+                <YAxis stroke={chartAxisStroke} tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={chartTooltipStyle} />
+                <Line type="monotone" dataKey="avgBpm" name="Avg BPM" stroke="#fb7185" strokeWidth={3} dot={{ r: 3 }} />
+              </RechartsLineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className={`${sensorCardClass} rounded-lg p-4`}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className={`font-semibold text-sm ${isLight ? "text-slate-950" : "text-white"}`}>
+                Safety Events
+              </p>
+              <p className={`text-xs ${isLight ? "text-slate-500" : "text-slate-500"}`}>
+                Daily counts for falls, out-of-bound, and out-of-zone events
+              </p>
+            </div>
+            <AlertTriangle className="text-amber-400" size={18} />
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailySensorData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
+                <XAxis dataKey="day" stroke={chartAxisStroke} tick={{ fontSize: 10 }} />
+                <YAxis stroke={chartAxisStroke} tick={{ fontSize: 10 }} allowDecimals={false} />
+                <Tooltip contentStyle={chartTooltipStyle} />
+                <Bar dataKey="outOfBound" name="Out of Bound" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="fall" name="Fall" fill="#ef4444" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="outOfZone" name="Out of Zone" fill="#22c55e" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className={`${sensorCardClass} rounded-lg p-4`}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className={`font-semibold text-sm ${isLight ? "text-slate-950" : "text-white"}`}>
+                Pitch and Roll Movement
+              </p>
+              <p className={`text-xs ${isLight ? "text-slate-500" : "text-slate-500"}`}>
+                Movement changes over each timestamped reading
+              </p>
+            </div>
+            <Activity className="text-purple-400" size={18} />
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsLineChart data={sensorTrendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
+                <XAxis dataKey="label" stroke={chartAxisStroke} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                <YAxis stroke={chartAxisStroke} tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={chartTooltipStyle} />
+                <Line type="monotone" dataKey="pitch" name="Pitch" stroke="#a78bfa" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="roll" name="Roll" stroke="#38bdf8" strokeWidth={2} dot={false} />
+              </RechartsLineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className={`${sensorCardClass} rounded-lg p-4`}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className={`font-semibold text-sm ${isLight ? "text-slate-950" : "text-white"}`}>
+                Sleep State
+              </p>
+              <p className={`text-xs ${isLight ? "text-slate-500" : "text-slate-500"}`}>
+                Number of readings where sleeping=true per day
+              </p>
+            </div>
+            <Moon className="text-indigo-400" size={18} />
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailySensorData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
+                <XAxis dataKey="day" stroke={chartAxisStroke} tick={{ fontSize: 10 }} />
+                <YAxis stroke={chartAxisStroke} tick={{ fontSize: 10 }} allowDecimals={false} />
+                <Tooltip contentStyle={chartTooltipStyle} />
+                <Bar dataKey="sleeping" name="Sleeping" fill="#818cf8" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className={`space-y-6 ${isLight ? "dt-light text-slate-900" : ""}`}>
@@ -696,6 +897,8 @@ export default function DigitalTwinSection({
               </p>
             </div>
           </div>
+
+          {sensorOverview}
 
           <div className="bg-slate-900/45 border border-slate-800 rounded-2xl p-4 sm:p-5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
@@ -1401,6 +1604,174 @@ export default function DigitalTwinSection({
                         );
                       })}
                     </div>
+                    {sensorTrendData.length > 0 && (
+                      <>
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                          {[
+                            { label: "Readings", value: sensorTotals.readings, color: "text-cyan-300" },
+                            { label: "Out of Bound", value: sensorTotals.outOfBound, color: "text-amber-300" },
+                            { label: "Falls", value: sensorTotals.falls, color: "text-red-300" },
+                            { label: "Out of Zone", value: sensorTotals.outOfZone, color: "text-green-300" },
+                            { label: "Sleeping", value: sensorTotals.sleeping, color: "text-indigo-300" },
+                          ].map((item) => (
+                            <div
+                              key={item.label}
+                              className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50"
+                            >
+                              <p className="text-slate-500 text-xs uppercase">
+                                {item.label}
+                              </p>
+                              <p className={`text-2xl font-bold ${item.color}`}>
+                                {item.value}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                          <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <p className="text-white font-semibold text-sm">
+                                  BPM Visualization
+                                </p>
+                                <p className="text-slate-500 text-xs">
+                                  Average BPM per day from timestamped wearable readings
+                                </p>
+                              </div>
+                              <Heart className="text-red-400" size={18} />
+                            </div>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <RechartsLineChart data={dailySensorData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                  <XAxis dataKey="day" stroke="#94a3b8" tick={{ fontSize: 10 }} />
+                                  <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} />
+                                  <Tooltip
+                                    contentStyle={{
+                                      background: "#0f172a",
+                                      border: "1px solid #334155",
+                                      borderRadius: 8,
+                                      color: "#e2e8f0",
+                                    }}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey="avgBpm"
+                                    name="Avg BPM"
+                                    stroke="#fb7185"
+                                    strokeWidth={3}
+                                    dot={{ r: 3 }}
+                                  />
+                                </RechartsLineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                          <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <p className="text-white font-semibold text-sm">
+                                  Falls and Out-of-Bound Events
+                                </p>
+                                <p className="text-slate-500 text-xs">
+                                  How many times Rafay fell or went out of bounds each day
+                                </p>
+                              </div>
+                              <AlertTriangle className="text-amber-400" size={18} />
+                            </div>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={dailySensorData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                  <XAxis dataKey="day" stroke="#94a3b8" tick={{ fontSize: 10 }} />
+                                  <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} allowDecimals={false} />
+                                  <Tooltip
+                                    contentStyle={{
+                                      background: "#0f172a",
+                                      border: "1px solid #334155",
+                                      borderRadius: 8,
+                                      color: "#e2e8f0",
+                                    }}
+                                  />
+                                  <Bar dataKey="outOfBound" name="Out of Bound" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+                                  <Bar dataKey="fall" name="Fall" fill="#ef4444" radius={[3, 3, 0, 0]} />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                          <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <p className="text-white font-semibold text-sm">
+                                  Zone and Sleep State Counts
+                                </p>
+                                <p className="text-slate-500 text-xs">
+                                  Daily counts for outOfZone and sleeping=true
+                                </p>
+                              </div>
+                              <Shield className="text-green-400" size={18} />
+                            </div>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={dailySensorData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                  <XAxis dataKey="day" stroke="#94a3b8" tick={{ fontSize: 10 }} />
+                                  <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} allowDecimals={false} />
+                                  <Tooltip
+                                    contentStyle={{
+                                      background: "#0f172a",
+                                      border: "1px solid #334155",
+                                      borderRadius: 8,
+                                      color: "#e2e8f0",
+                                    }}
+                                  />
+                                  <Bar dataKey="outOfZone" name="Out of Zone" fill="#22c55e" radius={[3, 3, 0, 0]} />
+                                  <Bar dataKey="sleeping" name="Sleeping" fill="#818cf8" radius={[3, 3, 0, 0]} />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                          <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <p className="text-white font-semibold text-sm">
+                                  Pitch and Roll Movement
+                                </p>
+                                <p className="text-slate-500 text-xs">
+                                  Motion changes recorded by the wearable sensor
+                                </p>
+                              </div>
+                              <Activity className="text-purple-400" size={18} />
+                            </div>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <RechartsLineChart data={sensorTrendData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                  <XAxis
+                                    dataKey="label"
+                                    stroke="#94a3b8"
+                                    tick={{ fontSize: 10 }}
+                                    interval="preserveStartEnd"
+                                  />
+                                  <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} />
+                                  <Tooltip
+                                    contentStyle={{
+                                      background: "#0f172a",
+                                      border: "1px solid #334155",
+                                      borderRadius: 8,
+                                      color: "#e2e8f0",
+                                    }}
+                                  />
+                                  <Line type="monotone" dataKey="pitch" name="Pitch" stroke="#a78bfa" strokeWidth={2} dot={false} />
+                                  <Line type="monotone" dataKey="roll" name="Roll" stroke="#38bdf8" strokeWidth={2} dot={false} />
+                                </RechartsLineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
                     {sensorTrendData.length > 0 && (
                       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                         <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
