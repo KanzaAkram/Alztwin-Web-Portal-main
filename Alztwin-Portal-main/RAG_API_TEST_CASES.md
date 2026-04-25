@@ -1,18 +1,25 @@
 # RAG API Test Cases
 
 ## Scope
-This document covers API-level manual test cases for the RAG recommendation endpoint used by the clinician dashboard.
+This document covers manual API test cases for the RAG-based recommendation endpoint used by the clinician-facing `Trials-backed Support` panel.
 
-The frontend calls:
-- `POST /api/rag/recommend?code=<function_code>`
+Primary areas covered:
+- Successful recommendation generation
+- Request body validation
+- Evidence source retrieval
+- Disclaimer response
+- Invalid method and authorization handling
+- Malformed JSON handling
+- Empty, missing, and boundary input cases
+- Response time and content type verification
+- Backend error handling
 
-In local development, this route is proxied by Vite to the Azure Function backend.
-
-## Endpoint Used by Current App
-- Relative endpoint: `/api/rag/recommend?code=<function_code>`
-- Proxy target in development: Azure Function app behind Vite proxy
+## API Endpoint Under Test
 - Method: `POST`
+- Endpoint: `/api/rag/recommend?code=<function_code>`
 - Content-Type: `application/json`
+- Used by frontend: Digital Twin workflow, `Trials-backed Support` panel
+- Local development behavior: Vite proxy forwards `/api/rag/recommend` requests to the Azure Function backend.
 
 ## Request Shape Used by Frontend
 ```json
@@ -34,7 +41,7 @@ In local development, this route is proxied by Vite to the Azure Function backen
 ```
 
 ## Response Fields Expected by Frontend
-The UI reads these fields from the response:
+The frontend can display these response fields:
 
 - `patient_id`
 - `stage`
@@ -47,390 +54,462 @@ The UI reads these fields from the response:
 - `sources`
 - `disclaimer`
 
-## Recommended Tools for Evidence
+## Recommended Tools for Screenshot Evidence
 - Postman
 - Thunder Client
-- Browser network tab
+- Browser Developer Tools, Network tab
+- Azure Function logs, only if needed for backend failure evidence
 
 ## Recommended Screenshot Naming
-- `RAGAPI01_Success_200.png`
-- `RAGAPI02_Response_Body.png`
-- `RAGAPI03_Missing_Field_Error.png`
-- `RAGAPI04_Invalid_Method.png`
-- `RAGAPI05_Invalid_Stage.png`
-- `RAGAPI06_Invalid_TopK.png`
-- `RAGAPI07_Empty_Arrays.png`
-- `RAGAPI08_Large_Input.png`
-- `RAGAPI09_Invalid_Code.png`
-- `RAGAPI10_Response_Sources.png`
-- `RAGAPI11_Disclaimer.png`
-- `RAGAPI12_Server_Error.png`
+Use these screenshot names in your report:
+
+- `RAGAPI01_Valid_Request_200.png`
+- `RAGAPI02_Response_Recommendation_Fields.png`
+- `RAGAPI03_Response_Evidence_Sources.png`
+- `RAGAPI04_Response_Disclaimer.png`
+- `RAGAPI05_Missing_Stage_Error.png`
+- `RAGAPI06_Missing_Patient_ID_Error.png`
+- `RAGAPI07_Missing_Vitals_Error.png`
+- `RAGAPI08_Invalid_Stage_Error.png`
+- `RAGAPI09_Invalid_TopK_Error.png`
+- `RAGAPI10_Empty_Arrays_Response.png`
+- `RAGAPI11_Malformed_JSON_Error.png`
+- `RAGAPI12_Invalid_Method_Error.png`
+- `RAGAPI13_Invalid_Function_Code_Error.png`
+- `RAGAPI14_Response_Headers.png`
+- `RAGAPI15_Response_Time.png`
+- `RAGAPI16_Large_Input_Response.png`
+- `RAGAPI17_Server_Error.png`
+- `RAGAPI18_Frontend_Network_Request.png`
 
 ## Common Preconditions
-- API server is reachable.
-- Correct function code is available.
-- Tester can send JSON requests.
-- Request headers can be modified in API client.
+- API server or deployed Azure Function is reachable.
+- Correct function code is available for positive tests.
+- Tester can send JSON requests through Postman, Thunder Client, or browser network tools.
+- Request headers can be edited.
+- For negative tests, tester is allowed to send invalid request bodies.
+
+## Test Case Format
+- `Test Case ID`
+- `Title`
+- `Preconditions`
+- `Steps`
+- `Expected Result`
+- `Screenshot to Capture`
 
 ---
 
 ## TC-RAG-API-01
-**Title:** Verify successful response for valid RAG request
+**Title:** Verify successful RAG recommendation API response
 
 **Preconditions:**
-- API is available.
+- API endpoint is reachable.
 - Valid function code is used.
+- Valid JSON request body is prepared.
 
 **Steps:**
-1. Send a `POST` request to `/api/rag/recommend?code=<valid_code>`.
-2. Add header `Content-Type: application/json`.
-3. Send a valid JSON payload matching frontend structure.
+1. Open Postman or Thunder Client.
+2. Set method to `POST`.
+3. Enter `/api/rag/recommend?code=<valid_function_code>` or the full deployed Azure Function URL.
+4. Add header `Content-Type: application/json`.
+5. Paste the valid sample request body.
+6. Click `Send`.
 
 **Expected Result:**
 - API returns HTTP `200 OK`.
-- Response is valid JSON.
-- Response contains recommendation data consumable by frontend.
+- Response body is valid JSON.
+- Response contains patient, stage, recommendation, source, and disclaimer information.
 
 **Screenshot to Capture:**
-- Postman success response with 200 status.
-- Suggested file: `RAGAPI01_Success_200.png`
+- Request URL, request body, HTTP 200 status, and response body.
+- Suggested file: `RAGAPI01_Valid_Request_200.png`
 
 ---
 
 ## TC-RAG-API-02
-**Title:** Verify response body contains mandatory top-level fields
+**Title:** Verify recommendation object fields in successful response
 
 **Preconditions:**
-- Successful API response is available.
+- TC-RAG-API-01 completed successfully.
 
 **Steps:**
 1. Inspect the JSON response body.
+2. Expand the `recommendation` object.
+3. Verify the visible recommendation fields.
 
 **Expected Result:**
-- Response contains:
-  - `patient_id`
-  - `stage`
-  - `recommendation`
 - `recommendation` object is present.
-
-**Screenshot to Capture:**
-- Response body showing top-level fields.
-- Suggested file: `RAGAPI02_Response_Body.png`
-
----
-
-## TC-RAG-API-03
-**Title:** Verify response contains recommendation subfields
-
-**Preconditions:**
-- Successful API response is available.
-
-**Steps:**
-1. Expand the `recommendation` object in the response.
-
-**Expected Result:**
-- Response includes these fields when generated by backend:
+- It contains treatment guidance fields such as:
   - `treatment`
   - `dosage`
   - `rationale`
   - `cautions`
   - `monitoring`
   - `lifestyle_notes`
-- List-like values are returned in array format when applicable.
+- Array/list values are returned in a readable JSON format when applicable.
 
 **Screenshot to Capture:**
-- Recommendation object expanded.
+- Expanded `recommendation` object.
+- Suggested file: `RAGAPI02_Response_Recommendation_Fields.png`
 
 ---
 
-## TC-RAG-API-04
-**Title:** Verify response contains literature/trial evidence sources
+## TC-RAG-API-03
+**Title:** Verify evidence sources are returned by API
 
 **Preconditions:**
 - Successful API response is available.
+- Request uses `top_k` greater than `0`.
 
 **Steps:**
-1. Inspect the `sources` array in the response.
+1. Send a valid request with `"top_k": 3`.
+2. Inspect the `sources` field in the response body.
 
 **Expected Result:**
 - `sources` field is present.
-- Each source item may include:
+- Sources are returned as an array.
+- Each source may show:
   - `title`
   - `source`
   - `doc_id`
   - `source_url`
   - `relevance_score`
+- Number of returned sources should match or be close to the requested `top_k`, depending on backend availability.
 
 **Screenshot to Capture:**
-- `sources` array in response.
-- Suggested file: `RAGAPI10_Response_Sources.png`
+- `sources` array in the API response.
+- Suggested file: `RAGAPI03_Response_Evidence_Sources.png`
 
 ---
 
-## TC-RAG-API-05
-**Title:** Verify response includes disclaimer text
+## TC-RAG-API-04
+**Title:** Verify disclaimer is included in API response
 
 **Preconditions:**
 - Successful API response is available.
 
 **Steps:**
-1. Inspect the lower part of the JSON response.
+1. Send a valid RAG recommendation request.
+2. Scroll to the lower part of the JSON response.
+3. Locate the `disclaimer` field.
 
 **Expected Result:**
-- `disclaimer` field is present if backend sends advisory text.
-- Field is a readable string value.
+- `disclaimer` field is present.
+- Disclaimer is returned as readable text.
+- Disclaimer clearly indicates that recommendations are clinical decision support and not a replacement for clinician judgment.
 
 **Screenshot to Capture:**
-- Disclaimer field in response.
-- Suggested file: `RAGAPI11_Disclaimer.png`
+- Disclaimer field in response body.
+- Suggested file: `RAGAPI04_Response_Disclaimer.png`
+
+---
+
+## TC-RAG-API-05
+**Title:** Verify validation error when `stage` field is missing
+
+**Preconditions:**
+- API endpoint is reachable.
+
+**Steps:**
+1. Send a `POST` request with a valid body except remove the `stage` field.
+2. Click `Send`.
+
+**Expected Result:**
+- API returns validation failure, such as HTTP `400 Bad Request`, or an equivalent error response.
+- Error message indicates that required input is missing or invalid.
+- API does not return a successful recommendation for incomplete input.
+
+**Screenshot to Capture:**
+- Error response for missing `stage`.
+- Suggested file: `RAGAPI05_Missing_Stage_Error.png`
 
 ---
 
 ## TC-RAG-API-06
-**Title:** Verify API rejects request with missing required field
+**Title:** Verify validation error when `patient_id` is missing or empty
 
 **Preconditions:**
-- API is reachable.
+- API endpoint is reachable.
 
 **Steps:**
-1. Send a `POST` request with one required field removed, such as `stage` or `patient_id`.
+1. Send a request without `patient_id`.
+2. Send another request with `"patient_id": ""`.
 
 **Expected Result:**
-- API should return validation error such as `400 Bad Request` or equivalent failure response.
-- Error message should identify invalid or missing input.
+- API rejects the request or returns a clearly documented validation response.
+- No normal recommendation should be generated for an invalid patient identifier.
 
 **Screenshot to Capture:**
-- Error response for missing field.
-- Suggested file: `RAGAPI03_Missing_Field_Error.png`
+- Error response for missing or empty patient ID.
+- Suggested file: `RAGAPI06_Missing_Patient_ID_Error.png`
 
 ---
 
 ## TC-RAG-API-07
-**Title:** Verify API rejects unsupported HTTP method
+**Title:** Verify validation behavior when `vitals` object is missing
 
 **Preconditions:**
-- API is reachable.
+- API endpoint is reachable.
 
 **Steps:**
-1. Send a `GET` request to `/api/rag/recommend?code=<valid_code>`.
+1. Send a valid request body but remove the complete `vitals` object.
+2. Click `Send`.
 
 **Expected Result:**
-- API should reject unsupported method.
-- Expected status may be `405 Method Not Allowed` or equivalent error response.
+- API rejects the request with validation error, or applies documented default handling if backend supports it.
+- Response remains readable JSON.
+- Server should not crash.
 
 **Screenshot to Capture:**
-- Invalid method response.
-- Suggested file: `RAGAPI04_Invalid_Method.png`
+- Response for missing `vitals` object.
+- Suggested file: `RAGAPI07_Missing_Vitals_Error.png`
 
 ---
 
 ## TC-RAG-API-08
-**Title:** Verify API behavior for invalid stage value
+**Title:** Verify validation behavior for invalid disease stage
 
 **Preconditions:**
-- API is reachable.
+- API endpoint is reachable.
 
 **Steps:**
-1. Send a valid request but use an invalid stage such as `critical` instead of `normal`, `mild`, `moderate`, or `severe`.
+1. Send a valid request body.
+2. Set `"stage": "critical"` or another unsupported value.
+3. Click `Send`.
 
 **Expected Result:**
-- API should reject invalid stage value with validation error, or normalize it if backend supports fallback handling.
-- Behavior should be documented as pass/fail based on actual API contract.
+- API rejects invalid stage with a clear validation error, or normalizes it only if fallback behavior is documented.
+- Response should not silently generate misleading treatment output.
 
 **Screenshot to Capture:**
-- Response for invalid stage input.
-- Suggested file: `RAGAPI05_Invalid_Stage.png`
+- Response for invalid stage value.
+- Suggested file: `RAGAPI08_Invalid_Stage_Error.png`
 
 ---
 
 ## TC-RAG-API-09
-**Title:** Verify API behavior for invalid top_k value
+**Title:** Verify validation behavior for invalid `top_k`
 
 **Preconditions:**
-- API is reachable.
+- API endpoint is reachable.
 
 **Steps:**
-1. Send request with `top_k` as `0`.
-2. Send request with `top_k` as a negative number.
-3. Send request with `top_k` as a string.
+1. Send request with `"top_k": 0`.
+2. Send request with `"top_k": -1`.
+3. Send request with `"top_k": "three"`.
 
 **Expected Result:**
-- API should reject invalid `top_k` values or sanitize them safely.
-- No malformed success response should be returned.
+- API rejects invalid `top_k` values or safely sanitizes them.
+- Response should not return malformed source results.
+- Error response should be readable if validation fails.
 
 **Screenshot to Capture:**
-- Response for invalid `top_k`.
-- Suggested file: `RAGAPI06_Invalid_TopK.png`
+- Invalid `top_k` request and response.
+- Suggested file: `RAGAPI09_Invalid_TopK_Error.png`
 
 ---
 
 ## TC-RAG-API-10
-**Title:** Verify API handles empty arrays for comorbidities and medications
+**Title:** Verify API handles empty comorbidities and medications arrays
 
 **Preconditions:**
-- API is reachable.
+- API endpoint is reachable.
 
 **Steps:**
-1. Send valid request with:
+1. Send a valid request with:
    - `"comorbidities": []`
    - `"current_medications": []`
+2. Click `Send`.
 
 **Expected Result:**
-- API accepts request if empty arrays are allowed.
-- Response still returns recommendation output or a clear validation message.
+- API accepts the request if empty arrays are allowed.
+- Recommendation is still generated, or a clear validation message is returned.
+- Empty arrays should not cause a server crash.
 
 **Screenshot to Capture:**
-- Response for empty-array payload.
-- Suggested file: `RAGAPI07_Empty_Arrays.png`
+- Empty-array payload and response.
+- Suggested file: `RAGAPI10_Empty_Arrays_Response.png`
 
 ---
 
 ## TC-RAG-API-11
-**Title:** Verify API behavior with large text input lists
+**Title:** Verify API handles malformed JSON request body
 
 **Preconditions:**
-- API is reachable.
+- API endpoint is reachable.
+- API client allows raw request body editing.
 
 **Steps:**
-1. Send request with long `comorbidities` and `current_medications` arrays.
-2. Include many realistic entries in each list.
+1. Set header `Content-Type: application/json`.
+2. Send malformed JSON, such as a missing closing brace or comma.
+3. Click `Send`.
 
 **Expected Result:**
-- API should process the request without crashing.
-- Response should either succeed normally or return a controlled validation error.
+- API returns parsing or validation error.
+- Response should be controlled and readable.
+- Server should not crash.
+- Production response should not expose sensitive stack trace details.
 
 **Screenshot to Capture:**
-- Request payload and API response for large input.
-- Suggested file: `RAGAPI08_Large_Input.png`
+- Malformed JSON request and error response.
+- Suggested file: `RAGAPI11_Malformed_JSON_Error.png`
 
 ---
 
 ## TC-RAG-API-12
-**Title:** Verify API rejects invalid or missing function code
+**Title:** Verify unsupported HTTP method is rejected
 
 **Preconditions:**
-- API is reachable.
+- API endpoint is reachable.
+- Valid function code is available.
 
 **Steps:**
-1. Send request with incorrect `code` value.
-2. Send request with missing `code` query parameter.
+1. Change request method from `POST` to `GET`.
+2. Send request to `/api/rag/recommend?code=<valid_function_code>`.
 
 **Expected Result:**
-- API should reject unauthorized or invalid function-code access.
-- Response should show authentication/authorization failure or equivalent rejection.
+- API rejects unsupported method.
+- Expected status may be `405 Method Not Allowed`, `404 Not Found`, or another documented backend response.
+- No recommendation body should be generated through `GET`.
 
 **Screenshot to Capture:**
-- Invalid-code error response.
-- Suggested file: `RAGAPI09_Invalid_Code.png`
+- GET request and error response.
+- Suggested file: `RAGAPI12_Invalid_Method_Error.png`
 
 ---
 
 ## TC-RAG-API-13
-**Title:** Verify API returns consistent content type
+**Title:** Verify invalid or missing function code is rejected
 
 **Preconditions:**
-- Successful response is available.
+- API endpoint is reachable.
 
 **Steps:**
-1. Inspect response headers.
+1. Send valid request body with an incorrect `code` value.
+2. Send another request with the `code` query parameter removed.
 
 **Expected Result:**
-- Response content type is JSON, such as `application/json`.
+- API rejects unauthorized request.
+- Response indicates authentication or authorization failure.
+- Recommendation should not be generated without valid function code.
 
 **Screenshot to Capture:**
-- Response headers.
+- Invalid-code or missing-code error response.
+- Suggested file: `RAGAPI13_Invalid_Function_Code_Error.png`
 
 ---
 
 ## TC-RAG-API-14
-**Title:** Verify API response time is acceptable for valid request
+**Title:** Verify response content type is JSON
 
 **Preconditions:**
-- API is available.
+- Successful API response is available.
 
 **Steps:**
-1. Send a valid request.
-2. Note the total response time shown by Postman or browser network tab.
+1. Send a valid RAG recommendation request.
+2. Open the response headers section in Postman, Thunder Client, or browser Network tab.
+3. Check `Content-Type`.
 
 **Expected Result:**
-- Response completes within acceptable project threshold.
-- No timeout occurs for standard valid payload.
+- Response content type is JSON, such as `application/json`.
+- API client can parse and display the response as JSON.
 
 **Screenshot to Capture:**
-- Response time in API client.
+- Response headers showing content type.
+- Suggested file: `RAGAPI14_Response_Headers.png`
 
 ---
 
 ## TC-RAG-API-15
-**Title:** Verify API returns controlled error for malformed JSON
+**Title:** Verify API response time for valid request
 
 **Preconditions:**
-- API is reachable.
+- API endpoint is reachable.
+- Network connection is stable.
 
 **Steps:**
-1. Send malformed JSON body.
+1. Send a valid recommendation request.
+2. Observe the response time shown by the API client.
+3. Repeat at least two times if needed for more reliable evidence.
 
 **Expected Result:**
-- API returns parsing or validation error.
-- Server should not crash or return unusable HTML error page in normal API flow.
+- API responds without timeout.
+- Response time is acceptable for project demonstration.
+- Any delay caused by retrieval or AI generation should still result in a completed controlled response.
 
 **Screenshot to Capture:**
-- Malformed JSON error response.
+- API client showing response status and response time.
+- Suggested file: `RAGAPI15_Response_Time.png`
 
 ---
 
 ## TC-RAG-API-16
-**Title:** Verify API behavior for missing vitals object
+**Title:** Verify API behavior with large clinical input lists
 
 **Preconditions:**
-- API is reachable.
+- API endpoint is reachable.
 
 **Steps:**
-1. Send request without the `vitals` object.
+1. Send a request with many realistic comorbidities.
+2. Send a request with many current medications.
+3. Keep the rest of the request body valid.
 
 **Expected Result:**
-- API should reject the request with a clear validation response, or apply documented defaults if supported.
+- API should process the request or return a controlled validation response.
+- Server should not crash.
+- Response should not expose internal errors.
 
 **Screenshot to Capture:**
-- Response for missing vitals object.
+- Large request body and API response.
+- Suggested file: `RAGAPI16_Large_Input_Response.png`
 
 ---
 
 ## TC-RAG-API-17
-**Title:** Verify API behavior for null or empty patient ID
+**Title:** Verify controlled server error handling
 
 **Preconditions:**
-- API is reachable.
+- Backend failure can be simulated, or test environment can temporarily use an unavailable/misconfigured backend.
 
 **Steps:**
-1. Send request with `patient_id` as empty string.
-2. Send request with `patient_id` as null if client permits.
+1. Trigger a backend failure scenario, such as unavailable retrieval service, broken environment variable, or unavailable model service.
+2. Send a valid RAG recommendation request.
+3. Observe the API response.
 
 **Expected Result:**
-- API should reject invalid patient identifier or return clearly documented fallback behavior.
+- API returns controlled server-side error, such as HTTP `500 Internal Server Error`, or another backend failure response.
+- Error message is readable.
+- Production response should not expose secrets, full stack traces, or function keys.
 
 **Screenshot to Capture:**
-- Response for invalid patient ID.
+- Controlled server error response.
+- Suggested file: `RAGAPI17_Server_Error.png`
 
 ---
 
 ## TC-RAG-API-18
-**Title:** Verify API server error handling
+**Title:** Verify frontend sends correct API request from RAG panel
 
 **Preconditions:**
-- Backend is unstable, intentionally misconfigured, or test environment can simulate server failure.
+- Clinician dashboard is running.
+- RAG panel is open.
+- Browser Developer Tools can be opened.
 
 **Steps:**
-1. Trigger a backend failure scenario if available.
-2. Observe the returned response.
+1. Open browser Developer Tools.
+2. Go to the `Network` tab.
+3. In the RAG panel, click `Generate Support Plan`.
+4. Select the `/api/rag/recommend` request in the Network tab.
+5. Inspect request method, request URL, request payload, and response.
 
 **Expected Result:**
-- API returns controlled server-side error such as `500 Internal Server Error`.
-- Failure response is readable and does not expose sensitive stack trace details in production.
+- Frontend sends a `POST` request to `/api/rag/recommend`.
+- Request payload includes patient ID, age, stage, vitals, `top_k`, comorbidities, and current medications.
+- Response is received and used by the UI to render the support plan.
 
 **Screenshot to Capture:**
-- Server error response.
-- Suggested file: `RAGAPI12_Server_Error.png`
+- Browser Network tab showing request payload and response.
+- Suggested file: `RAGAPI18_Frontend_Network_Request.png`
 
 ---
 
@@ -454,6 +533,7 @@ The UI reads these fields from the response:
 ```
 
 ## Sample Negative Test Payloads
+
 ### Missing `stage`
 ```json
 {
@@ -466,6 +546,18 @@ The UI reads these fields from the response:
     "diastolic_bp": 84,
     "heart_rate_bpm": 78
   },
+  "top_k": 3,
+  "comorbidities": ["hypertension"],
+  "current_medications": ["donepezil"]
+}
+```
+
+### Missing `vitals`
+```json
+{
+  "age": 71,
+  "patient_id": "PT-1001",
+  "stage": "moderate",
   "top_k": 3,
   "comorbidities": ["hypertension"],
   "current_medications": ["donepezil"]
@@ -510,8 +602,39 @@ The UI reads these fields from the response:
 }
 ```
 
+### Empty Arrays
+```json
+{
+  "age": 71,
+  "patient_id": "PT-1001",
+  "vitals": {
+    "sleep_quality": "fair",
+    "sleep_hours": 6.5,
+    "systolic_bp": 132,
+    "diastolic_bp": 84,
+    "heart_rate_bpm": 78
+  },
+  "stage": "moderate",
+  "top_k": 3,
+  "comorbidities": [],
+  "current_medications": []
+}
+```
+
+## Extra Evidence You Can Attach
+- Postman request body with successful `200 OK`
+- JSON response showing recommendation object
+- JSON response showing evidence sources
+- JSON response showing disclaimer
+- Error response for missing required field
+- Error response for invalid function code
+- Browser Network tab showing frontend request payload
+- Response time from Postman or Thunder Client
+- Response headers showing JSON content type
+
 ## Notes for Report Writing
-- Mention that the frontend calls the RAG backend through `/api/rag/recommend`.
-- Mention that local development uses a Vite proxy to forward the request to the Azure backend.
-- Mention that the clinician UI expects recommendation details, sources, and disclaimer fields in the response.
-- Mention that API validation behavior for bad inputs should be recorded based on actual observed backend behavior if no formal backend contract is available.
+- Mention that the RAG API powers the clinician-facing `Trials-backed Support` panel.
+- Mention that the frontend sends patient demographics, vitals, disease stage, comorbidities, medications, and requested source count.
+- Mention that the API returns treatment support, rationale, cautions, monitoring guidance, lifestyle notes, evidence sources, and disclaimer text.
+- Mention that negative API tests verify input validation and controlled error handling.
+- Mention that actual pass/fail status should be recorded based on observed backend behavior if no formal API contract is available.

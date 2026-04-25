@@ -92,12 +92,14 @@ import {
 import { db } from "../../firebase";
 import {
   collection,
+  getDoc,
   getDocs,
   addDoc,
   query,
   orderBy,
   serverTimestamp,
   doc,
+  setDoc,
   updateDoc,
   arrayUnion,
   where,
@@ -124,6 +126,14 @@ import {
   deriveRiskFromStage,
   mapStageToTrajectory,
 } from "./config";
+import {
+  RAFAY_PATIENT_ID,
+  RAFAY_PATIENT_NAME,
+  RAFAY_SENSOR_MOCK_READINGS,
+  SENSOR_DISPLAY_FIELDS,
+  SENSOR_HISTORY_DAYS,
+  SENSOR_SEED_VERSION,
+} from "../../data/wearableDeviceDataMock";
 import MriComparisonCharts from "./MriComparisonCharts";
 import DashboardSidebar from "./DashboardSidebar";
 import DashboardTopBar from "./DashboardTopBar";
@@ -148,6 +158,175 @@ const getTrajectoryInferenceText = (payload = {}) =>
   payload.message ||
   payload.details ||
   null;
+
+const isRafayPatient = (patientId, data = {}) => {
+  const haystack = [patientId, data.patientId, data.name, data.email]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return (
+    patientId === RAFAY_PATIENT_ID ||
+    data.patientId === RAFAY_PATIENT_ID ||
+    haystack.includes(RAFAY_PATIENT_NAME.toLowerCase())
+  );
+};
+
+const wearableTimeToMs = (value) => {
+  if (!value) return 0;
+  if (typeof value === "number") return value;
+  if (value.seconds) return value.seconds * 1000;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const formatSensorDateKey = (date) => date.toISOString().slice(0, 10);
+
+const getSensorDateKeys = (days = SENSOR_HISTORY_DAYS) => {
+  const keys = [];
+  for (let i = 0; i < days; i += 1) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    keys.push(formatSensorDateKey(date));
+  }
+  return keys;
+};
+
+const normalizeSensorReading = (record = {}) => {
+  const outOfBound =
+    record.outOfBound === 1 || record.outOfZone === true || record.fall === true
+      ? 1
+      : 0;
+  return SENSOR_DISPLAY_FIELDS.reduce(
+    (acc, field) => {
+      acc[field] = record[field] ?? (field === "bpm" ? 0 : false);
+      return acc;
+    },
+    {
+      timestampMs: Number(record.timestampMs || wearableTimeToMs(record.createdAt)),
+      dateKey: record.dateKey || null,
+      outOfBound,
+    }
+  );
+};
+
+const normalizeSensorDataMap = (records = []) =>
+  [...records]
+    .map(normalizeSensorReading)
+    .sort((a, b) => (a.timestampMs || 0) - (b.timestampMs || 0))
+    .reduce((acc, record, index) => {
+      const key = String(record.timestampMs || index + 1);
+      acc[key] = record;
+      return acc;
+    }, {});
+
+const getOutOfBoundSummary = (records = []) => {
+  const now = Date.now();
+  const countForDays = (days) => {
+    const cutoff = now - days * 24 * 60 * 60 * 1000;
+    return records.reduce((sum, record) => {
+      const ts = Number(record.timestampMs || 0);
+      const inWindow = ts === 0 || ts >= cutoff;
+      return sum + (inWindow && record.outOfBound ? 1 : 0);
+    }, 0);
+  };
+
+  return {
+    sevenDayCount: countForDays(7),
+    fourteenDayCount: countForDays(14),
+    totalReadings: records.length,
+  };
+};
+
+const getLatestSensorRecord = (deviceData = {}) => {
+  if (!deviceData || typeof deviceData !== "object") return null;
+  const keys = Object.keys(deviceData);
+  if (keys.length === 0) return null;
+  const sorted = [...keys].sort((a, b) => {
+    const na = parseInt(a.replace(/^\D+/g, ""), 10) || 0;
+    const nb = parseInt(b.replace(/^\D+/g, ""), 10) || 0;
+    return na - nb;
+  });
+  const latest = deviceData[sorted[sorted.length - 1]];
+  return latest && typeof latest === "object" && !Array.isArray(latest)
+    ? latest
+    : deviceData;
+};
+
+const formatSensorTimestamp = (record = {}) => {
+  const ms = Number(record.timestampMs || wearableTimeToMs(record.updatedAt));
+  if (!ms) return "No sync yet";
+  return new Date(ms).toLocaleString();
+};
+
+const sensorValue = (value, fallback = "—") =>
+  value === null || value === undefined || value === "" ? fallback : value;
+
+const toSeededDeviceDataMap = (readings) =>
+  readings.reduce((acc, reading) => {
+    acc[String(reading.timestampMs)] = {
+      bpm: reading.bpm,
+      fall: reading.fall,
+      latitude: reading.latitude,
+      longitude: reading.longitude,
+      outOfZone: reading.outOfZone,
+      outOfBound: reading.outOfBound,
+      pitch: reading.pitch,
+      roll: reading.roll,
+      sleeping: reading.sleeping,
+      timestampMs: reading.timestampMs,
+      dateKey: reading.dateKey,
+    };
+    return acc;
+  }, {});
+
+const ensureRafaySensorSeed = async (patientDocId, patientData = {}) => {
+  if (!isRafayPatient(patientDocId, patientData)) return false;
+
+  const latestRef = doc(db, "patients", patientDocId, "current", "latest");
+  const latestSnap = await getDoc(latestRef);
+  if (latestSnap.exists() && latestSnap.data()?.seedVersion === SENSOR_SEED_VERSION) {
+    return false;
+  }
+
+  const readings = RAFAY_SENSOR_MOCK_READINGS.map((reading) => ({
+    ...reading,
+    patientId: patientData.patientId || patientDocId,
+    patientDocId,
+    patientName: patientData.name || RAFAY_PATIENT_NAME,
+    isMockData: true,
+    seedVersion: SENSOR_SEED_VERSION,
+    updatedAt: serverTimestamp(),
+  }));
+  const latest = readings.reduce((max, reading) =>
+    reading.timestampMs > max.timestampMs ? reading : max
+  );
+
+  await Promise.all([
+    setDoc(latestRef, latest, { merge: true }),
+    ...readings.map((reading) =>
+      setDoc(
+        doc(
+          db,
+          "patients",
+          patientDocId,
+          "sensorData",
+          reading.dateKey,
+          "readings",
+          String(reading.timestampMs)
+        ),
+        reading,
+        { merge: true }
+      )
+    ),
+    updateDoc(doc(db, "patients", patientDocId), {
+      deviceData: toSeededDeviceDataMap(readings),
+      latestWearableSyncAt: serverTimestamp(),
+      sensorSeedVersion: SENSOR_SEED_VERSION,
+    }),
+  ]);
+
+  return true;
+};
 
 const Dashboard = ({ user, onLogout }) => {
   const { isLight } = useTheme();
@@ -301,6 +480,69 @@ const Dashboard = ({ user, onLogout }) => {
             }
           }
 
+          try {
+            await ensureRafaySensorSeed(patientDoc.id, data);
+          } catch (err) {
+            console.warn("Could not seed Rafay sensor data:", err);
+          }
+
+          let sensorRecords = [];
+          let currentSensorReading = null;
+          try {
+            const currentSnap = await getDoc(
+              doc(db, "patients", patientDoc.id, "current", "latest")
+            );
+            if (currentSnap.exists()) {
+              currentSensorReading = {
+                id: currentSnap.id,
+                ...currentSnap.data(),
+              };
+            }
+
+            const dailySnapshots = await Promise.all(
+              getSensorDateKeys().map((dateKey) =>
+                getDocs(
+                  collection(
+                    db,
+                    "patients",
+                    patientDoc.id,
+                    "sensorData",
+                    dateKey,
+                    "readings"
+                  )
+                ).then((snap) =>
+                  snap.docs.map((readingDoc) => ({
+                    id: readingDoc.id,
+                    dateKey,
+                    timestampMs: Number(readingDoc.id),
+                    ...readingDoc.data(),
+                  }))
+                )
+              )
+            );
+            sensorRecords = dailySnapshots.flat();
+          } catch (err) {
+            console.warn("Could not load timestamped sensor data:", err);
+          }
+
+          if (sensorRecords.length === 0 && isRafayPatient(patientDoc.id, data)) {
+            sensorRecords = RAFAY_SENSOR_MOCK_READINGS.map((reading) => ({
+              ...reading,
+              patientId: patientDoc.id,
+              patientName: data.name || RAFAY_PATIENT_NAME,
+              isMockData: true,
+            }));
+          }
+          const normalizedSensorRecords = sensorRecords.map(normalizeSensorReading);
+          const sensorDeviceData = normalizeSensorDataMap(
+            normalizedSensorRecords.length > 0
+              ? normalizedSensorRecords
+              : currentSensorReading
+              ? [currentSensorReading]
+              : []
+          );
+          const sensorSummary = getOutOfBoundSummary(normalizedSensorRecords);
+
           return {
             id: patientDoc.id,
             patientId: data.patientId || null,
@@ -321,7 +563,13 @@ const Dashboard = ({ user, onLogout }) => {
             trend: data.trend || "stable",
             avatar: (data.name || "U").charAt(0).toUpperCase(),
 
-            deviceData: data.deviceData || {},
+            deviceData:
+              Object.keys(sensorDeviceData).length > 0
+                ? sensorDeviceData
+                : data.deviceData || {},
+            sensorData: normalizedSensorRecords,
+            sensorCurrent: currentSensorReading,
+            sensorOutOfBoundSummary: sensorSummary,
 
             // Digital Twin clinical fields (all optional — render empty states when absent)
             stage: data.stage || data.diagnosis || null,
@@ -1328,15 +1576,30 @@ setSelectedPatientForDT(prev => ({
   // --- 3. VIEW PATIENT DETAILS (Prepare Data) ---
 const handleViewPatient = async (patientId) => {
     try {
-      let patientData = patients.find(p => p.id === patientId);
+      let patientData = patients.find(
+        (p) => p.id === patientId || p.patientId === patientId || p.userId === patientId
+      );
       if (!patientData) return;
+      const patientDocId = patientData.id;
+
+      try {
+        const seeded = await ensureRafaySensorSeed(patientDocId, patientData);
+        if (seeded) {
+          const refreshedDoc = await getDoc(doc(db, "patients", patientDocId));
+          if (refreshedDoc.exists()) {
+            patientData = { ...patientData, ...refreshedDoc.data(), id: patientDocId };
+          }
+        }
+      } catch (err) {
+        console.warn("Could not ensure Rafay seeded sensor data:", err);
+      }
 
       // Fetch AI analysis history for this patient (newest first)
       let history = [];
       try {
         const historySnap = await getDocs(
           query(
-            collection(db, "patients", patientId, "aiAnalyses"),
+            collection(db, "patients", patientDocId, "aiAnalyses"),
             orderBy("createdAt", "desc")
           )
         );
@@ -1347,6 +1610,29 @@ const handleViewPatient = async (patientId) => {
       setAiHistory(history);
       setCompareWithId(null);
       const latestAnalysis = history[0] || null;
+      let latestSensor = getLatestSensorRecord(patientData.deviceData);
+      try {
+        const currentSnap = await getDoc(
+          doc(db, "patients", patientDocId, "current", "latest")
+        );
+        if (currentSnap.exists()) {
+          latestSensor = { id: currentSnap.id, ...currentSnap.data() };
+        }
+      } catch (err) {
+        console.warn("Could not load latest sensor reading:", err);
+      }
+      const sensorDetails = {
+        bpm: sensorValue(latestSensor?.bpm, 0),
+        fall: Boolean(latestSensor?.fall),
+        latitude: sensorValue(latestSensor?.latitude, 0),
+        longitude: sensorValue(latestSensor?.longitude, 0),
+        outOfZone: Boolean(latestSensor?.outOfZone),
+        pitch: sensorValue(latestSensor?.pitch, 0),
+        roll: sensorValue(latestSensor?.roll, 0),
+        sleeping: Boolean(latestSensor?.sleeping),
+        heartRate: sensorValue(latestSensor?.bpm, 0),
+        lastUpdate: formatSensorTimestamp(latestSensor),
+      };
 
       // A. Extract Latest Vitals (with dummy fallback values)
       // Dummy values for demo purposes when no real device data exists
@@ -1427,8 +1713,8 @@ const handleViewPatient = async (patientId) => {
 
       setSelectedPatientDetails({
         ...patientData,
-        ...latestVitals,
         ...dummyClinicalData,
+        ...sensorDetails,
         ...aiSeed,
         mriScans: processedScans,
         medications: patientData.medications || ["Donepezil 10mg", "Memantine 20mg"]
@@ -2043,6 +2329,29 @@ const handleViewPatient = async (patientId) => {
                        
                        {/* Vitals */}
                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                         {[
+                           { label: "BPM", value: Number(selectedPatientDetails.bpm || 0).toFixed(2), icon: Heart, color: "text-red-400" },
+                           { label: "Fall", value: String(Boolean(selectedPatientDetails.fall)), icon: AlertCircle, color: "text-amber-400" },
+                           { label: "Latitude", value: Number(selectedPatientDetails.latitude || 0).toFixed(6), icon: MapPin, color: "text-green-400" },
+                           { label: "Longitude", value: Number(selectedPatientDetails.longitude || 0).toFixed(6), icon: MapPin, color: "text-cyan-400" },
+                           { label: "Out of Zone", value: String(Boolean(selectedPatientDetails.outOfZone)), icon: Shield, color: "text-yellow-400" },
+                           { label: "Pitch", value: Number(selectedPatientDetails.pitch || 0).toFixed(2), icon: Activity, color: "text-purple-400" },
+                           { label: "Roll", value: Number(selectedPatientDetails.roll || 0).toFixed(2), icon: RotateCcw, color: "text-blue-400" },
+                           { label: "Sleeping", value: String(Boolean(selectedPatientDetails.sleeping)), icon: Moon, color: "text-indigo-400" },
+                         ].map((item) => {
+                           const Icon = item.icon;
+                           return (
+                             <div key={item.label} className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
+                               <div className="min-w-0">
+                                 <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>{item.label}</p>
+                                 <p className={`text-xl font-bold truncate ${isLight ? "text-slate-950" : "text-white"}`}>{item.value}</p>
+                               </div>
+                               <Icon className={item.color} size={22} />
+                             </div>
+                           );
+                         })}
+                       </div>
+                       <div className="hidden grid-cols-2 md:grid-cols-4 gap-4">
                           <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
                              <div>
                                 <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Heart Rate</p>
@@ -2074,7 +2383,7 @@ const handleViewPatient = async (patientId) => {
                        </div>
 
                        {/* Additional Vitals Row */}
-                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                       <div className="hidden grid-cols-2 md:grid-cols-4 gap-4">
                           <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
                              <div className="flex items-center justify-between mb-2">
                                 <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Sleep Quality</p>

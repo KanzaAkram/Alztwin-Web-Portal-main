@@ -89,6 +89,8 @@ const extractVitalsFromPatient = (patient) => {
   else sleepQuality = "good";
   if (typeof latest.sleepQuality === "string") {
     sleepQuality = latest.sleepQuality;
+  } else if (typeof latest.sleeping === "boolean") {
+    sleepQuality = latest.sleeping ? "good" : "fair";
   }
 
   return {
@@ -96,7 +98,7 @@ const extractVitalsFromPatient = (patient) => {
     sleep_hours: sleepHours,
     systolic_bp: systolic,
     diastolic_bp: diastolic,
-    heart_rate_bpm: parseInt(latest.heartRate || patient?.heartRate || 75, 10),
+    heart_rate_bpm: parseInt(latest.heartRate || latest.bpm || patient?.heartRate || 75, 10),
   };
 };
 

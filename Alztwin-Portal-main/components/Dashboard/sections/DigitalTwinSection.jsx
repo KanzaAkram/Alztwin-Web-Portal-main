@@ -23,6 +23,7 @@ import {
 import ThreeBrainView from "../ThreeBrainView";
 import ClinicalTreatmentSupportPanel from "../RagRecommendationPanel";
 import { useTheme } from "../../ThemeContext";
+import { SENSOR_DISPLAY_FIELDS } from "../../../data/wearableDeviceDataMock";
 
 const STAGE_LADDER = [
   { stage: "Normal", color: "green" },
@@ -42,6 +43,17 @@ const DEVICE_FIELD_META = {
   bloodPressure: { label: "Blood Pressure", icon: "🩺" },
   oxygenSaturation: { label: "Oxygen Saturation", icon: "🫁" },
   medication: { label: "Medication", icon: "💊" },
+};
+
+const SENSOR_FIELD_META = {
+  bpm: { label: "BPM", icon: "BPM", suffix: " bpm", decimals: 2 },
+  fall: { label: "Fall", icon: "F" },
+  latitude: { label: "Latitude", icon: "LAT", decimals: 6 },
+  longitude: { label: "Longitude", icon: "LNG", decimals: 6 },
+  outOfZone: { label: "Out of Zone", icon: "OZ" },
+  pitch: { label: "Pitch", icon: "P", decimals: 2 },
+  roll: { label: "Roll", icon: "R", decimals: 2 },
+  sleeping: { label: "Sleeping", icon: "SL" },
 };
 
 const SCORE_TONE_CLASS = {
@@ -270,7 +282,7 @@ export default function DigitalTwinSection({
     return { points, isFallback: true };
   }, [activeStageIdx, progression, selectedPatientForDT]);
 
-  const deviceMetrics = useMemo(() => {
+  const rawDeviceMetrics = useMemo(() => {
     const deviceData = selectedPatientForDT?.deviceData;
     if (!deviceData || typeof deviceData !== "object") return [];
 
@@ -299,6 +311,43 @@ export default function DigitalTwinSection({
         return { key, label: meta.label, icon: meta.icon, value: displayValue };
       });
   }, [selectedPatientForDT]);
+
+  const deviceMetrics = useMemo(() => {
+    const deviceData = selectedPatientForDT?.deviceData;
+    if (!deviceData || typeof deviceData !== "object") return [];
+
+    const keys = Object.keys(deviceData);
+    if (keys.length === 0) return [];
+    const sorted = [...keys].sort((a, b) => {
+      const na = parseInt(a.replace(/^\D+/g, ""), 10) || 0;
+      const nb = parseInt(b.replace(/^\D+/g, ""), 10) || 0;
+      return na - nb;
+    });
+    const latest = deviceData[sorted[sorted.length - 1]];
+    const source =
+      latest && typeof latest === "object" && !Array.isArray(latest)
+        ? latest
+        : deviceData;
+
+    return SENSOR_DISPLAY_FIELDS.filter(
+      (key) => source[key] !== null && source[key] !== undefined && source[key] !== ""
+    ).map((key) => {
+      const value = source[key];
+      const meta = SENSOR_FIELD_META[key] || { label: key, icon: "DATA" };
+      const displayValue =
+        typeof value === "boolean"
+          ? String(value)
+          : typeof value === "number"
+          ? `${value.toFixed(meta.decimals ?? 0)}${meta.suffix || ""}`
+          : String(value);
+      return { key, label: meta.label, icon: meta.icon, value: displayValue };
+    });
+  }, [selectedPatientForDT]);
+  const outOfBoundSummary = selectedPatientForDT?.sensorOutOfBoundSummary || {
+    sevenDayCount: 0,
+    fourteenDayCount: 0,
+    totalReadings: 0,
+  };
 
   return (
     <div className={`space-y-6 ${isLight ? "dt-light text-slate-900" : ""}`}>
@@ -1258,22 +1307,61 @@ export default function DigitalTwinSection({
                 {deviceMetrics.length === 0 ? (
                   <EmptyBlock>No device data recorded.</EmptyBlock>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {deviceMetrics.map((item) => (
-                      <div
-                        key={item.key}
-                        className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-lg">{item.icon}</span>
-                          <Minus size={14} className="text-slate-400" />
+                  <div className="space-y-4">
+                    <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="text-white font-semibold text-sm">
+                            Out of Bound Count
+                          </p>
+                          <p className="text-slate-500 text-xs">
+                            Sum of readings where outOfBound = 1
+                          </p>
                         </div>
-                        <p className="text-white font-semibold text-sm">
-                          {item.value}
-                        </p>
-                        <p className="text-slate-500 text-xs">{item.label}</p>
+                        <span className="text-xs text-slate-400">
+                          {outOfBoundSummary.totalReadings} readings
+                        </span>
                       </div>
-                    ))}
+                      {[
+                        { label: "7 Day", value: outOfBoundSummary.sevenDayCount },
+                        { label: "14 Day", value: outOfBoundSummary.fourteenDayCount },
+                      ].map((item) => {
+                        const max = Math.max(outOfBoundSummary.fourteenDayCount, 1);
+                        return (
+                          <div key={item.label} className="mb-3 last:mb-0">
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span className="text-slate-400">{item.label}</span>
+                              <span className="text-white font-semibold">{item.value}</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
+                              <div
+                                className="h-full bg-amber-400"
+                                style={{ width: `${Math.min(100, (item.value / max) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {deviceMetrics.map((item) => (
+                        <div
+                          key={item.key}
+                          className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-green-300">
+                              {item.icon}
+                            </span>
+                            <Minus size={14} className="text-slate-400" />
+                          </div>
+                          <p className="text-white font-semibold text-sm">
+                            {item.value}
+                          </p>
+                          <p className="text-slate-500 text-xs">{item.label}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
