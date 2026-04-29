@@ -485,20 +485,18 @@ export default function DigitalTwinSection({
   }, [sensorTrendData]);
   const sleepSummary = useMemo(() => {
     if (dailySensorData.length === 0) {
-      return { averageHours: 0, averageScore: 0, goodDays: 0 };
+      return { averageHours: 0, averageScore: 0 };
     }
     const totals = dailySensorData.reduce(
       (acc, record) => ({
         hours: acc.hours + Number(record.sleepHours || 0),
         score: acc.score + Number(record.sleepScore || 0),
-        goodDays: acc.goodDays + (record.sleepScore >= 85 ? 1 : 0),
       }),
-      { hours: 0, score: 0, goodDays: 0 }
+      { hours: 0, score: 0 }
     );
     return {
       averageHours: Math.round((totals.hours / dailySensorData.length) * 10) / 10,
       averageScore: Math.round(totals.score / dailySensorData.length),
-      goodDays: totals.goodDays,
     };
   }, [dailySensorData]);
   const sensorTotals = useMemo(
@@ -674,7 +672,7 @@ export default function DigitalTwinSection({
                 Daily Sleep Hours
               </p>
               <p className={`text-xs ${isLight ? "text-slate-500" : "text-slate-500"}`}>
-                Avg {sleepSummary.averageHours.toFixed(1)}h, score {sleepSummary.averageScore}/100, {sleepSummary.goodDays} good days
+                Avg {sleepSummary.averageHours.toFixed(1)}h, score {sleepSummary.averageScore}/100
               </p>
             </div>
             <Moon className="text-indigo-400" size={18} />
@@ -1795,7 +1793,7 @@ export default function DigitalTwinSection({
                                   Zone and Sleep Hours
                                 </p>
                                 <p className="text-slate-500 text-xs">
-                                  Avg {sleepSummary.averageHours.toFixed(1)}h, {sleepSummary.goodDays} good sleep days
+                                  Avg {sleepSummary.averageHours.toFixed(1)}h, score {sleepSummary.averageScore}/100
                                 </p>
                               </div>
                               <Shield className="text-green-400" size={18} />
