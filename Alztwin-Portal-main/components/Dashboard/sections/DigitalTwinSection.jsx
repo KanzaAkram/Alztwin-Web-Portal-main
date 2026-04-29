@@ -30,6 +30,7 @@ import {
   CartesianGrid,
   Line,
   LineChart as RechartsLineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -91,6 +92,34 @@ const numericOr = (v, fallback) =>
 const toFiniteNumber = (value) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
+};
+
+const MS_PER_HOUR = 60 * 60 * 1000;
+const MAX_SLEEP_READING_HOURS = 4;
+const IDEAL_SLEEP_HOURS = 7.5;
+
+const getLocalDayEndMs = (dateKey, timestampMs) => {
+  if (dateKey) {
+    const [year, month, day] = String(dateKey).split("-").map(Number);
+    if (year && month && day) {
+      return new Date(year, month - 1, day + 1, 0, 0, 0, 0).getTime();
+    }
+  }
+  const date = new Date(timestampMs);
+  date.setHours(24, 0, 0, 0);
+  return date.getTime();
+};
+
+const getSleepScore = (hours) => {
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
+  const score = 100 - Math.abs(hours - IDEAL_SLEEP_HOURS) * 18;
+  return Math.max(0, Math.min(100, Math.round(score)));
+};
+
+const getSleepLabel = (score) => {
+  if (score >= 85) return "Good";
+  if (score >= 65) return "Fair";
+  return "Low";
 };
 
 const getCognitiveMaxScore = (testType) =>
@@ -387,23 +416,27 @@ export default function DigitalTwinSection({
               })
             : record.dateKey || "",
           day: record.dateKey || "",
+          timestampMs: Number(record.timestampMs || 0),
           bpm: Number(record.bpm || 0),
           pitch: Number(record.pitch || 0),
           roll: Number(record.roll || 0),
           outOfBound: record.outOfBound ? 1 : 0,
           fall: record.fall ? 1 : 0,
           outOfZone: record.outOfZone ? 1 : 0,
+          isSleeping: Boolean(record.sleeping),
           sleeping: record.sleeping ? 1 : 0,
         };
       });
   }, [selectedPatientForDT]);
   const dailySensorData = useMemo(() => {
     const daily = new Map();
+    const recordsByDay = new Map();
     sensorTrendData.forEach((record) => {
       const key = record.day || record.label;
       const item =
         daily.get(key) || {
           day: key ? key.slice(5) : "",
+          dateKey: key,
           bpmTotal: 0,
           bpmCount: 0,
           avgBpm: 0,
@@ -411,6 +444,9 @@ export default function DigitalTwinSection({
           fall: 0,
           outOfZone: 0,
           sleeping: 0,
+          sleepHours: 0,
+          sleepScore: 0,
+          sleepLabel: "Low",
         };
       item.bpmTotal += record.bpm;
       item.bpmCount += 1;
@@ -420,12 +456,54 @@ export default function DigitalTwinSection({
       item.outOfZone += record.outOfZone;
       item.sleeping += record.sleeping;
       daily.set(key, item);
+
+      if (!recordsByDay.has(key)) recordsByDay.set(key, []);
+      recordsByDay.get(key).push(record);
+    });
+
+    recordsByDay.forEach((records, key) => {
+      const item = daily.get(key);
+      if (!item) return;
+      const sortedRecords = [...records].sort(
+        (a, b) => (a.timestampMs || 0) - (b.timestampMs || 0)
+      );
+      const sleepHours = sortedRecords.reduce((total, record, index) => {
+        if (!record.isSleeping || !record.timestampMs) return total;
+        const nextReading = sortedRecords[index + 1];
+        const endMs =
+          nextReading?.timestampMs && nextReading.day === record.day
+            ? nextReading.timestampMs
+            : getLocalDayEndMs(record.day, record.timestampMs);
+        const intervalHours = Math.max(0, (endMs - record.timestampMs) / MS_PER_HOUR);
+        return total + Math.min(intervalHours, MAX_SLEEP_READING_HOURS);
+      }, 0);
+      item.sleepHours = Math.round(sleepHours * 10) / 10;
+      item.sleepScore = getSleepScore(item.sleepHours);
+      item.sleepLabel = getSleepLabel(item.sleepScore);
     });
     return Array.from(daily.values());
   }, [sensorTrendData]);
+  const sleepSummary = useMemo(() => {
+    if (dailySensorData.length === 0) {
+      return { averageHours: 0, averageScore: 0, goodDays: 0 };
+    }
+    const totals = dailySensorData.reduce(
+      (acc, record) => ({
+        hours: acc.hours + Number(record.sleepHours || 0),
+        score: acc.score + Number(record.sleepScore || 0),
+        goodDays: acc.goodDays + (record.sleepScore >= 85 ? 1 : 0),
+      }),
+      { hours: 0, score: 0, goodDays: 0 }
+    );
+    return {
+      averageHours: Math.round((totals.hours / dailySensorData.length) * 10) / 10,
+      averageScore: Math.round(totals.score / dailySensorData.length),
+      goodDays: totals.goodDays,
+    };
+  }, [dailySensorData]);
   const sensorTotals = useMemo(
-    () =>
-      sensorTrendData.reduce(
+    () => {
+      const totals = sensorTrendData.reduce(
         (acc, record) => ({
           readings: acc.readings + 1,
           falls: acc.falls + record.fall,
@@ -434,8 +512,17 @@ export default function DigitalTwinSection({
           sleeping: acc.sleeping + record.sleeping,
         }),
         { readings: 0, falls: 0, outOfBound: 0, outOfZone: 0, sleeping: 0 }
-      ),
-    [sensorTrendData]
+      );
+      const sleepHours = dailySensorData.reduce(
+        (sum, record) => sum + Number(record.sleepHours || 0),
+        0
+      );
+      return {
+        ...totals,
+        sleepHours: Math.round(sleepHours * 10) / 10,
+      };
+    },
+    [dailySensorData, sensorTrendData]
   );
   const sensorAverages = useMemo(() => {
     if (sensorTrendData.length === 0) {
@@ -489,7 +576,7 @@ export default function DigitalTwinSection({
           { label: "Falls", value: sensorTotals.falls, helper: "fall=true", color: "text-red-400" },
           { label: "Out of Bound", value: sensorTotals.outOfBound, helper: "outOfBound=1", color: "text-amber-400" },
           { label: "Out of Zone", value: sensorTotals.outOfZone, helper: "outOfZone=true", color: "text-green-400" },
-          { label: "Avg Motion", value: `${sensorAverages.pitch.toFixed(1)} / ${sensorAverages.roll.toFixed(1)}`, helper: "pitch / roll", color: "text-purple-400" },
+          { label: "Sleep Score", value: sleepSummary.averageScore, helper: `${sleepSummary.averageHours.toFixed(1)}h avg`, color: "text-indigo-400" },
         ].map((item) => (
           <div key={item.label} className={`${sensorCardClass} rounded-lg p-3`}>
             <p className={`text-[11px] uppercase ${isLight ? "text-slate-500" : "text-slate-500"}`}>
@@ -584,10 +671,10 @@ export default function DigitalTwinSection({
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className={`font-semibold text-sm ${isLight ? "text-slate-950" : "text-white"}`}>
-                Sleep State
+                Daily Sleep Hours
               </p>
               <p className={`text-xs ${isLight ? "text-slate-500" : "text-slate-500"}`}>
-                Number of readings where sleeping=true per day
+                Avg {sleepSummary.averageHours.toFixed(1)}h, score {sleepSummary.averageScore}/100, {sleepSummary.goodDays} good days
               </p>
             </div>
             <Moon className="text-indigo-400" size={18} />
@@ -597,9 +684,10 @@ export default function DigitalTwinSection({
               <BarChart data={dailySensorData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
                 <XAxis dataKey="day" stroke={chartAxisStroke} tick={{ fontSize: 10 }} />
-                <YAxis stroke={chartAxisStroke} tick={{ fontSize: 10 }} allowDecimals={false} />
+                <YAxis stroke={chartAxisStroke} tick={{ fontSize: 10 }} />
                 <Tooltip contentStyle={chartTooltipStyle} />
-                <Bar dataKey="sleeping" name="Sleeping" fill="#818cf8" radius={[3, 3, 0, 0]} />
+                <ReferenceLine y={IDEAL_SLEEP_HOURS} stroke="#22c55e" strokeDasharray="4 4" />
+                <Bar dataKey="sleepHours" name="Sleep Hours" fill="#818cf8" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -1612,7 +1700,7 @@ export default function DigitalTwinSection({
                             { label: "Out of Bound", value: sensorTotals.outOfBound, color: "text-amber-300" },
                             { label: "Falls", value: sensorTotals.falls, color: "text-red-300" },
                             { label: "Out of Zone", value: sensorTotals.outOfZone, color: "text-green-300" },
-                            { label: "Sleeping", value: sensorTotals.sleeping, color: "text-indigo-300" },
+                            { label: "Sleep Score", value: `${sleepSummary.averageScore}/100`, color: "text-indigo-300" },
                           ].map((item) => (
                             <div
                               key={item.label}
@@ -1704,10 +1792,10 @@ export default function DigitalTwinSection({
                             <div className="flex items-center justify-between mb-3">
                               <div>
                                 <p className="text-white font-semibold text-sm">
-                                  Zone and Sleep State Counts
+                                  Zone and Sleep Hours
                                 </p>
                                 <p className="text-slate-500 text-xs">
-                                  Daily counts for outOfZone and sleeping=true
+                                  Avg {sleepSummary.averageHours.toFixed(1)}h, {sleepSummary.goodDays} good sleep days
                                 </p>
                               </div>
                               <Shield className="text-green-400" size={18} />
@@ -1727,7 +1815,8 @@ export default function DigitalTwinSection({
                                     }}
                                   />
                                   <Bar dataKey="outOfZone" name="Out of Zone" fill="#22c55e" radius={[3, 3, 0, 0]} />
-                                  <Bar dataKey="sleeping" name="Sleeping" fill="#818cf8" radius={[3, 3, 0, 0]} />
+                                  <ReferenceLine y={IDEAL_SLEEP_HOURS} stroke="#22c55e" strokeDasharray="4 4" />
+                                  <Bar dataKey="sleepHours" name="Sleep Hours" fill="#818cf8" radius={[3, 3, 0, 0]} />
                                 </BarChart>
                               </ResponsiveContainer>
                             </div>
@@ -1816,10 +1905,10 @@ export default function DigitalTwinSection({
                           <div className="flex items-center justify-between mb-3">
                             <div>
                               <p className="text-white font-semibold text-sm">
-                                Daily Sensor Flags
+                                Daily Sensor Flags and Sleep
                               </p>
                               <p className="text-slate-500 text-xs">
-                                Counts per date for binary sensor states
+                                Counts per date plus estimated sleep hours
                               </p>
                             </div>
                             <Activity size={18} className="text-amber-400" />
@@ -1841,7 +1930,8 @@ export default function DigitalTwinSection({
                                 <Bar dataKey="outOfBound" fill="#f59e0b" radius={[3, 3, 0, 0]} />
                                 <Bar dataKey="outOfZone" fill="#22c55e" radius={[3, 3, 0, 0]} />
                                 <Bar dataKey="fall" fill="#ef4444" radius={[3, 3, 0, 0]} />
-                                <Bar dataKey="sleeping" fill="#818cf8" radius={[3, 3, 0, 0]} />
+                                <ReferenceLine y={IDEAL_SLEEP_HOURS} stroke="#22c55e" strokeDasharray="4 4" />
+                                <Bar dataKey="sleepHours" name="Sleep Hours" fill="#818cf8" radius={[3, 3, 0, 0]} />
                               </BarChart>
                             </ResponsiveContainer>
                           </div>

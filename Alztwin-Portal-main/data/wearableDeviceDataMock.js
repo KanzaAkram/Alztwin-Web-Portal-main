@@ -1,7 +1,7 @@
 export const RAFAY_PATIENT_NAME = "Rafay";
 export const RAFAY_PATIENT_ID = "patient_1776607538754";
 export const SENSOR_HISTORY_DAYS = 14;
-export const SENSOR_SEED_VERSION = "rafay-sensor-seed-v3";
+export const SENSOR_SEED_VERSION = "rafay-sensor-seed-v4";
 
 export const SENSOR_DISPLAY_FIELDS = [
   "bpm",
@@ -28,6 +28,22 @@ const READING_TIMES = [
 
 const DAILY_RISK_LEVELS = [3, 2, 2, 3, 1, 4, 2, 3, 1, 4, 2, 1, 3, 1];
 const FALL_EVENTS = new Set(["1-6", "5-5", "9-4", "12-6"]);
+const SLEEP_READING_PROFILES = [
+  [0, 1, 7],
+  [0, 1, 2, 7],
+  [0, 1],
+  [0, 7],
+  [0, 1, 7],
+  [0, 1, 2],
+  [0, 1, 7],
+  [0, 1],
+  [0, 7],
+  [0, 1, 2, 7],
+  [0, 1, 7],
+  [0, 1],
+  [0, 1, 2],
+  [0, 7],
+];
 
 const toDateKey = (date) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -48,8 +64,8 @@ const makeReadingDate = (dayOffset, time) => {
   return date;
 };
 
-const isSleepingReading = (readingIndex) =>
-  readingIndex <= 2 || readingIndex === READING_TIMES.length - 1;
+const isSleepingReading = (dayOffset, readingIndex) =>
+  SLEEP_READING_PROFILES[dayOffset % SLEEP_READING_PROFILES.length].includes(readingIndex);
 
 const isOutOfBoundReading = (dayOffset, readingIndex, riskLevel) => {
   if (FALL_EVENTS.has(`${dayOffset}-${readingIndex}`)) return true;
@@ -63,7 +79,7 @@ export const RAFAY_SENSOR_MOCK_READINGS = DAILY_RISK_LEVELS.flatMap(
   (riskLevel, dayOffset) =>
     READING_TIMES.map((time, readingIndex) => {
       const date = makeReadingDate(dayOffset, time);
-      const sleeping = isSleepingReading(readingIndex);
+      const sleeping = isSleepingReading(dayOffset, readingIndex);
       const fall = FALL_EVENTS.has(`${dayOffset}-${readingIndex}`);
       const outOfBound = isOutOfBoundReading(dayOffset, readingIndex, riskLevel) ? 1 : 0;
       const activityWave = Math.sin((readingIndex + dayOffset) * 0.85);
