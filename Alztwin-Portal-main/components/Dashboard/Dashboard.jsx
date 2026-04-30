@@ -181,6 +181,17 @@ const wearableTimeToMs = (value) => {
 
 const formatSensorDateKey = (date) => date.toISOString().slice(0, 10);
 
+const formatPatientLogTimestamp = (timestampMs) => {
+  const date = new Date(timestampMs);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
+const formatPatientLogDocId = (timestampMs) =>
+  formatPatientLogTimestamp(timestampMs).replace(" ", "_").replaceAll(":", "-");
+
 const getSensorDateKeys = (days = SENSOR_HISTORY_DAYS) => {
   const keys = [];
   for (let i = 0; i < days; i += 1) {
@@ -192,6 +203,11 @@ const getSensorDateKeys = (days = SENSOR_HISTORY_DAYS) => {
 };
 
 const normalizeSensorReading = (record = {}) => {
+  const timestampMs = Number(
+    record.timestampMs ||
+      wearableTimeToMs(record.timestamp) ||
+      wearableTimeToMs(record.createdAt)
+  );
   const outOfBound =
     record.outOfBound === 1 || record.outOfZone === true || record.fall === true
       ? 1
@@ -202,11 +218,27 @@ const normalizeSensorReading = (record = {}) => {
       return acc;
     },
     {
-      timestampMs: Number(record.timestampMs || wearableTimeToMs(record.createdAt)),
-      dateKey: record.dateKey || null,
+      timestampMs,
+      dateKey:
+        record.dateKey ||
+        (timestampMs ? formatSensorDateKey(new Date(timestampMs)) : null),
       outOfBound,
     }
   );
+};
+
+const isRafayLogRecord = (record = {}) => {
+  const keys = [
+    record.patientDocId,
+    record.patientId,
+    record.patientName,
+    record.name,
+    record.email,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return !keys || keys.includes(RAFAY_PATIENT_NAME.toLowerCase()) || keys.includes(RAFAY_PATIENT_ID);
 };
 
 const normalizeSensorDataMap = (records = []) =>
@@ -261,71 +293,69 @@ const formatSensorTimestamp = (record = {}) => {
 const sensorValue = (value, fallback = "—") =>
   value === null || value === undefined || value === "" ? fallback : value;
 
-const toSeededDeviceDataMap = (readings) =>
-  readings.reduce((acc, reading) => {
-    acc[String(reading.timestampMs)] = {
-      bpm: reading.bpm,
-      fall: reading.fall,
-      latitude: reading.latitude,
-      longitude: reading.longitude,
-      outOfZone: reading.outOfZone,
-      outOfBound: reading.outOfBound,
-      pitch: reading.pitch,
-      roll: reading.roll,
-      sleeping: reading.sleeping,
-      timestampMs: reading.timestampMs,
-      dateKey: reading.dateKey,
-    };
-    return acc;
-  }, {});
+const toPatientLogRecord = (reading, patientDocId, patientData = {}) => ({
+  bpm: reading.bpm,
+  fall: reading.fall,
+  latitude: reading.latitude,
+  longitude: reading.longitude,
+  outOfZone: reading.outOfZone,
+  outOfBound: reading.outOfBound,
+  pitch: reading.pitch,
+  roll: reading.roll,
+  sleeping: reading.sleeping,
+  timestamp: formatPatientLogTimestamp(reading.timestampMs),
+  timestampMs: reading.timestampMs,
+  dateKey: reading.dateKey,
+  patientDocId,
+  patientId: patientData.patientId || patientDocId,
+  patientName: patientData.name || RAFAY_PATIENT_NAME,
+  isMockData: true,
+  seedVersion: SENSOR_SEED_VERSION,
+  updatedAt: serverTimestamp(),
+});
+
+const ensureRafayPatientLogSeed = async (patientDocId, patientData = {}) => {
+  if (!isRafayPatient(patientDocId, patientData)) return false;
+
+  const latestSeedRef = doc(
+    db,
+    "patient_logs",
+    formatPatientLogDocId(RAFAY_SENSOR_MOCK_READINGS[0].timestampMs)
+  );
+  const latestSeedSnap = await getDoc(latestSeedRef);
+  if (latestSeedSnap.exists() && latestSeedSnap.data()?.seedVersion === SENSOR_SEED_VERSION) {
+    return false;
+  }
+
+  await Promise.all(
+    RAFAY_SENSOR_MOCK_READINGS.map((reading) =>
+      setDoc(
+        doc(db, "patient_logs", formatPatientLogDocId(reading.timestampMs)),
+        toPatientLogRecord(reading, patientDocId, patientData),
+        { merge: true }
+      )
+    )
+  );
+
+  return true;
+};
+
+const loadRafayPatientLogs = async (patientDocId, patientData = {}) => {
+  if (!isRafayPatient(patientDocId, patientData)) return [];
+
+  const logSnap = await getDocs(
+    query(collection(db, "patient_logs"), orderBy("timestamp", "desc"))
+  );
+
+  return logSnap.docs
+    .map((logDoc) => ({ id: logDoc.id, ...logDoc.data() }))
+    .filter(isRafayLogRecord);
+};
 
 const ensureRafaySensorSeed = async (patientDocId, patientData = {}) => {
   if (!isRafayPatient(patientDocId, patientData)) return false;
 
-  const latestRef = doc(db, "patients", patientDocId, "current", "latest");
-  const latestSnap = await getDoc(latestRef);
-  if (latestSnap.exists() && latestSnap.data()?.seedVersion === SENSOR_SEED_VERSION) {
-    return false;
-  }
-
-  const readings = RAFAY_SENSOR_MOCK_READINGS.map((reading) => ({
-    ...reading,
-    patientId: patientData.patientId || patientDocId,
-    patientDocId,
-    patientName: patientData.name || RAFAY_PATIENT_NAME,
-    isMockData: true,
-    seedVersion: SENSOR_SEED_VERSION,
-    updatedAt: serverTimestamp(),
-  }));
-  const latest = readings.reduce((max, reading) =>
-    reading.timestampMs > max.timestampMs ? reading : max
-  );
-
-  await Promise.all([
-    setDoc(latestRef, latest, { merge: true }),
-    ...readings.map((reading) =>
-      setDoc(
-        doc(
-          db,
-          "patients",
-          patientDocId,
-          "sensorData",
-          reading.dateKey,
-          "readings",
-          String(reading.timestampMs)
-        ),
-        reading,
-        { merge: true }
-      )
-    ),
-    updateDoc(doc(db, "patients", patientDocId), {
-      deviceData: toSeededDeviceDataMap(readings),
-      latestWearableSyncAt: serverTimestamp(),
-      sensorSeedVersion: SENSOR_SEED_VERSION,
-    }),
-  ]);
-
-  return true;
+  return ensureRafayPatientLogSeed(patientDocId, patientData);
 };
 
 const Dashboard = ({ user, onLogout }) => {
@@ -483,7 +513,7 @@ const Dashboard = ({ user, onLogout }) => {
           try {
             await ensureRafaySensorSeed(patientDoc.id, data);
           } catch (err) {
-            console.warn("Could not seed Rafay sensor data:", err);
+            console.warn("Could not seed Rafay patient_logs data:", err);
           }
 
           let sensorRecords = [];
@@ -499,28 +529,34 @@ const Dashboard = ({ user, onLogout }) => {
               };
             }
 
-            const dailySnapshots = await Promise.all(
-              getSensorDateKeys().map((dateKey) =>
-                getDocs(
-                  collection(
-                    db,
-                    "patients",
-                    patientDoc.id,
-                    "sensorData",
-                    dateKey,
-                    "readings"
+            const patientLogRecords = await loadRafayPatientLogs(patientDoc.id, data);
+            if (patientLogRecords.length > 0) {
+              sensorRecords = patientLogRecords;
+              currentSensorReading = patientLogRecords[0];
+            } else {
+              const dailySnapshots = await Promise.all(
+                getSensorDateKeys().map((dateKey) =>
+                  getDocs(
+                    collection(
+                      db,
+                      "patients",
+                      patientDoc.id,
+                      "sensorData",
+                      dateKey,
+                      "readings"
+                    )
+                  ).then((snap) =>
+                    snap.docs.map((readingDoc) => ({
+                      id: readingDoc.id,
+                      dateKey,
+                      timestampMs: Number(readingDoc.id),
+                      ...readingDoc.data(),
+                    }))
                   )
-                ).then((snap) =>
-                  snap.docs.map((readingDoc) => ({
-                    id: readingDoc.id,
-                    dateKey,
-                    timestampMs: Number(readingDoc.id),
-                    ...readingDoc.data(),
-                  }))
                 )
-              )
-            );
-            sensorRecords = dailySnapshots.flat();
+              );
+              sensorRecords = dailySnapshots.flat();
+            }
           } catch (err) {
             console.warn("Could not load timestamped sensor data:", err);
           }
@@ -1591,7 +1627,7 @@ const handleViewPatient = async (patientId) => {
           }
         }
       } catch (err) {
-        console.warn("Could not ensure Rafay seeded sensor data:", err);
+        console.warn("Could not ensure Rafay patient_logs seed data:", err);
       }
 
       // Fetch AI analysis history for this patient (newest first)
@@ -1612,11 +1648,16 @@ const handleViewPatient = async (patientId) => {
       const latestAnalysis = history[0] || null;
       let latestSensor = getLatestSensorRecord(patientData.deviceData);
       try {
-        const currentSnap = await getDoc(
-          doc(db, "patients", patientDocId, "current", "latest")
-        );
-        if (currentSnap.exists()) {
+        const patientLogRecords = await loadRafayPatientLogs(patientDocId, patientData);
+        if (patientLogRecords.length > 0) {
+          latestSensor = patientLogRecords[0];
+        } else {
+          const currentSnap = await getDoc(
+            doc(db, "patients", patientDocId, "current", "latest")
+          );
+          if (currentSnap.exists()) {
           latestSensor = { id: currentSnap.id, ...currentSnap.data() };
+          }
         }
       } catch (err) {
         console.warn("Could not load latest sensor reading:", err);

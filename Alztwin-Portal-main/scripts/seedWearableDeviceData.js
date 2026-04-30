@@ -9,12 +9,12 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  updateDoc,
   where,
 } from "firebase/firestore";
 import {
   RAFAY_PATIENT_NAME,
   RAFAY_SENSOR_MOCK_READINGS,
+  SENSOR_SEED_VERSION,
 } from "../data/wearableDeviceDataMock.js";
 
 const firebaseConfig = {
@@ -29,23 +29,37 @@ const firebaseConfig = {
   measurementId: "G-0NS60D141H",
 };
 
-const toDeviceDataMap = (readings) =>
-  readings.reduce((acc, reading) => {
-    acc[String(reading.timestampMs)] = {
-      bpm: reading.bpm,
-      fall: reading.fall,
-      latitude: reading.latitude,
-      longitude: reading.longitude,
-      outOfZone: reading.outOfZone,
-      outOfBound: reading.outOfBound,
-      pitch: reading.pitch,
-      roll: reading.roll,
-      sleeping: reading.sleeping,
-      timestampMs: reading.timestampMs,
-      dateKey: reading.dateKey,
-    };
-    return acc;
-  }, {});
+const formatPatientLogTimestamp = (timestampMs) => {
+  const date = new Date(timestampMs);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
+const formatPatientLogDocId = (timestampMs) =>
+  formatPatientLogTimestamp(timestampMs).replace(" ", "_").replaceAll(":", "-");
+
+const toPatientLogRecord = (reading, rafay) => ({
+  bpm: reading.bpm,
+  fall: reading.fall,
+  latitude: reading.latitude,
+  longitude: reading.longitude,
+  outOfZone: reading.outOfZone,
+  outOfBound: reading.outOfBound,
+  pitch: reading.pitch,
+  roll: reading.roll,
+  sleeping: reading.sleeping,
+  timestamp: formatPatientLogTimestamp(reading.timestampMs),
+  timestampMs: reading.timestampMs,
+  dateKey: reading.dateKey,
+  patientDocId: rafay.id,
+  patientId: rafay.patientId || rafay.id,
+  patientName: rafay.name || RAFAY_PATIENT_NAME,
+  isMockData: true,
+  seedVersion: SENSOR_SEED_VERSION,
+  updatedAt: serverTimestamp(),
+});
 
 const findRafayPatient = async (db, requestedPatientId) => {
   if (requestedPatientId) {
@@ -105,49 +119,20 @@ const main = async () => {
   await signInWithEmailAndPassword(auth, email, password);
   const rafay = await findRafayPatient(db, requestedPatientId);
 
-  const readings = RAFAY_SENSOR_MOCK_READINGS.map((reading) => ({
-    ...reading,
-    patientId: rafay.id,
-    patientName: rafay.name || RAFAY_PATIENT_NAME,
-    isMockData: true,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  }));
-  const latest = readings.reduce((max, reading) =>
-    reading.timestampMs > max.timestampMs ? reading : max
-  );
-
-  await Promise.all([
-    setDoc(doc(db, "patients", rafay.id, "current", "latest"), latest, {
-      merge: true,
-    }),
-    ...readings.map((reading) =>
+  await Promise.all(
+    RAFAY_SENSOR_MOCK_READINGS.map((reading) =>
       setDoc(
-        doc(
-          db,
-          "patients",
-          rafay.id,
-          "sensorData",
-          reading.dateKey,
-          "readings",
-          String(reading.timestampMs)
-        ),
-        reading,
+        doc(db, "patient_logs", formatPatientLogDocId(reading.timestampMs)),
+        toPatientLogRecord(reading, rafay),
         { merge: true }
       )
-    ),
-  ]);
-
-  await updateDoc(doc(db, "patients", rafay.id), {
-    deviceData: toDeviceDataMap(readings),
-    latestWearableSyncAt: serverTimestamp(),
-  });
+    )
+  );
 
   console.log(
-    `Seeded ${readings.length} timestamped sensor readings for ${rafay.name || RAFAY_PATIENT_NAME} (${rafay.id}).`
+    `Seeded ${RAFAY_SENSOR_MOCK_READINGS.length} patient_logs readings for ${rafay.name || RAFAY_PATIENT_NAME} (${rafay.id}).`
   );
-  console.log(`Latest reading: patients/${rafay.id}/current/latest`);
-  console.log(`History path: patients/${rafay.id}/sensorData/{date}/readings/{timestampMs}`);
+  console.log(`Root stream path: patient_logs/{yyyy-MM-dd_HH-mm-ss}`);
 };
 
 main().catch((error) => {

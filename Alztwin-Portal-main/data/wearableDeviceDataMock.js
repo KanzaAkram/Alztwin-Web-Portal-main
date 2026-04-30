@@ -1,7 +1,7 @@
 export const RAFAY_PATIENT_NAME = "Rafay";
 export const RAFAY_PATIENT_ID = "patient_1776607538754";
 export const SENSOR_HISTORY_DAYS = 14;
-export const SENSOR_SEED_VERSION = "rafay-sensor-seed-v4";
+export const SENSOR_SEED_VERSION = "rafay-sensor-seed-v5";
 
 export const SENSOR_DISPLAY_FIELDS = [
   "bpm",
@@ -14,7 +14,7 @@ export const SENSOR_DISPLAY_FIELDS = [
   "sleeping",
 ];
 
-const BASE_DATE = new Date("2026-04-25T00:00:00+05:00");
+const BASE_DATE = new Date("2026-04-30T00:00:00+05:00");
 const READING_TIMES = [
   { hour: 0, minute: 15 },
   { hour: 3, minute: 30 },

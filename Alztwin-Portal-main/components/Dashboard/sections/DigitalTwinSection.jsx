@@ -1868,7 +1868,7 @@ export default function DigitalTwinSection({
                                 Motion and BPM Trend
                               </p>
                               <p className="text-slate-500 text-xs">
-                                Timestamp-based readings from Rafay's seeded wearable data
+                                Timestamp-based readings from Rafay's patient_logs collection
                               </p>
                             </div>
                             <BarChart3 size={18} className="text-cyan-400" />
