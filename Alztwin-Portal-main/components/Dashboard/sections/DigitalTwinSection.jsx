@@ -97,6 +97,7 @@ const toFiniteNumber = (value) => {
 const MS_PER_HOUR = 60 * 60 * 1000;
 const MAX_SLEEP_READING_HOURS = 4;
 const IDEAL_SLEEP_HOURS = 7.5;
+const MAX_DAILY_SAFETY_EVENTS = 3;
 
 const getLocalDayEndMs = (dateKey, timestampMs) => {
   if (dateKey) {
@@ -480,6 +481,9 @@ export default function DigitalTwinSection({
       item.sleepHours = Math.round(sleepHours * 10) / 10;
       item.sleepScore = getSleepScore(item.sleepHours);
       item.sleepLabel = getSleepLabel(item.sleepScore);
+      item.outOfBound = Math.min(item.outOfBound, MAX_DAILY_SAFETY_EVENTS);
+      item.fall = Math.min(item.fall, MAX_DAILY_SAFETY_EVENTS);
+      item.outOfZone = Math.min(item.outOfZone, MAX_DAILY_SAFETY_EVENTS);
     });
     return Array.from(daily.values());
   }, [sensorTrendData]);
@@ -501,22 +505,27 @@ export default function DigitalTwinSection({
   }, [dailySensorData]);
   const sensorTotals = useMemo(
     () => {
-      const totals = sensorTrendData.reduce(
+      const eventTotals = dailySensorData.reduce(
         (acc, record) => ({
-          readings: acc.readings + 1,
           falls: acc.falls + record.fall,
           outOfBound: acc.outOfBound + record.outOfBound,
           outOfZone: acc.outOfZone + record.outOfZone,
-          sleeping: acc.sleeping + record.sleeping,
         }),
-        { readings: 0, falls: 0, outOfBound: 0, outOfZone: 0, sleeping: 0 }
+        { falls: 0, outOfBound: 0, outOfZone: 0 }
+      );
+      const readings = sensorTrendData.length;
+      const sleeping = sensorTrendData.reduce(
+        (sum, record) => sum + record.sleeping,
+        0
       );
       const sleepHours = dailySensorData.reduce(
         (sum, record) => sum + Number(record.sleepHours || 0),
         0
       );
       return {
-        ...totals,
+        readings,
+        sleeping,
+        ...eventTotals,
         sleepHours: Math.round(sleepHours * 10) / 10,
       };
     },
@@ -571,9 +580,9 @@ export default function DigitalTwinSection({
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
         {[
           { label: "Avg BPM", value: sensorAverages.bpm.toFixed(1), helper: "Heart rate", color: "text-red-400" },
-          { label: "Falls", value: sensorTotals.falls, helper: "fall=true", color: "text-red-400" },
-          { label: "Out of Bound", value: sensorTotals.outOfBound, helper: "outOfBound=1", color: "text-amber-400" },
-          { label: "Out of Zone", value: sensorTotals.outOfZone, helper: "outOfZone=true", color: "text-green-400" },
+          { label: "Falls", value: sensorTotals.falls, helper: "daily capped", color: "text-red-400" },
+          { label: "Out of Bound", value: sensorTotals.outOfBound, helper: "daily capped", color: "text-amber-400" },
+          { label: "Out of Zone", value: sensorTotals.outOfZone, helper: "daily capped", color: "text-green-400" },
           { label: "Sleep Score", value: sleepSummary.averageScore, helper: `${sleepSummary.averageHours.toFixed(1)}h avg`, color: "text-indigo-400" },
         ].map((item) => (
           <div key={item.label} className={`${sensorCardClass} rounded-lg p-3`}>
@@ -619,7 +628,7 @@ export default function DigitalTwinSection({
                 Safety Events
               </p>
               <p className={`text-xs ${isLight ? "text-slate-500" : "text-slate-500"}`}>
-                Daily counts for falls, out-of-bound, and out-of-zone events
+                Daily event counts capped to avoid repeated pings inflating incidents
               </p>
             </div>
             <AlertTriangle className="text-amber-400" size={18} />
@@ -1759,7 +1768,7 @@ export default function DigitalTwinSection({
                                   Falls and Out-of-Bound Events
                                 </p>
                                 <p className="text-slate-500 text-xs">
-                                  How many times Rafay fell or went out of bounds each day
+                                  Daily counts capped so repeated pings do not inflate incidents
                                 </p>
                               </div>
                               <AlertTriangle className="text-amber-400" size={18} />
