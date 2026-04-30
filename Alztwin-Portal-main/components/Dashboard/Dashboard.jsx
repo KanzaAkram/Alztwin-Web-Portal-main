@@ -208,10 +208,7 @@ const normalizeSensorReading = (record = {}) => {
       wearableTimeToMs(record.timestamp) ||
       wearableTimeToMs(record.createdAt)
   );
-  const outOfBound =
-    record.outOfBound === 1 || record.outOfZone === true || record.fall === true
-      ? 1
-      : 0;
+  const outOfBound = record.outOfBound === 1 || record.outOfBound === true ? 1 : 0;
   return SENSOR_DISPLAY_FIELDS.reduce(
     (acc, field) => {
       acc[field] = record[field] ?? (field === "bpm" ? 0 : false);
