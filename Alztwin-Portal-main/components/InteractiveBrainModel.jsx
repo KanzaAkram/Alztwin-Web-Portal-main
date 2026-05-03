@@ -468,13 +468,13 @@ export const InteractiveBrainModel = () => {
   return (
     <section className={`relative py-24 border-t overflow-hidden ${
       isLight
-        ? "bg-[linear-gradient(180deg,#ffffff_0%,#f3faf7_50%,#ffffff_100%)] border-slate-200"
+        ? "bg-[radial-gradient(circle_at_18%_0%,rgba(15,118,110,0.16),transparent_32%),radial-gradient(circle_at_82%_18%,rgba(14,116,144,0.14),transparent_34%),linear-gradient(180deg,#dcefed_0%,#e4f2f5_52%,#dfeafb_100%)] border-teal-900/10"
         : "bg-slate-950 border-slate-900"
     }`}>
       {/* Decorative Grid & Glows - Made subtle */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(30,41,59,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(30,41,59,0.2)_1px,transparent_1px)] bg-[size:40px_40px] opacity-5"></div>
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-blue-900/5 rounded-full blur-[120px]"></div>
+        <div className={`absolute inset-0 bg-[linear-gradient(rgba(30,41,59,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(30,41,59,0.2)_1px,transparent_1px)] bg-[size:40px_40px] ${isLight ? "opacity-10" : "opacity-5"}`}></div>
+        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full blur-[120px] ${isLight ? "bg-cyan-600/10" : "bg-blue-900/5"}`}></div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -488,13 +488,13 @@ export const InteractiveBrainModel = () => {
               Interactive Demo
             </span>
           </div>
-          <h2 className={`text-3xl md:text-5xl font-bold mb-4 ${isLight ? "text-slate-950" : "text-white"}`}>
+          <h2 className={`text-3xl md:text-5xl font-bold mb-4 ${isLight ? "text-[#102a37]" : "text-white"}`}>
             Volumetric{" "}
-            <span className={isLight ? "home-highlight-block" : "text-white"}>
+            <span className={isLight ? "bg-[linear-gradient(90deg,#064e3b,#0f766e,#155e75)] bg-clip-text text-transparent" : "text-white"}>
               Digital Twin
             </span>
           </h2>
-          <p className={`${isLight ? "text-slate-600" : "text-slate-400"} max-w-2xl mx-auto`}>
+          <p className={`${isLight ? "text-[#294654]" : "text-slate-400"} max-w-2xl mx-auto leading-relaxed`}>
             Explore the generated <span className={isLight ? "home-inline-highlight" : "text-slate-300"}>3D neural map</span>. Hover over regions to inspect
             localized biomarker data derived from <span className={isLight ? "home-inline-highlight" : "text-slate-300"}>MRI analysis</span>.
           </p>
@@ -503,12 +503,12 @@ export const InteractiveBrainModel = () => {
         {/* Main Interactive Container */}
         <div className={`relative rounded-3xl border backdrop-blur-sm overflow-hidden shadow-2xl ${
           isLight
-            ? "bg-white border-slate-200 shadow-[0_30px_90px_rgba(15,23,42,0.10)]"
+            ? "bg-[#d8eee9]/92 border-teal-900/15 shadow-[0_34px_95px_rgba(15,23,42,0.16)]"
             : "bg-slate-900/50 border-slate-800"
         }`}>
           {/* Header Bar */}
           <div className={`h-12 border-b flex items-center justify-between px-6 ${
-            isLight ? "bg-slate-50 border-slate-200" : "bg-slate-900/80 border-slate-800"
+            isLight ? "bg-[#cfe7e2] border-teal-900/10" : "bg-slate-900/80 border-slate-800"
           }`}>
             <div className="flex items-center space-x-4">
               <div className="flex space-x-1.5">
@@ -516,11 +516,11 @@ export const InteractiveBrainModel = () => {
                 <div className="w-2 h-2 rounded-full bg-yellow-500/50"></div>
                 <div className="w-2 h-2 rounded-full bg-green-500/50"></div>
               </div>
-              <span className={`text-xs font-mono ${isLight ? "text-slate-500" : "text-slate-500"}`}>
+              <span className={`text-xs font-mono ${isLight ? "text-[#315666]" : "text-slate-500"}`}>
                 ID: PAT-8832-X • LIVE SESSION
               </span>
             </div>
-            <div className={`flex items-center space-x-4 ${isLight ? "text-slate-500" : "text-slate-500"}`}>
+            <div className={`flex items-center space-x-4 ${isLight ? "text-[#315666]" : "text-slate-500"}`}>
               <Share2
                 size={16}
                 className={`${isLight ? "hover:text-slate-950" : "hover:text-white"} cursor-pointer transition-colors`}
@@ -536,7 +536,7 @@ export const InteractiveBrainModel = () => {
           <div
             ref={containerRef}
             className={`relative h-[600px] w-full cursor-crosshair active:cursor-grabbing ${
-              isLight ? "bg-[radial-gradient(circle_at_center,rgba(14,165,233,0.08),transparent_58%)]" : ""
+              isLight ? "bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.16),transparent_56%),linear-gradient(180deg,#102a37_0%,#0f2430_100%)]" : ""
             }`}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
@@ -647,10 +647,10 @@ export const InteractiveBrainModel = () => {
             </div>
 
             <div className="absolute bottom-6 right-6 pointer-events-none text-right">
-              <div className="text-[10px] text-slate-600 font-mono mb-1">
+              <div className={`text-[10px] font-mono mb-1 ${isLight ? "text-cyan-200/80" : "text-slate-600"}`}>
                 COORDINATES
               </div>
-              <div className="text-xs font-mono text-slate-400">
+              <div className={`text-xs font-mono ${isLight ? "text-cyan-100" : "text-slate-400"}`}>
                 X: {rotationRef.current.x.toFixed(2)} Y:{" "}
                 {rotationRef.current.y.toFixed(2)}
               </div>
@@ -659,25 +659,25 @@ export const InteractiveBrainModel = () => {
 
           {/* Footer Controls Bar */}
           <div className={`h-16 border-t flex flex-col md:flex-row items-center justify-between px-6 gap-4 py-2 ${
-            isLight ? "bg-slate-50 border-slate-200" : "bg-slate-900/80 border-slate-800"
+            isLight ? "bg-[#cfe7e2] border-teal-900/10" : "bg-slate-900/80 border-slate-800"
           }`}>
             {/* Legend (Left) */}
             <div className="hidden md:flex items-center space-x-6">
               <div className="flex items-center space-x-2">
                 <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></span>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? "text-[#315666]" : "text-slate-400"}`}>
                   Gray Matter
                 </span>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="w-2 h-2 rounded-full bg-blue-300 opacity-50"></span>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? "text-[#315666]" : "text-slate-400"}`}>
                   White Matter
                 </span>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="w-2 h-2 rounded-full border border-blue-400"></span>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? "text-[#315666]" : "text-slate-400"}`}>
                   Roi Marker
                 </span>
               </div>
@@ -686,32 +686,32 @@ export const InteractiveBrainModel = () => {
             {/* Interactive Controls (Right) */}
             <div className="flex items-center space-x-4 w-full md:w-auto justify-center">
               {/* Manual Rotate Group */}
-              <div className="flex items-center bg-slate-950/50 rounded-lg p-1 border border-slate-800">
+              <div className={`flex items-center rounded-lg p-1 border ${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-950/50 border-slate-800"}`}>
                 <button
                   onClick={() => handleManualRotate("x", -0.5)}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                  className={`p-1.5 rounded transition-colors ${isLight ? "text-[#315666] hover:text-teal-950 hover:bg-[#d8eee9]" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
                   title="Tilt Up"
                 >
                   <ChevronUp size={16} />
                 </button>
                 <button
                   onClick={() => handleManualRotate("x", 0.5)}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                  className={`p-1.5 rounded transition-colors ${isLight ? "text-[#315666] hover:text-teal-950 hover:bg-[#d8eee9]" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
                   title="Tilt Down"
                 >
                   <ChevronDown size={16} />
                 </button>
-                <div className="w-px h-4 bg-slate-800 mx-1"></div>
+                <div className={`w-px h-4 mx-1 ${isLight ? "bg-teal-900/15" : "bg-slate-800"}`}></div>
                 <button
                   onClick={() => handleManualRotate("y", -0.5)}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                  className={`p-1.5 rounded transition-colors ${isLight ? "text-[#315666] hover:text-teal-950 hover:bg-[#d8eee9]" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
                   title="Rotate Left"
                 >
                   <ChevronLeft size={16} />
                 </button>
                 <button
                   onClick={() => handleManualRotate("y", 0.5)}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                  className={`p-1.5 rounded transition-colors ${isLight ? "text-[#315666] hover:text-teal-950 hover:bg-[#d8eee9]" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
                   title="Rotate Right"
                 >
                   <ChevronRight size={16} />
@@ -719,9 +719,9 @@ export const InteractiveBrainModel = () => {
               </div>
 
               {/* Speed Control */}
-              <div className="hidden sm:flex items-center space-x-2 bg-slate-950/50 rounded-lg px-3 py-1.5 border border-slate-800">
-                <Settings2 size={12} className="text-slate-500" />
-                <span className="text-[10px] font-bold text-slate-500 uppercase">
+              <div className={`hidden sm:flex items-center space-x-2 rounded-lg px-3 py-1.5 border ${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-950/50 border-slate-800"}`}>
+                <Settings2 size={12} className={isLight ? "text-[#315666]" : "text-slate-500"} />
+                <span className={`text-[10px] font-bold uppercase ${isLight ? "text-[#315666]" : "text-slate-500"}`}>
                   Speed
                 </span>
                 <input
@@ -742,6 +742,8 @@ export const InteractiveBrainModel = () => {
                   className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-all ${
                     isAutoRotating
                       ? "bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20"
+                      : isLight
+                      ? "bg-[#eaf7f4] border-teal-900/10 text-[#315666] hover:bg-[#d8eee9] hover:text-teal-950"
                       : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white"
                   }`}
                   title={isAutoRotating ? "Pause Rotation" : "Auto Rotate"}
@@ -755,7 +757,11 @@ export const InteractiveBrainModel = () => {
 
                 <button
                   onClick={handleReset}
-                  className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 transition-all"
+                  className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-all ${
+                    isLight
+                      ? "bg-[#eaf7f4] border-teal-900/10 text-[#315666] hover:bg-[#d8eee9] hover:text-teal-950"
+                      : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700"
+                  }`}
                   title="Reset View"
                 >
                   <RotateCcw size={16} />

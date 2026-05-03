@@ -295,7 +295,7 @@ export default function RagRecommendationPanel({ patient }) {
   const rec = result?.recommendation;
   const sources = result?.sources || [];
   const panelClass = isLight
-    ? "rag-light bg-white border border-cyan-200 shadow-[0_22px_60px_rgba(15,23,42,0.09)]"
+    ? "rag-light bg-[#eaf7f4] border border-cyan-200 shadow-[0_22px_60px_rgba(15,23,42,0.09)]"
     : "bg-gradient-to-br from-slate-900 via-cyan-900/10 to-slate-900 border border-cyan-500/30 shadow-xl shadow-cyan-500/5";
   const titleClass = isLight ? "text-slate-950" : "text-white";
   const mutedClass = isLight ? "text-slate-600" : "text-slate-400";

@@ -1,5 +1,5 @@
 import React from "react";
-import { Eye, Brain, Clock } from "lucide-react";
+import { Eye, Brain, Clock, Users, AlertTriangle, ScanLine, Gauge } from "lucide-react";
 import { useTheme } from "../../ThemeContext";
 import { getRiskColor } from "../config";
 
@@ -13,66 +13,102 @@ export default function PatientsSection({
   const { isLight } = useTheme();
 
   const statCard = isLight
-    ? "bg-white/88 border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.05)]"
+    ? "bg-[#d8eee9]/92 border border-teal-900/10 shadow-[0_16px_38px_rgba(15,23,42,0.08)]"
     : "bg-slate-900/50 border border-slate-800";
   const panel = isLight
-    ? "bg-white/90 border border-slate-200 shadow-[0_18px_40px_rgba(15,23,42,0.06)]"
+    ? "bg-[#d8eee9]/92 border border-teal-900/10 shadow-[0_24px_58px_rgba(15,23,42,0.10)]"
     : "bg-slate-900/50 border border-slate-800";
-  const heading = isLight ? "text-slate-950" : "text-white";
-  const muted = isLight ? "text-slate-600" : "text-slate-400";
-  const subtle = isLight ? "text-slate-500" : "text-slate-500";
+  const heading = isLight ? "text-[#102a37]" : "text-white";
+  const muted = isLight ? "text-[#365565]" : "text-slate-400";
+  const subtle = isLight ? "text-[#517080]" : "text-slate-500";
   const tableHead = isLight
-    ? "bg-slate-100/90 text-slate-700"
+    ? "bg-[#cfe7e2] text-[#315666] border-y border-teal-900/10"
     : "bg-slate-800/50 text-slate-400";
-  const rowHover = isLight ? "hover:bg-emerald-50/70" : "hover:bg-slate-800/30";
+  const rowBase = isLight ? "bg-[#eaf7f4]/42" : "";
+  const rowHover = isLight ? "hover:bg-[#cfe7e2]/70" : "hover:bg-slate-800/30";
   const avatar = isLight
-    ? "bg-[linear-gradient(135deg,#0f766e,#155e75)] text-white"
+    ? "bg-[linear-gradient(135deg,#0f766e,#155e75)] text-white shadow-[0_10px_22px_rgba(15,118,110,0.22)]"
     : "bg-slate-700 text-white";
   const filterIdle = isLight
-    ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
+    ? "bg-[#eaf7f4] text-[#315666] hover:bg-[#cfe7e2] border border-teal-900/10"
     : "bg-slate-800 text-slate-400";
   const filterActive = isLight
-    ? "bg-[linear-gradient(135deg,#0f766e,#115e59)] text-white"
+    ? "bg-[linear-gradient(135deg,#0f766e,#115e59)] text-white shadow-[0_10px_24px_rgba(15,118,110,0.18)] border border-transparent"
     : "bg-blue-600 text-white";
-  const stageTrack = isLight ? "bg-slate-200" : "bg-slate-700";
+  const stageTrack = isLight ? "bg-teal-900/12" : "bg-slate-700";
   const actionBtn = isLight
-    ? "p-2 text-slate-500 hover:text-slate-950 hover:bg-slate-100 rounded-lg"
+    ? "p-2 text-[#315666] hover:text-teal-950 hover:bg-[#cfe7e2] rounded-lg border border-transparent hover:border-teal-900/10"
     : "p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg";
+  const statItems = [
+    {
+      label: "Total Patients",
+      value: stats.totalPatients,
+      icon: Users,
+      valueClass: heading,
+      iconClass: isLight ? "text-teal-800 bg-teal-700/10" : "text-blue-400 bg-blue-500/10",
+    },
+    {
+      label: "High Risk",
+      value: stats.highRisk,
+      icon: AlertTriangle,
+      valueClass: "text-red-600",
+      iconClass: "text-red-600 bg-red-500/10",
+    },
+    {
+      label: "Active Scans",
+      value: stats.scansThisWeek,
+      icon: ScanLine,
+      valueClass: "text-emerald-700",
+      iconClass: "text-emerald-700 bg-emerald-500/10",
+    },
+    {
+      label: "Avg Risk Score",
+      value: `${stats.avgRiskScore}%`,
+      icon: Gauge,
+      valueClass: "text-amber-600",
+      iconClass: "text-amber-600 bg-amber-500/10",
+    },
+  ];
 
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className={`${statCard} rounded-xl p-5`}>
-          <p className={`${subtle} text-xs uppercase`}>Total Patients</p>
-          <p className={`text-2xl font-bold ${heading}`}>{stats.totalPatients}</p>
-        </div>
-        <div className={`${statCard} rounded-xl p-5`}>
-          <p className={`${subtle} text-xs uppercase`}>High Risk</p>
-          <p className="text-2xl font-bold text-red-500">{stats.highRisk}</p>
-        </div>
-        <div className={`${statCard} rounded-xl p-5`}>
-          <p className={`${subtle} text-xs uppercase`}>Active Scans</p>
-          <p className="text-2xl font-bold text-emerald-600">{stats.scansThisWeek}</p>
-        </div>
-        <div className={`${statCard} rounded-xl p-5`}>
-          <p className={`${subtle} text-xs uppercase`}>Avg Risk Score</p>
-          <p className="text-2xl font-bold text-amber-500">{stats.avgRiskScore}%</p>
-        </div>
+        {statItems.map(({ label, value, icon: Icon, valueClass, iconClass }) => (
+          <div key={label} className={`${statCard} rounded-xl p-5 relative overflow-hidden`}>
+            {isLight && (
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-teal-700/25 to-transparent" />
+            )}
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className={`${subtle} text-[11px] font-semibold uppercase tracking-[0.12em]`}>{label}</p>
+                <p className={`text-2xl font-bold mt-2 ${valueClass}`}>{value}</p>
+              </div>
+              <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${iconClass}`}>
+                <Icon size={18} />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className={`${panel} rounded-xl overflow-hidden`}>
         <div
-          className={`p-5 border-b flex justify-between items-center ${
-            isLight ? "border-slate-200" : "border-slate-800"
+          className={`p-5 border-b flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center ${
+            isLight ? "border-teal-900/10 bg-[#cfe7e2]/45" : "border-slate-800"
           }`}
         >
-          <h2 className={`text-lg font-semibold ${heading}`}>Patient Registry</h2>
+          <div>
+            <h2 className={`text-lg font-semibold ${heading}`}>Patient Registry</h2>
+            <p className={`text-sm mt-1 ${muted}`}>
+              Review diagnosis status, model confidence, and risk signals.
+            </p>
+          </div>
           <div className="flex space-x-2">
             {["all", "high", "medium", "low"].map((f) => (
               <button
                 key={f}
                 onClick={() => setSelectedFilter(f)}
-                className={`px-3 py-1 rounded text-xs uppercase transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase transition-all ${
                   selectedFilter === f ? filterActive : filterIdle
                 }`}
               >
@@ -95,10 +131,10 @@ export default function PatientsSection({
                 <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className={isLight ? "divide-y divide-slate-200" : "divide-y divide-slate-800"}>
+            <tbody className={isLight ? "divide-y divide-teal-900/10" : "divide-y divide-slate-800"}>
               {filteredPatients.length > 0 ? (
                 filteredPatients.map((patient) => (
-                  <tr key={patient.id} className={rowHover}>
+                  <tr key={patient.id} className={`${rowBase} ${rowHover} transition-colors`}>
                     <td className="px-5 py-4">
                       <div className="flex items-center space-x-3">
                         <div
@@ -107,7 +143,7 @@ export default function PatientsSection({
                           {patient.avatar}
                         </div>
                         <div>
-                          <p className={`${heading} font-medium`}>{patient.name}</p>
+                          <p className={`${heading} font-semibold`}>{patient.name}</p>
                           <p className={`${muted} text-xs`}>{patient.id}</p>
                         </div>
                       </div>
@@ -115,11 +151,11 @@ export default function PatientsSection({
                     <td className="px-5 py-4 text-sm">
                       {patient.lastAnalysisAt ? (
                         <div className="flex items-center space-x-2">
-                          <Brain size={14} className="text-cyan-600" />
+                          <Brain size={14} className={isLight ? "text-teal-800" : "text-cyan-600"} />
                           <span className={`${heading} font-medium`}>{patient.diagnosis}</span>
                         </div>
                       ) : (
-                        <span className="text-amber-600 italic text-xs">
+                        <span className="inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-amber-700 italic text-xs">
                           Pending AI Analysis
                         </span>
                       )}
@@ -141,7 +177,7 @@ export default function PatientsSection({
                                       ? "bg-yellow-400"
                                       : "bg-green-500"
                                     : ""
-                                } ${isLight ? "border-r border-white/70 last:border-0" : "border-r border-slate-900 last:border-0"}`}
+                                } ${isLight ? "border-r border-[#d8eee9] last:border-0" : "border-r border-slate-900 last:border-0"}`}
                               />
                             ))}
                           </div>
@@ -153,7 +189,7 @@ export default function PatientsSection({
                     </td>
                     <td className="px-5 py-4">
                       <span
-                        className={`px-2 py-1 rounded text-xs border ${getRiskColor(
+                        className={`px-2 py-1 rounded-md text-xs font-semibold border ${getRiskColor(
                           patient.riskLevel
                         )}`}
                       >
@@ -183,7 +219,16 @@ export default function PatientsSection({
                       )}
                     </td>
                     <td className="px-5 py-4 text-right">
-                      <button onClick={() => onViewPatient(patient.id)} className={actionBtn}>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onViewPatient(patient);
+                        }}
+                        className={actionBtn}
+                        title={`View ${patient.name}`}
+                        aria-label={`View ${patient.name}`}
+                      >
                         <Eye size={18} />
                       </button>
                     </td>
@@ -191,8 +236,12 @@ export default function PatientsSection({
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className={`p-8 text-center ${muted}`}>
-                    No patients found.
+                  <td colSpan="7" className={`p-10 text-center ${muted}`}>
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#cfe7e2] text-teal-800">
+                      <Users size={22} />
+                    </div>
+                    <p className={`font-semibold ${heading}`}>No patients found</p>
+                    <p className={`mt-1 text-sm ${muted}`}>Try a different risk filter or search query.</p>
                   </td>
                 </tr>
               )}

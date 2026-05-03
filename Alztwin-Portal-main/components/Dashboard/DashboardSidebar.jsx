@@ -15,7 +15,7 @@ export default function DashboardSidebar({ user, onLogout, activeSection, setAct
 
   return (
     <aside className={`w-64 fixed h-full z-20 border-r ${
-      isLight ? "bg-[linear-gradient(180deg,#fbfdfc_0%,#f1f6f3_100%)] border-slate-200 shadow-[8px_0_30px_rgba(15,23,42,0.05)]" : "bg-slate-900 border-slate-800"
+      isLight ? "bg-[linear-gradient(180deg,#e8f6f3_0%,#e1f2ee_100%)] border-slate-200 shadow-[8px_0_30px_rgba(15,23,42,0.05)]" : "bg-slate-900 border-slate-800"
     }`}>
       {/* Logo */}
       <div className={`p-4 border-b ${isLight ? "border-slate-200" : "border-slate-800"}`}>
@@ -40,7 +40,7 @@ export default function DashboardSidebar({ user, onLogout, activeSection, setAct
                   ? "bg-[linear-gradient(135deg,#0f766e,#115e59)] text-white shadow-[0_16px_28px_rgba(15,118,110,0.18)]"
                   : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
                 : isLight
-                  ? "text-slate-600 hover:bg-white/90 hover:text-slate-950 hover:shadow-sm"
+                  ? "text-slate-600 hover:bg-[#dff3ee]/90 hover:text-slate-950 hover:shadow-sm"
                   : "text-slate-400 hover:bg-slate-800 hover:text-white"
             }`}
           >
@@ -58,7 +58,7 @@ export default function DashboardSidebar({ user, onLogout, activeSection, setAct
       </nav>
 
       {/* User Footer */}
-      <div className={`absolute bottom-0 left-0 right-0 p-4 border-t ${isLight ? "border-slate-200 bg-white/40" : "border-slate-800"}`}>
+      <div className={`absolute bottom-0 left-0 right-0 p-4 border-t ${isLight ? "border-slate-200 bg-[#dff3ee]/55" : "border-slate-800"}`}>
         <div className="flex items-center space-x-3 mb-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium ${
             isLight ? "bg-[linear-gradient(135deg,#0f766e,#155e75)]" : "bg-gradient-to-br from-blue-500 to-purple-500"

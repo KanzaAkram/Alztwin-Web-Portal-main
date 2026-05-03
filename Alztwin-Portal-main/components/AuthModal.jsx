@@ -66,7 +66,7 @@ export const AuthModal = ({ isOpen, onClose, initialMode, onAuthSuccess }) => {
   }[code] || "An error occurred. Please try again.");
 
   const inputCls = isLight
-    ? "w-full bg-white border border-gray-300 text-gray-900 placeholder-gray-400 rounded-lg py-2.5 pl-10 pr-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all text-sm"
+    ? "w-full bg-[#f0faf7] border border-gray-300 text-gray-900 placeholder-gray-400 rounded-lg py-2.5 pl-10 pr-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all text-sm"
     : "w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg py-2.5 pl-10 pr-3 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm";
 
   const labelCls = `text-xs font-medium ${isLight ? "text-gray-700" : "text-slate-400"}`;
@@ -77,7 +77,7 @@ export const AuthModal = ({ isOpen, onClose, initialMode, onAuthSuccess }) => {
       <div className={`absolute inset-0 backdrop-blur-sm ${isLight ? "bg-gray-900/60" : "bg-midnight-900/90"}`} onClick={onClose}></div>
 
       <div className={`relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up border ${
-        isLight ? "bg-white border-gray-200" : "bg-slate-900 border-slate-700"
+        isLight ? "bg-[#eaf7f4] border-gray-200" : "bg-slate-900 border-slate-700"
       }`}>
         <div className={`h-1 w-full bg-gradient-to-r ${isLight ? "from-emerald-500 to-teal-500" : "from-brand-500 to-indigo-500"}`}></div>
 
@@ -100,7 +100,7 @@ export const AuthModal = ({ isOpen, onClose, initialMode, onAuthSuccess }) => {
 
             {/* Google */}
             <button type="button" onClick={handleGoogleSignIn} disabled={isGoogleLoading || isLoading}
-              className="w-full bg-white hover:bg-gray-50 text-gray-800 font-semibold py-3 rounded-lg transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-3 border border-gray-300 shadow-sm">
+              className="w-full bg-[#edf8f5] hover:bg-[#dff3ee] text-gray-800 font-semibold py-3 rounded-lg transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-3 border border-gray-300 shadow-sm">
               {isGoogleLoading ? <Loader2 className="animate-spin" size={20} /> : (
                 <>
                   <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -120,7 +120,7 @@ export const AuthModal = ({ isOpen, onClose, initialMode, onAuthSuccess }) => {
                 <div className={`w-full border-t ${isLight ? "border-gray-200" : "border-slate-700"}`}></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className={`px-4 ${isLight ? "bg-white text-gray-500" : "bg-slate-900 text-slate-400"}`}>or continue with email</span>
+                <span className={`px-4 ${isLight ? "bg-[#eaf7f4] text-gray-500" : "bg-slate-900 text-slate-400"}`}>or continue with email</span>
               </div>
             </div>
 

@@ -73,13 +73,13 @@ export const PatientDashboard = ({ user, onLogout }) => {
   ];
 
   const card = isLight
-    ? "bg-white border border-gray-200 rounded-xl p-5 hover:border-emerald-300 hover:shadow-md transition-all"
+    ? "bg-[#eaf7f4] border border-gray-200 rounded-xl p-5 hover:border-emerald-300 hover:shadow-md transition-all"
     : "bg-slate-800/50 border border-slate-700 rounded-xl p-5 hover:border-slate-600 transition-colors";
 
   return (
-    <div className={`min-h-screen ${isLight ? "bg-gray-50" : "bg-gradient-to-br from-slate-950 to-slate-900"}`}>
+    <div className={`min-h-screen ${isLight ? "bg-[linear-gradient(180deg,#e8f6f3_0%,#e5f4f7_52%,#e8f0fb_100%)]" : "bg-gradient-to-br from-slate-950 to-slate-900"}`}>
       {/* Navigation */}
-      <nav className={`border-b backdrop-blur-sm sticky top-0 z-50 ${isLight ? "bg-white border-gray-200 shadow-sm" : "bg-slate-900/80 border-slate-800"}`}>
+      <nav className={`border-b backdrop-blur-sm sticky top-0 z-50 ${isLight ? "bg-[#e8f6f3]/90 border-gray-200 shadow-sm" : "bg-slate-900/80 border-slate-800"}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
@@ -90,11 +90,11 @@ export const PatientDashboard = ({ user, onLogout }) => {
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <button className={`p-2 rounded-lg transition-colors relative ${isLight ? "text-gray-500 hover:text-gray-900 hover:bg-gray-100" : "text-slate-400 hover:text-white"}`}>
+              <button className={`p-2 rounded-lg transition-colors relative ${isLight ? "text-gray-500 hover:text-gray-900 hover:bg-[#dff3ee]" : "text-slate-400 hover:text-white"}`}>
                 <Bell size={20} />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
               </button>
-              <button className={`p-2 rounded-lg transition-colors ${isLight ? "text-gray-500 hover:text-gray-900 hover:bg-gray-100" : "text-slate-400 hover:text-white"}`}>
+              <button className={`p-2 rounded-lg transition-colors ${isLight ? "text-gray-500 hover:text-gray-900 hover:bg-[#dff3ee]" : "text-slate-400 hover:text-white"}`}>
                 <Settings size={20} />
               </button>
               <div className={`h-6 w-px ${isLight ? "bg-gray-200" : "bg-slate-700"}`}></div>
@@ -137,13 +137,13 @@ export const PatientDashboard = ({ user, onLogout }) => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Assessments */}
-          <div className={`lg:col-span-2 rounded-xl overflow-hidden border ${isLight ? "bg-white border-gray-200" : "bg-slate-800/50 border-slate-700"}`}>
+          <div className={`lg:col-span-2 rounded-xl overflow-hidden border ${isLight ? "bg-[#eaf7f4] border-gray-200" : "bg-slate-800/50 border-slate-700"}`}>
             <div className={`p-6 border-b ${isLight ? "border-gray-100" : "border-slate-700"}`}>
               <h2 className={`text-lg font-semibold ${isLight ? "text-gray-900" : "text-white"}`}>Recent Assessments</h2>
             </div>
             <div className={`divide-y ${isLight ? "divide-gray-100" : "divide-slate-700"}`}>
               {assessments.map((assessment, idx) => (
-                <div key={idx} className={`p-4 transition-colors flex items-center justify-between ${isLight ? "hover:bg-gray-50" : "hover:bg-slate-700/30"}`}>
+                <div key={idx} className={`p-4 transition-colors flex items-center justify-between ${isLight ? "hover:bg-[#dff3ee]" : "hover:bg-slate-700/30"}`}>
                   <div className="flex-1">
                     <p className={`font-medium ${isLight ? "text-gray-900" : "text-white"}`}>{assessment.type}</p>
                     <p className={`text-sm ${isLight ? "text-gray-500" : "text-slate-400"}`}>{assessment.date}</p>
@@ -161,13 +161,13 @@ export const PatientDashboard = ({ user, onLogout }) => {
           </div>
 
           {/* Medications */}
-          <div className={`rounded-xl overflow-hidden border ${isLight ? "bg-white border-gray-200" : "bg-slate-800/50 border-slate-700"}`}>
+          <div className={`rounded-xl overflow-hidden border ${isLight ? "bg-[#eaf7f4] border-gray-200" : "bg-slate-800/50 border-slate-700"}`}>
             <div className={`p-6 border-b ${isLight ? "border-gray-100" : "border-slate-700"}`}>
               <h2 className={`text-lg font-semibold ${isLight ? "text-gray-900" : "text-white"}`}>Current Medications</h2>
             </div>
             <div className={`divide-y ${isLight ? "divide-gray-100" : "divide-slate-700"}`}>
               {medications.map((med, idx) => (
-                <div key={idx} className={`p-4 transition-colors ${isLight ? "hover:bg-gray-50" : "hover:bg-slate-700/30"}`}>
+                <div key={idx} className={`p-4 transition-colors ${isLight ? "hover:bg-[#dff3ee]" : "hover:bg-slate-700/30"}`}>
                   <p className={`font-medium text-sm ${isLight ? "text-gray-900" : "text-white"}`}>{med.name}</p>
                   <p className={`text-xs mt-1 ${isLight ? "text-gray-600" : "text-slate-400"}`}>{med.dosage}</p>
                   <p className={`text-xs mt-1 ${isLight ? "text-gray-500" : "text-slate-500"}`}>{med.frequency}</p>

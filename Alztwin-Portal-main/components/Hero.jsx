@@ -66,7 +66,7 @@ export const Hero = ({ onSignup }) => {
     <section
       className={`relative min-h-[95vh] flex items-center pt-32 pb-20 overflow-hidden ${
         isLight
-          ? "bg-[linear-gradient(180deg,#f8fafc_0%,#f2f7f4_48%,#fbfcfb_100%)]"
+          ? "bg-[radial-gradient(circle_at_16%_18%,rgba(15,118,110,0.22),transparent_30%),radial-gradient(circle_at_82%_22%,rgba(14,116,144,0.18),transparent_32%),linear-gradient(135deg,#dcefed_0%,#e5f4f7_46%,#dfeafb_100%)]"
           : "bg-slate-950"
       }`}
     >
@@ -74,18 +74,18 @@ export const Hero = ({ onSignup }) => {
         <div
           className={`absolute inset-0 [mask-image:linear-gradient(to_bottom,transparent,black,transparent)] ${
             isLight
-              ? "bg-[linear-gradient(rgba(15,23,42,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.045)_1px,transparent_1px)] bg-[size:40px_40px] opacity-70"
+              ? "bg-[linear-gradient(rgba(15,23,42,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.07)_1px,transparent_1px)] bg-[size:44px_44px] opacity-55"
               : "bg-grid-slate-900 opacity-20"
           }`}
         ></div>
         <div
           className={`absolute top-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full blur-[120px] animate-pulse-slow ${
-            isLight ? "bg-emerald-300/30" : "bg-blue-600/20"
+            isLight ? "bg-emerald-400/24" : "bg-blue-600/20"
           }`}
         ></div>
         <div
           className={`absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full blur-[100px] animate-pulse-slow ${
-            isLight ? "bg-cyan-200/30" : "bg-indigo-600/20"
+            isLight ? "bg-cyan-400/18" : "bg-indigo-600/20"
           }`}
           style={{ animationDelay: "2s" }}
         ></div>
@@ -95,17 +95,23 @@ export const Hero = ({ onSignup }) => {
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           <div className="space-y-8 relative">
             <div
-              className="space-y-2 animate-fade-in-up"
+              className="space-y-4 animate-fade-in-up"
               style={{ animationDelay: "0.1s" }}
             >
+              {isLight && (
+                <div className="inline-flex items-center gap-2 rounded-full border border-teal-700/20 bg-[#d8eee9]/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-teal-900 shadow-[0_12px_30px_rgba(15,118,110,0.10)]">
+                  <span className="h-2 w-2 rounded-full bg-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.16)]" />
+                  Clinical Digital Twin Platform
+                </div>
+              )}
               <h1 className="text-5xl lg:text-7xl font-bold tracking-tight leading-[1.1]">
                 <span
-                  className={`block ${isLight ? "text-slate-950" : "text-white"}`}
+                  className={`block ${isLight ? "text-[#102a37]" : "text-white"}`}
                 >
                   Precision Care via
                 </span>
                 {isLight ? (
-                  <span className="home-highlight-block home-highlight-hero">
+                  <span className="mt-2 block bg-[linear-gradient(90deg,#064e3b_0%,#0f766e_42%,#155e75_100%)] bg-clip-text text-transparent drop-shadow-[0_1px_0_rgba(255,255,255,0.45)]">
                     Digital Twins
                   </span>
                 ) : (
@@ -118,7 +124,7 @@ export const Hero = ({ onSignup }) => {
 
             <p
               className={`text-lg max-w-xl leading-relaxed animate-fade-in-up ${
-                isLight ? "text-slate-700" : "text-slate-400"
+                isLight ? "text-[#294654]" : "text-slate-400"
               }`}
               style={{ animationDelay: "0.2s" }}
             >
@@ -165,7 +171,7 @@ export const Hero = ({ onSignup }) => {
               <button
                 className={`flex items-center justify-center space-x-2 rounded-lg border px-8 py-4 font-medium backdrop-blur-sm transition-all ${
                   isLight
-                    ? "border-slate-300 bg-white/85 text-slate-800 hover:bg-white hover:border-teal-600 shadow-[0_10px_25px_rgba(15,23,42,0.05)]"
+                    ? "border-teal-800/20 bg-[#d8eee9]/80 text-teal-950 hover:bg-[#cce9e2] hover:border-teal-700/45 shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
                     : "border-slate-700 bg-slate-900/50 text-slate-300 hover:bg-slate-800 hover:text-white hover:border-slate-600"
                 }`}
               >
@@ -174,18 +180,18 @@ export const Hero = ({ onSignup }) => {
             </div>
 
             <div
-              className="pt-8 flex flex-wrap gap-8 opacity-80 animate-fade-in-up"
+              className="pt-8 flex flex-wrap gap-8 animate-fade-in-up"
               style={{ animationDelay: "0.4s" }}
             >
               <div className="flex items-center space-x-2">
-                <Shield className="text-emerald-600" size={18} />
-                <span className={`text-sm ${isLight ? "text-slate-700" : "text-slate-400"}`}>
+                <Shield className={isLight ? "text-teal-800" : "text-emerald-600"} size={18} />
+                <span className={`text-sm font-medium ${isLight ? "text-[#294654]" : "text-slate-400"}`}>
                   HIPAA Compliant
                 </span>
               </div>
               <div className="flex items-center space-x-2">
-                <Database className="text-emerald-600" size={18} />
-                <span className={`text-sm ${isLight ? "text-slate-700" : "text-slate-400"}`}>
+                <Database className={isLight ? "text-teal-800" : "text-emerald-600"} size={18} />
+                <span className={`text-sm font-medium ${isLight ? "text-[#294654]" : "text-slate-400"}`}>
                   Encrypted Data
                 </span>
               </div>
@@ -200,7 +206,7 @@ export const Hero = ({ onSignup }) => {
               <div
                 className={`relative z-20 rounded-2xl border shadow-2xl backdrop-blur-xl overflow-hidden animate-float-slow transform rotate-y-[-5deg] hover:rotate-y-0 transition-transform duration-1000 ${
                   isLight
-                    ? "bg-[#fffdfa]/92 border-slate-200 shadow-[0_30px_70px_rgba(15,23,42,0.12)]"
+                    ? "bg-[#d8eee9]/92 border-teal-900/15 shadow-[0_35px_85px_rgba(15,23,42,0.18)]"
                     : "bg-slate-900/90 border-slate-700/80 shadow-[0_0_50px_-12px_rgba(37,99,235,0.25)]"
                 }`}
               >
@@ -214,7 +220,7 @@ export const Hero = ({ onSignup }) => {
 
                 <div
                   className={`h-8 border-b flex items-center px-4 space-x-2 ${
-                    isLight ? "bg-[#f5f8f6] border-slate-200" : "bg-slate-800/80 border-slate-700"
+                    isLight ? "bg-[#cfe7e2] border-teal-900/10" : "bg-slate-800/80 border-slate-700"
                   }`}
                 >
                   <div className="flex space-x-1.5">
@@ -265,13 +271,13 @@ export const Hero = ({ onSignup }) => {
                     onMouseMove={handleBrainMouseMove}
                     onMouseLeave={handleBrainMouseLeave}
                     className={`relative h-48 rounded-lg border overflow-hidden cursor-crosshair perspective-1000 ${
-                      isLight ? "bg-[#f4f7f6] border-slate-200" : "bg-slate-950 border-slate-800"
+                      isLight ? "bg-[#102a37] border-teal-900/20 shadow-inner" : "bg-slate-950 border-slate-800"
                     }`}
                   >
                     <div
                       className={`absolute inset-0 ${
                         isLight
-                          ? "bg-[linear-gradient(rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.04)_1px,transparent_1px)] bg-[size:20px_20px]"
+                          ? "bg-[linear-gradient(rgba(125,211,252,0.10)_1px,transparent_1px),linear-gradient(90deg,rgba(125,211,252,0.10)_1px,transparent_1px)] bg-[size:20px_20px]"
                           : "bg-[linear-gradient(rgba(30,41,59,0.3)_1px,transparent_1px),linear-gradient(90deg,rgba(30,41,59,0.3)_1px,transparent_1px)] bg-[size:20px_20px]"
                       }`}
                     ></div>
@@ -286,7 +292,7 @@ export const Hero = ({ onSignup }) => {
                         src="https://images.unsplash.com/photo-1559757175-5700dde675bc?auto=format&fit=crop&q=80&w=800"
                         alt="MRI Scan"
                         className={`w-full h-full object-cover grayscale transition-all duration-700 scale-105 ${
-                          isLight ? "opacity-40 mix-blend-multiply" : "opacity-60 mix-blend-screen"
+                          isLight ? "opacity-55 mix-blend-screen contrast-125" : "opacity-60 mix-blend-screen"
                         }`}
                       />
                       {BRAIN_MARKERS.map((marker) => (
@@ -320,7 +326,7 @@ export const Hero = ({ onSignup }) => {
                           ></span>
                           <div
                             className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-48 backdrop-blur-md border p-3 rounded-lg shadow-xl transition-all duration-200 pointer-events-none ${
-                              isLight ? "bg-[#fffdfa]/96 border-slate-200" : "bg-slate-900/90 border-slate-700"
+                              isLight ? "bg-[#eaf7f4]/96 border-slate-200" : "bg-slate-900/90 border-slate-700"
                             } ${activeMarker === marker.id ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}
                           >
                             <div className="flex items-center space-x-2 mb-1">
@@ -354,7 +360,7 @@ export const Hero = ({ onSignup }) => {
                       <span
                         className={`text-[10px] font-mono px-1.5 py-0.5 rounded backdrop-blur-sm ${
                           isLight
-                            ? "text-slate-600 bg-white/85 border border-slate-200"
+                            ? "text-cyan-950 bg-[#d8eee9]/90 border border-teal-900/10"
                             : "text-blue-300 bg-blue-900/30"
                         }`}
                       >
@@ -363,7 +369,7 @@ export const Hero = ({ onSignup }) => {
                       <span
                         className={`text-[10px] font-mono px-1.5 py-0.5 rounded backdrop-blur-sm ${
                           isLight
-                            ? "text-slate-600 bg-white/85 border border-slate-200"
+                            ? "text-cyan-950 bg-[#d8eee9]/90 border border-teal-900/10"
                             : "text-blue-300 bg-blue-900/30"
                         }`}
                       >
@@ -374,7 +380,7 @@ export const Hero = ({ onSignup }) => {
                       <span
                         className={`text-[10px] font-mono px-1.5 py-0.5 rounded backdrop-blur-sm border ${
                           isLight
-                            ? "text-slate-600 bg-white/85 border-slate-200"
+                            ? "text-cyan-950 bg-[#d8eee9]/90 border-teal-900/10"
                             : "text-slate-500 bg-slate-900/50 border-slate-800"
                         }`}
                       >
@@ -387,7 +393,7 @@ export const Hero = ({ onSignup }) => {
                     <div
                       className={`p-3 rounded-lg border transition-colors ${
                         isLight
-                          ? "bg-[#f5f8f6] border-slate-200 hover:border-emerald-300"
+                          ? "bg-[#cfe7e2]/75 border-teal-900/10 hover:border-emerald-600/40"
                           : "bg-slate-800/40 border-slate-700 hover:border-slate-600"
                       }`}
                     >
@@ -412,7 +418,7 @@ export const Hero = ({ onSignup }) => {
                     <div
                       className={`p-3 rounded-lg border transition-colors ${
                         isLight
-                          ? "bg-[#f5f8f6] border-slate-200 hover:border-cyan-300"
+                          ? "bg-[#cfe7e2]/75 border-teal-900/10 hover:border-cyan-600/40"
                           : "bg-slate-800/40 border-slate-700 hover:border-slate-600"
                       }`}
                     >
@@ -439,7 +445,7 @@ export const Hero = ({ onSignup }) => {
                 <div
                   className={`backdrop-blur-md p-3 rounded-xl border shadow-xl flex items-center space-x-3 w-40 ${
                     isLight
-                      ? "bg-[#fffdfa]/92 border-slate-200 shadow-[0_20px_40px_rgba(15,23,42,0.08)]"
+                      ? "bg-[#d8eee9]/94 border-teal-900/15 shadow-[0_24px_48px_rgba(15,23,42,0.14)]"
                       : "bg-slate-800/80 border-slate-600/50"
                   }`}
                 >
@@ -461,7 +467,7 @@ export const Hero = ({ onSignup }) => {
                 <div
                   className={`backdrop-blur-md p-3 rounded-xl border shadow-xl flex items-center space-x-3 w-44 ${
                     isLight
-                      ? "bg-[#fffdfa]/92 border-slate-200 shadow-[0_20px_40px_rgba(15,23,42,0.08)]"
+                      ? "bg-[#d8eee9]/94 border-teal-900/15 shadow-[0_24px_48px_rgba(15,23,42,0.14)]"
                       : "bg-slate-800/80 border-slate-600/50"
                   }`}
                 >
@@ -483,7 +489,7 @@ export const Hero = ({ onSignup }) => {
                 <div
                   className={`backdrop-blur-md p-3 rounded-xl border shadow-xl flex items-center space-x-3 w-36 ${
                     isLight
-                      ? "bg-[#fffdfa]/92 border-slate-200 shadow-[0_20px_40px_rgba(15,23,42,0.08)]"
+                      ? "bg-[#d8eee9]/94 border-teal-900/15 shadow-[0_24px_48px_rgba(15,23,42,0.14)]"
                       : "bg-slate-800/80 border-slate-600/50"
                   }`}
                 >

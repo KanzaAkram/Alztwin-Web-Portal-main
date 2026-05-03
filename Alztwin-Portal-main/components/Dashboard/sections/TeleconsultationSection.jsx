@@ -84,7 +84,7 @@ export default function TeleconsultationSection({
 
   const shell = isLight ? "space-y-6 text-slate-900" : "space-y-6";
   const panel = isLight
-    ? "bg-white/92 border border-slate-200 shadow-[0_18px_42px_rgba(15,23,42,0.06)]"
+    ? "bg-[#eaf7f4]/92 border border-slate-200 shadow-[0_18px_42px_rgba(15,23,42,0.06)]"
     : "bg-slate-900/50 border border-slate-800";
   const panelHeader = isLight ? "border-slate-200" : "border-slate-800";
   const divider = isLight ? "divide-slate-200" : "divide-slate-800";
@@ -93,10 +93,10 @@ export default function TeleconsultationSection({
   const subtle = isLight ? "text-slate-500" : "text-slate-500";
   const iconRingBorder = isLight ? "border-white" : "border-slate-900";
   const statSurface = isLight
-    ? "bg-white/95 border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.05)] hover:border-emerald-200"
+    ? "bg-[#eaf7f4]/95 border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.05)] hover:border-emerald-200"
     : "bg-slate-900/60 border border-slate-800 hover:border-slate-600";
   const inputClass = isLight
-    ? "w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-950 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+    ? "w-full pl-9 pr-3 py-2 bg-[#f0faf7] border border-slate-300 rounded-lg text-sm text-slate-950 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
     : "w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500";
   const emptyText = isLight ? "text-slate-500" : "text-slate-500";
 
@@ -282,7 +282,7 @@ export default function TeleconsultationSection({
       <div
         className={`relative overflow-hidden rounded-2xl p-6 ${
           isLight
-            ? "bg-[linear-gradient(135deg,#ffffff_0%,#eefbf7_50%,#eff6ff_100%)] border border-slate-200 shadow-[0_22px_55px_rgba(15,23,42,0.08)]"
+            ? "bg-[linear-gradient(135deg,#e8f6f3_0%,#e5f4f7_50%,#e8f0fb_100%)] border border-slate-200 shadow-[0_22px_55px_rgba(15,23,42,0.08)]"
             : "bg-slate-900/60 border border-slate-800"
         }`}
       >
@@ -422,7 +422,7 @@ export default function TeleconsultationSection({
                       ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
                       : "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
                     : isLight
-                      ? "bg-white text-slate-600 border-slate-200 hover:text-slate-950 hover:border-slate-300 hover:bg-slate-50"
+                      ? "bg-[#edf8f5] text-slate-600 border-slate-200 hover:text-slate-950 hover:border-slate-300 hover:bg-[#dff3ee]"
                       : "bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white"
                 }`}
               >
@@ -497,7 +497,7 @@ export default function TeleconsultationSection({
                   key={apt.id}
                   className={`group relative overflow-hidden rounded-xl p-3 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/10 ${
                     isLight
-                      ? "bg-white border border-slate-200 hover:border-emerald-300 shadow-sm"
+                      ? "bg-[#eaf7f4] border border-slate-200 hover:border-emerald-300 shadow-sm"
                       : "bg-gradient-to-br from-slate-800/70 to-slate-800/40 border border-slate-700 hover:border-emerald-500/50"
                   }`}
                 >
@@ -657,7 +657,7 @@ function PatientRow({ patient, onCall, onSchedule, onViewTwin, isLight }) {
   return (
     <div className={`group relative p-4 transition-all duration-300 ${
       isLight
-        ? "hover:bg-gradient-to-r hover:from-emerald-50/90 hover:via-white hover:to-transparent"
+        ? "hover:bg-gradient-to-r hover:from-emerald-50/90 hover:via-[#eaf7f4] hover:to-transparent"
         : "hover:bg-gradient-to-r hover:from-emerald-500/5 hover:via-transparent hover:to-transparent"
     }`}>
       {/* Left accent bar on hover */}

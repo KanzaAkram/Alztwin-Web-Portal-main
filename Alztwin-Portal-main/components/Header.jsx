@@ -18,7 +18,7 @@ export const Header = ({ onLogin, onSignup }) => {
       className={`fixed w-full z-50 transition-all duration-300 border-b ${
         isScrolled
           ? isLight
-            ? "bg-[#f9fbfa]/92 backdrop-blur-xl border-emerald-950/10 py-3 shadow-[0_18px_45px_rgba(15,23,42,0.08)]"
+            ? "bg-[#e8f6f3]/92 backdrop-blur-xl border-emerald-950/10 py-3 shadow-[0_18px_45px_rgba(15,23,42,0.08)]"
             : "bg-slate-950/90 backdrop-blur-md border-slate-800 py-3"
           : "bg-transparent border-transparent py-5"
       }`}
@@ -79,7 +79,7 @@ export const Header = ({ onLogin, onSignup }) => {
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
         <div className={`md:hidden border-b absolute w-full shadow-xl animate-fade-in ${
-          isLight ? "bg-[#f9fbfa] border-emerald-950/10" : "bg-slate-950 border-slate-800"
+          isLight ? "bg-[#e8f6f3] border-emerald-950/10" : "bg-slate-950 border-slate-800"
         }`}>
           <div className="px-4 pt-4 pb-8 space-y-4">
             {[["#features","Features"],["#analytics","Analytics"],["#methodology","Methodology"]].map(([href,label]) => (

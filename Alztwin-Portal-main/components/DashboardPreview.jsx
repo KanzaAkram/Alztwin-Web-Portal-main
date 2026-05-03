@@ -66,16 +66,16 @@ export const DashboardPreview = () => {
       id="analytics"
       className={`py-28 border-t relative z-10 overflow-hidden ${
         isLight
-          ? "bg-[linear-gradient(180deg,#ffffff_0%,#f4fbf8_48%,#ffffff_100%)] border-slate-200"
+          ? "bg-[radial-gradient(circle_at_18%_8%,rgba(15,118,110,0.14),transparent_30%),radial-gradient(circle_at_84%_14%,rgba(79,70,229,0.10),transparent_32%),linear-gradient(180deg,#dcefed_0%,#e4f2f5_48%,#dfeafb_100%)] border-teal-900/10"
           : "bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-slate-800/50"
       }`}
       ref={sectionRef}
     >
       {/* Enhanced Background Effects */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-blue-600/5 rounded-full blur-[150px]"></div>
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-indigo-600/5 rounded-full blur-[150px]"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[800px] bg-gradient-radial from-blue-900/10 via-transparent to-transparent rounded-full"></div>
+        <div className={`absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full blur-[150px] ${isLight ? "bg-blue-600/10" : "bg-blue-600/5"}`}></div>
+        <div className={`absolute bottom-0 right-1/4 w-[500px] h-[500px] rounded-full blur-[150px] ${isLight ? "bg-indigo-600/10" : "bg-indigo-600/5"}`}></div>
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[800px] bg-gradient-radial via-transparent to-transparent rounded-full ${isLight ? "from-teal-900/10" : "from-blue-900/10"}`}></div>
         {/* Subtle grid */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.03)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
       </div>
@@ -103,11 +103,11 @@ export const DashboardPreview = () => {
               </div>
 
               {/* Title - Enhanced */}
-              <h2 className={`text-4xl md:text-5xl lg:text-6xl font-bold mb-6 tracking-tight leading-[1.1] ${isLight ? "text-slate-950" : "text-white"}`}>
+              <h2 className={`text-4xl md:text-5xl lg:text-6xl font-bold mb-6 tracking-tight leading-[1.1] ${isLight ? "text-[#102a37]" : "text-white"}`}>
                 Clinical Decision
                 <span className={`block ${
                   isLight
-                    ? "text-emerald-800"
+                    ? "bg-[linear-gradient(90deg,#064e3b,#0f766e,#155e75)] bg-clip-text text-transparent"
                     : "bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent"
                 }`}>
                   Support System
@@ -115,7 +115,7 @@ export const DashboardPreview = () => {
               </h2>
 
               {/* Description */}
-              <p className={`text-lg md:text-xl leading-relaxed ${isLight ? "text-slate-600" : "text-slate-400"}`}>
+              <p className={`text-lg md:text-xl leading-relaxed ${isLight ? "text-[#294654]" : "text-slate-400"}`}>
                 Leverage our{" "}
                 <span className={isLight ? "home-inline-highlight" : "text-blue-400 font-medium"}>
                   machine learning models
@@ -133,7 +133,7 @@ export const DashboardPreview = () => {
             {/* Stats Cards - Enhanced */}
             <div className="flex flex-wrap gap-4">
               <div className={`group backdrop-blur-xl px-6 py-5 rounded-2xl border shadow-2xl hover:border-emerald-500/30 transition-all duration-300 hover:-translate-y-1 ${
-                isLight ? "bg-white border-slate-200" : "bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700/50"
+                isLight ? "bg-[#d8eee9]/92 border-teal-900/10" : "bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700/50"
               }`}>
                 <div className="flex items-center space-x-3 mb-2">
                   <span className="text-4xl font-bold bg-gradient-to-r from-emerald-400 to-green-400 bg-clip-text text-transparent">
@@ -143,13 +143,13 @@ export const DashboardPreview = () => {
                     <ArrowUpRight className="text-emerald-400" size={18} />
                   </div>
                 </div>
-                <div className="text-xs text-slate-400 font-medium uppercase tracking-widest">
+                <div className={`text-xs font-medium uppercase tracking-widest ${isLight ? "text-[#315666]" : "text-slate-400"}`}>
                   Prediction Accuracy
                 </div>
               </div>
 
               <div className={`group backdrop-blur-xl px-6 py-5 rounded-2xl border shadow-2xl hover:border-blue-500/30 transition-all duration-300 hover:-translate-y-1 ${
-                isLight ? "bg-white border-slate-200" : "bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700/50"
+                isLight ? "bg-[#d8eee9]/92 border-teal-900/10" : "bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700/50"
               }`}>
                 <div className="flex items-center space-x-3 mb-2">
                   <span className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
@@ -159,13 +159,13 @@ export const DashboardPreview = () => {
                     <Activity className="text-blue-400" size={18} />
                   </div>
                 </div>
-                <div className="text-xs text-slate-400 font-medium uppercase tracking-widest">
+                <div className={`text-xs font-medium uppercase tracking-widest ${isLight ? "text-[#315666]" : "text-slate-400"}`}>
                   IoT Data Sync
                 </div>
               </div>
 
               <div className={`group backdrop-blur-xl px-6 py-5 rounded-2xl border shadow-2xl hover:border-purple-500/30 transition-all duration-300 hover:-translate-y-1 ${
-                isLight ? "bg-white border-slate-200" : "bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700/50"
+                isLight ? "bg-[#d8eee9]/92 border-teal-900/10" : "bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700/50"
               }`}>
                 <div className="flex items-center space-x-3 mb-2">
                   <span className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
@@ -175,7 +175,7 @@ export const DashboardPreview = () => {
                     <Zap className="text-purple-400" size={18} />
                   </div>
                 </div>
-                <div className="text-xs text-slate-400 font-medium uppercase tracking-widest">
+                <div className={`text-xs font-medium uppercase tracking-widest ${isLight ? "text-[#315666]" : "text-slate-400"}`}>
                   Response Time
                 </div>
               </div>
@@ -187,7 +187,7 @@ export const DashboardPreview = () => {
         <div
           className={`relative backdrop-blur-xl rounded-3xl border overflow-hidden transition-all duration-1000 delay-200 transform ${
             isLight
-              ? "bg-white border-slate-200 shadow-[0_30px_90px_rgba(15,23,42,0.10)]"
+              ? "bg-[#d8eee9]/92 border-teal-900/15 shadow-[0_34px_95px_rgba(15,23,42,0.16)]"
               : "bg-gradient-to-br from-slate-900/90 via-slate-900/95 to-slate-800/90 shadow-[0_0_100px_rgba(0,0,0,0.5)] border-slate-700/40"
           } ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
@@ -198,10 +198,10 @@ export const DashboardPreview = () => {
 
           <div className={`grid lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x ${isLight ? "divide-slate-200" : "divide-slate-700/30"}`}>
             {/* Sidebar Stats - Enhanced */}
-            <div className={`lg:col-span-4 p-8 space-y-8 ${isLight ? "bg-slate-50/70" : "bg-gradient-to-b from-slate-900/50 to-transparent"}`}>
+            <div className={`lg:col-span-4 p-8 space-y-8 ${isLight ? "bg-[#cfe7e2]/70" : "bg-gradient-to-b from-slate-900/50 to-transparent"}`}>
               <div>
                 <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                  <h3 className={`text-sm font-bold uppercase tracking-widest flex items-center gap-2 ${isLight ? "text-[#315666]" : "text-slate-300"}`}>
                     <Activity size={14} className="text-blue-400" />
                     Live Vitals
                   </h3>
@@ -215,7 +215,7 @@ export const DashboardPreview = () => {
                   {/* Brain Volume Card */}
                   <div className={`group p-4 rounded-2xl border hover:border-blue-500/30 transition-all duration-300 ${
                     isLight
-                      ? "bg-white border-slate-200 shadow-sm"
+                      ? "bg-[#eaf7f4] border-teal-900/10 shadow-sm"
                       : "bg-gradient-to-br from-slate-800/50 to-slate-800/30 border-slate-700/30"
                   }`}>
                     <div className="flex items-center justify-between mb-3">
@@ -223,21 +223,21 @@ export const DashboardPreview = () => {
                         <div className="p-2 rounded-lg bg-blue-500/10">
                           <Brain size={16} className="text-blue-400" />
                         </div>
-                        <span className="text-slate-300 text-sm font-medium">
+                        <span className={`text-sm font-medium ${isLight ? "text-[#294654]" : "text-slate-300"}`}>
                           Brain Volume (Whole)
                         </span>
                       </div>
-                      <span className="font-mono text-white text-xl font-bold">
+                      <span className={`font-mono text-xl font-bold ${isLight ? "text-[#102a37]" : "text-white"}`}>
                         1,120{" "}
                         <span className="text-sm text-slate-500">cm³</span>
                       </span>
                     </div>
-                    <div className="relative w-full bg-slate-700/50 rounded-full h-2.5 overflow-hidden">
+                    <div className={`relative w-full rounded-full h-2.5 overflow-hidden ${isLight ? "bg-teal-900/12" : "bg-slate-700/50"}`}>
                       <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-400 rounded-full w-[75%] shadow-[0_0_20px_rgba(59,130,246,0.5)]">
                         <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 animate-shimmer"></div>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500 mt-2">
+                    <p className={`text-xs mt-2 ${isLight ? "text-[#315666]" : "text-slate-500"}`}>
                       75% of baseline volume
                     </p>
                   </div>
@@ -245,7 +245,7 @@ export const DashboardPreview = () => {
                   {/* Hippocampal Volume Card */}
                   <div className={`group p-4 rounded-2xl border hover:border-red-500/40 transition-all duration-300 ${
                     isLight
-                      ? "bg-red-50/70 border-red-200 shadow-sm"
+                      ? "bg-red-50/80 border-red-200 shadow-sm"
                       : "bg-gradient-to-br from-red-950/30 to-slate-800/30 border-red-500/20"
                   }`}>
                     <div className="flex items-center justify-between mb-3">
@@ -253,15 +253,15 @@ export const DashboardPreview = () => {
                         <div className="p-2 rounded-lg bg-red-500/10">
                           <Target size={16} className="text-red-400" />
                         </div>
-                        <span className="text-slate-300 text-sm font-medium">
+                        <span className={`text-sm font-medium ${isLight ? "text-[#294654]" : "text-slate-300"}`}>
                           Hippocampal Vol.
                         </span>
                       </div>
-                      <span className="font-mono text-white text-xl font-bold">
+                      <span className={`font-mono text-xl font-bold ${isLight ? "text-[#102a37]" : "text-white"}`}>
                         3.1 <span className="text-sm text-slate-500">cm³</span>
                       </span>
                     </div>
-                    <div className="relative w-full bg-slate-700/50 rounded-full h-2.5 overflow-hidden">
+                    <div className={`relative w-full rounded-full h-2.5 overflow-hidden ${isLight ? "bg-red-900/12" : "bg-slate-700/50"}`}>
                       <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-red-400 rounded-full w-[60%] shadow-[0_0_20px_rgba(239,68,68,0.5)]"></div>
                     </div>
                     <p className="text-xs text-red-400 mt-3 flex items-center font-semibold">
@@ -275,7 +275,7 @@ export const DashboardPreview = () => {
               {/* AI Recommendation Card - Enhanced */}
               <div className={`relative p-6 rounded-2xl border overflow-hidden group hover:border-indigo-500/40 transition-all duration-300 ${
                 isLight
-                  ? "bg-gradient-to-br from-indigo-50 via-white to-purple-50 border-indigo-200 shadow-sm"
+                  ? "bg-gradient-to-br from-indigo-50 via-[#eaf7f4] to-purple-50 border-indigo-200 shadow-sm"
                   : "bg-gradient-to-br from-indigo-950/40 via-slate-800/40 to-purple-950/40 border-indigo-500/20"
               }`}>
                 {/* Decorative glow */}
@@ -286,13 +286,13 @@ export const DashboardPreview = () => {
                     <Brain size={24} />
                   </div>
                   <div>
-                    <h4 className="font-bold text-white text-base mb-2 flex items-center gap-2">
+                    <h4 className={`font-bold text-base mb-2 flex items-center gap-2 ${isLight ? "text-[#102a37]" : "text-white"}`}>
                       AI Recommendation
                       <span className="px-2 py-0.5 text-[10px] font-semibold bg-indigo-500/20 text-indigo-400 rounded-full">
                         NEW
                       </span>
                     </h4>
-                    <p className="text-sm text-slate-400 leading-relaxed">
+                    <p className={`text-sm leading-relaxed ${isLight ? "text-[#365565]" : "text-slate-400"}`}>
                       Consider increasing Memantine dosage. Recent gait analysis
                       combined with volume loss indicates{" "}
                       <span className="text-orange-400">
@@ -317,20 +317,20 @@ export const DashboardPreview = () => {
               {/* Chart Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
                 <div>
-                  <h3 className="text-2xl font-bold text-white flex items-center gap-3 mb-2">
+                  <h3 className={`text-2xl font-bold flex items-center gap-3 mb-2 ${isLight ? "text-[#102a37]" : "text-white"}`}>
                     Hippocampal Volume Forecasting
                     <AlertCircle
                       size={18}
                       className="text-slate-500 hover:text-blue-400 transition-colors cursor-help"
                     />
                   </h3>
-                  <p className="text-sm text-slate-500">
+                  <p className={`text-sm ${isLight ? "text-[#315666]" : "text-slate-500"}`}>
                     Volumetric Trajectory Analysis • Historical + ML Predicted
                   </p>
                 </div>
                 <div className={`flex items-center space-x-4 backdrop-blur-sm px-5 py-3 rounded-xl border ${
                   isLight
-                    ? "bg-white border-emerald-200 shadow-sm"
+                    ? "bg-[#eaf7f4] border-emerald-200 shadow-sm"
                     : "bg-slate-800/60 border-slate-700/50"
                 }`}>
                   <div className="flex items-center space-x-2">
@@ -338,12 +338,12 @@ export const DashboardPreview = () => {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                     </span>
-                    <span className="text-xs font-medium text-slate-300">
+                    <span className={`text-xs font-medium ${isLight ? "text-[#294654]" : "text-slate-300"}`}>
                       Model Active
                     </span>
                   </div>
-                  <div className="w-px h-4 bg-slate-700"></div>
-                  <div className="text-xs text-slate-500 font-mono">
+                  <div className={`w-px h-4 ${isLight ? "bg-teal-900/15" : "bg-slate-700"}`}></div>
+                  <div className={`text-xs font-mono ${isLight ? "text-[#315666]" : "text-slate-500"}`}>
                     Last sync: 2m ago
                   </div>
                 </div>
@@ -352,7 +352,7 @@ export const DashboardPreview = () => {
               {/* Chart Container - Enhanced */}
               <div className={`h-[420px] w-full rounded-2xl p-4 border ${
                 isLight
-                  ? "bg-white border-slate-200 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.02)]"
+                  ? "bg-[#eaf7f4] border-teal-900/10 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.03)]"
                   : "bg-gradient-to-br from-slate-900/50 to-slate-800/30 border-slate-700/30"
               }`}>
                 <ResponsiveContainer width="100%" height="100%">
@@ -440,7 +440,7 @@ export const DashboardPreview = () => {
                         if (active && payload && payload.length) {
                           return (
                             <div className={`backdrop-blur-xl border p-5 rounded-2xl shadow-2xl ${
-                              isLight ? "bg-white border-slate-200" : "bg-slate-900/95 border-slate-600/50"
+                              isLight ? "bg-[#eaf7f4] border-slate-200" : "bg-slate-900/95 border-slate-600/50"
                             }`}>
                               <p className={`text-xs font-bold uppercase tracking-wider mb-3 pb-2 border-b ${
                                 isLight ? "text-slate-500 border-slate-200" : "text-slate-400 border-slate-700"
@@ -541,7 +541,7 @@ export const DashboardPreview = () => {
               </div>
 
               {/* Enhanced Legend */}
-              <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 mt-8 text-sm font-medium text-slate-400 pt-6 border-t border-slate-800/50">
+              <div className={`flex flex-wrap items-center justify-center gap-x-10 gap-y-4 mt-8 text-sm font-medium pt-6 border-t ${isLight ? "text-[#315666] border-teal-900/10" : "text-slate-400 border-slate-800/50"}`}>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1">
                     <span className="w-4 h-1 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]"></span>

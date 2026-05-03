@@ -32,7 +32,7 @@ export const Features = () => {
       ref={sectionRef}
       className={`py-32 relative overflow-hidden ${
         isLight
-          ? "bg-gradient-to-b from-[#f4f8f6] via-[#fcfdfc] to-[#eef5f2]"
+          ? "bg-[radial-gradient(circle_at_12%_15%,rgba(15,118,110,0.13),transparent_28%),radial-gradient(circle_at_86%_20%,rgba(14,116,144,0.12),transparent_30%),linear-gradient(180deg,#dfeafb_0%,#e4f2f5_48%,#dcefed_100%)]"
           : "bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950"
       }`}
     >
@@ -40,21 +40,21 @@ export const Features = () => {
         <div
           className={`absolute -top-40 -right-40 w-[700px] h-[700px] rounded-full blur-[120px] opacity-70 ${
             isLight
-              ? "bg-gradient-to-br from-emerald-100/80 to-cyan-100/50"
+              ? "bg-gradient-to-br from-emerald-300/35 to-cyan-300/25"
               : "bg-gradient-to-br from-blue-900/25 to-indigo-900/20"
           }`}
         ></div>
         <div
           className={`absolute top-1/2 -left-40 w-[600px] h-[600px] rounded-full blur-[120px] opacity-60 ${
             isLight
-              ? "bg-gradient-to-tr from-teal-100/60 to-sky-100/30"
+              ? "bg-gradient-to-tr from-teal-300/28 to-sky-300/20"
               : "bg-gradient-to-tr from-purple-900/20 to-pink-900/15"
           }`}
         ></div>
         <div
           className={`absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full blur-[80px] opacity-50 ${
             isLight
-              ? "bg-gradient-to-t from-cyan-100/50 to-transparent"
+              ? "bg-gradient-to-t from-cyan-300/24 to-transparent"
               : "bg-gradient-to-t from-cyan-900/20 to-transparent"
           }`}
         ></div>
@@ -85,7 +85,7 @@ export const Features = () => {
           </div>
 
           <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-8 leading-[1.1]">
-            <span className={isLight ? "text-slate-950" : "text-white"}>
+            <span className={isLight ? "text-[#102a37]" : "text-white"}>
               A Unified Platform for
             </span>
             <br />
@@ -93,7 +93,7 @@ export const Features = () => {
               <span
                 className={`${
                   isLight
-                    ? "home-highlight-block"
+                    ? "bg-[linear-gradient(90deg,#064e3b,#0f766e,#155e75)] bg-clip-text text-transparent"
                     : "bg-gradient-to-r from-blue-400 via-indigo-400 to-cyan-300"
                 } ${isLight ? "" : "bg-clip-text text-transparent"}`}
               >
@@ -104,7 +104,7 @@ export const Features = () => {
 
           <p
             className={`text-xl md:text-2xl leading-relaxed max-w-3xl mx-auto ${
-              isLight ? "text-slate-600" : "text-slate-400"
+              isLight ? "text-[#294654]" : "text-slate-400"
             }`}
           >
             AlzTwin integrates advanced neuroimaging with daily living metrics
@@ -124,7 +124,7 @@ export const Features = () => {
                 key={index}
                 className={`group relative rounded-3xl p-8 transition-all duration-500 ease-out hover:-translate-y-3 ${
                   isLight
-                    ? "bg-white/88 shadow-[0_12px_45px_rgba(15,23,42,0.06)] hover:shadow-[0_24px_60px_rgba(15,118,110,0.12)] border border-slate-200/70 hover:border-emerald-300/70"
+                    ? "bg-[#d8eee9]/90 shadow-[0_14px_44px_rgba(15,23,42,0.08)] hover:shadow-[0_28px_64px_rgba(15,118,110,0.16)] border border-teal-900/10 hover:border-emerald-700/35"
                     : "bg-slate-900/75 shadow-[0_18px_55px_rgba(0,0,0,0.35)] hover:shadow-[0_24px_70px_rgba(34,211,238,0.08)] border border-slate-800 hover:border-cyan-500/30"
                 } ${
                   isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-16"
@@ -134,7 +134,7 @@ export const Features = () => {
                 <div
                   className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-500 rounded-3xl ${
                     isLight
-                      ? "bg-gradient-to-br from-emerald-50/60 via-transparent to-cyan-50/40"
+                      ? "bg-gradient-to-br from-emerald-200/45 via-transparent to-cyan-200/35"
                       : "bg-gradient-to-br from-cyan-500/5 via-transparent to-blue-500/10"
                   }`}
                 ></div>
@@ -143,13 +143,13 @@ export const Features = () => {
                   <div
                     className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-all duration-500 shadow-sm group-hover:shadow-xl group-hover:scale-110 group-hover:-rotate-3 ${
                       isLight
-                        ? "bg-gradient-to-br from-slate-50 to-slate-100 group-hover:from-emerald-700 group-hover:to-cyan-700 group-hover:shadow-emerald-500/20"
+                        ? "bg-gradient-to-br from-[#eaf7f4] to-[#cfe7e2] group-hover:from-emerald-700 group-hover:to-cyan-700 group-hover:shadow-emerald-500/20"
                         : "bg-gradient-to-br from-slate-800 to-slate-700 group-hover:from-cyan-500 group-hover:to-blue-600 group-hover:shadow-cyan-500/20"
                     }`}
                   >
                     <IconComponent
                       className={`transition-colors duration-500 ${
-                        isLight ? "text-slate-700 group-hover:text-white" : "text-slate-300 group-hover:text-white"
+                        isLight ? "text-teal-950 group-hover:text-white" : "text-slate-300 group-hover:text-white"
                       }`}
                       size={28}
                       strokeWidth={1.5}
@@ -158,7 +158,7 @@ export const Features = () => {
 
                   <h3
                     className={`text-xl font-bold mb-3 transition-colors duration-300 ${
-                      isLight ? "text-slate-950 group-hover:text-emerald-800" : "text-white group-hover:text-cyan-300"
+                      isLight ? "text-[#102a37] group-hover:text-emerald-900" : "text-white group-hover:text-cyan-300"
                     }`}
                   >
                     {feature.title}
@@ -166,7 +166,7 @@ export const Features = () => {
 
                   <p
                     className={`leading-relaxed transition-colors duration-300 ${
-                      isLight ? "text-slate-600 group-hover:text-slate-700" : "text-slate-400 group-hover:text-slate-300"
+                      isLight ? "text-[#365565] group-hover:text-[#294654]" : "text-slate-400 group-hover:text-slate-300"
                     }`}
                   >
                     {feature.description}

@@ -160,7 +160,7 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
   };
 
   const card = isLight
-    ? "bg-white border border-gray-200 rounded-xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all"
+    ? "bg-[#eaf7f4] border border-gray-200 rounded-xl p-5 hover:border-emerald-300 hover:shadow-sm transition-all"
     : "bg-slate-800/50 border border-slate-700 rounded-xl p-5";
 
   const muted = isLight ? "text-gray-500" : "text-slate-400";
@@ -168,9 +168,9 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
   const subtext = isLight ? "text-gray-700" : "text-slate-300";
 
   return (
-    <div className={`min-h-screen ${isLight ? "bg-gray-50" : "bg-gradient-to-br from-slate-950 to-slate-900"}`}>
+    <div className={`min-h-screen ${isLight ? "bg-[linear-gradient(180deg,#e8f6f3_0%,#e5f4f7_52%,#e8f0fb_100%)]" : "bg-gradient-to-br from-slate-950 to-slate-900"}`}>
       {/* Navigation */}
-      <nav className={`border-b backdrop-blur-sm sticky top-0 z-50 ${isLight ? "bg-white border-gray-200 shadow-sm" : "bg-slate-900/80 border-slate-800"}`}>
+      <nav className={`border-b backdrop-blur-sm sticky top-0 z-50 ${isLight ? "bg-[#e8f6f3]/90 border-gray-200 shadow-sm" : "bg-slate-900/80 border-slate-800"}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
@@ -181,11 +181,11 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <button className={`p-2 rounded-lg relative transition-colors ${isLight ? "text-gray-500 hover:text-gray-900 hover:bg-gray-100" : "text-slate-400 hover:text-white"}`}>
+              <button className={`p-2 rounded-lg relative transition-colors ${isLight ? "text-gray-500 hover:text-gray-900 hover:bg-[#dff3ee]" : "text-slate-400 hover:text-white"}`}>
                 <Bell size={20} />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <button className={`p-2 rounded-lg transition-colors ${isLight ? "text-gray-500 hover:text-gray-900 hover:bg-gray-100" : "text-slate-400 hover:text-white"}`}>
+              <button className={`p-2 rounded-lg transition-colors ${isLight ? "text-gray-500 hover:text-gray-900 hover:bg-[#dff3ee]" : "text-slate-400 hover:text-white"}`}>
                 <Settings size={20} />
               </button>
               <div className={`h-6 w-px ${isLight ? "bg-gray-200" : "bg-slate-700"}`}></div>
@@ -219,8 +219,8 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
                 className={`border rounded-xl p-5 cursor-pointer transition-all ${
                   isLight
                     ? selectedPatient === patient.id
-                      ? "bg-gray-50 border-emerald-700 shadow-md"
-                      : "bg-white border-gray-200 hover:border-emerald-300 hover:shadow-sm"
+                      ? "bg-[#dff3ee] border-emerald-700 shadow-md"
+                      : "bg-[#eaf7f4] border-gray-200 hover:border-emerald-300 hover:shadow-sm"
                     : selectedPatient === patient.id
                       ? "border-blue-500 bg-slate-800"
                       : "bg-slate-800/50 border-slate-700 hover:border-slate-600"
@@ -238,7 +238,7 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
                       <p className={`text-xs ${muted}`}>{patient.relationship}</p>
                     </div>
                   </div>
-                  <button className={`p-2 rounded-lg transition-colors ${isLight ? "text-gray-400 hover:text-gray-700 hover:bg-gray-100" : "text-slate-400 hover:text-white"}`}>
+                  <button className={`p-2 rounded-lg transition-colors ${isLight ? "text-gray-400 hover:text-gray-700 hover:bg-[#dff3ee]" : "text-slate-400 hover:text-white"}`}>
                     <MoreVertical size={18} />
                   </button>
                 </div>
@@ -334,10 +334,10 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
       {/* Request Clinician Modal */}
       {showRequestModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`rounded-2xl max-w-md w-full border ${isLight ? "bg-white border-gray-200" : "bg-slate-900 border-slate-800"}`}>
+          <div className={`rounded-2xl max-w-md w-full border ${isLight ? "bg-[#eaf7f4] border-gray-200" : "bg-slate-900 border-slate-800"}`}>
             <div className={`p-6 border-b flex items-center justify-between ${isLight ? "border-gray-100" : "border-slate-800"}`}>
               <h2 className={`text-xl font-semibold ${heading}`}>Request Clinician Access</h2>
-              <button onClick={() => setShowRequestModal(false)} className={`p-2 rounded-lg transition-colors ${isLight ? "text-gray-400 hover:text-gray-700 hover:bg-gray-100" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}>
+              <button onClick={() => setShowRequestModal(false)} className={`p-2 rounded-lg transition-colors ${isLight ? "text-gray-400 hover:text-gray-700 hover:bg-[#dff3ee]" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}>
                 <X size={20} />
               </button>
             </div>
@@ -353,7 +353,7 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
                 <div className="p-6 space-y-4">
                   <div>
                     <p className={`text-sm mb-2 ${muted}`}>Requesting access for:</p>
-                    <div className={`rounded-lg p-3 flex items-center space-x-3 ${isLight ? "bg-gray-100 border border-gray-200" : "bg-slate-800/50"}`}>
+                    <div className={`rounded-lg p-3 flex items-center space-x-3 ${isLight ? "bg-[#dff3ee] border border-gray-200" : "bg-slate-800/50"}`}>
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${isLight ? "bg-gradient-to-br from-emerald-500 to-teal-600" : "bg-gradient-to-br from-blue-500 to-purple-500"}`}>
                         {requestingPatient?.name?.charAt(0) || "P"}
                       </div>
@@ -367,7 +367,7 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
                   <div>
                     <p className={`text-sm mb-2 ${muted}`}>Select a Clinician:</p>
                     {clinicians.length === 0 ? (
-                      <div className={`rounded-lg p-4 text-center ${isLight ? "bg-gray-100" : "bg-slate-800/50"}`}>
+                      <div className={`rounded-lg p-4 text-center ${isLight ? "bg-[#dff3ee]" : "bg-slate-800/50"}`}>
                         <p className={`text-sm ${muted}`}>No clinicians available</p>
                       </div>
                     ) : (
@@ -379,7 +379,7 @@ export const CaregiverDashboard = ({ user, onLogout }) => {
                             className={`w-full p-3 rounded-lg border transition-colors text-left ${
                               selectedClinician?.id === clinician.id
                                 ? isLight ? "bg-emerald-700 border-emerald-700 text-white" : "bg-blue-500/20 border-blue-500/50"
-                                : isLight ? "bg-white border-gray-200 hover:border-emerald-300" : "bg-slate-800/50 border-slate-700 hover:border-slate-600"
+                                : isLight ? "bg-[#edf8f5] border-gray-200 hover:border-emerald-300" : "bg-slate-800/50 border-slate-700 hover:border-slate-600"
                             }`}
                           >
                             <p className={`font-medium ${selectedClinician?.id === clinician.id && isLight ? "text-white" : heading}`}>Dr. {clinician.displayName || clinician.email}</p>

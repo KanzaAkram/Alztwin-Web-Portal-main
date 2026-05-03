@@ -1607,13 +1607,32 @@ setSelectedPatientForDT(prev => ({
   };
 
   // --- 3. VIEW PATIENT DETAILS (Prepare Data) ---
-const handleViewPatient = async (patientId) => {
+const handleViewPatient = async (patientRef) => {
+    const lookupId =
+      typeof patientRef === "object" && patientRef !== null
+        ? patientRef.id || patientRef.patientId || patientRef.userId
+        : patientRef;
+    let fallbackPatient =
+      typeof patientRef === "object" && patientRef !== null ? patientRef : null;
+
     try {
-      let patientData = patients.find(
-        (p) => p.id === patientId || p.patientId === patientId || p.userId === patientId
-      );
-      if (!patientData) return;
+      let patientData =
+        fallbackPatient ||
+        patients.find(
+          (p) => p.id === lookupId || p.patientId === lookupId || p.userId === lookupId
+        );
+      if (!patientData) {
+        console.warn("Could not find patient for detail view:", lookupId);
+        return;
+      }
       const patientDocId = patientData.id;
+
+      setSelectedPatientDetails({
+        ...patientData,
+        mriScans: Array.isArray(patientData.mriScans) ? patientData.mriScans : [],
+        medications: patientData.medications || ["Donepezil 10mg", "Memantine 20mg"],
+      });
+      setShowPatientModal(true);
 
       try {
         const seeded = await ensureRafaySensorSeed(patientDocId, patientData);
@@ -1761,6 +1780,14 @@ const handleViewPatient = async (patientId) => {
       setShowPatientModal(true);
     } catch (error) {
       console.error("Error opening details:", error);
+      if (fallbackPatient) {
+        setSelectedPatientDetails({
+          ...fallbackPatient,
+          mriScans: Array.isArray(fallbackPatient.mriScans) ? fallbackPatient.mriScans : [],
+          medications: fallbackPatient.medications || ["Donepezil 10mg", "Memantine 20mg"],
+        });
+        setShowPatientModal(true);
+      }
     }
   };
   // --- 4. AI ANALYSIS (SEND DICOM TO BOTH APIS) ---
@@ -2227,7 +2254,7 @@ const handleViewPatient = async (patientId) => {
   };
 
   return (
-    <div className={`min-h-screen flex font-sans ${isLight ? "bg-[linear-gradient(180deg,#f7faf8_0%,#eef4f1_100%)]" : "bg-slate-950"}`}>
+    <div className={`min-h-screen flex font-sans ${isLight ? "bg-[linear-gradient(180deg,#e8f6f3_0%,#e5f4f7_52%,#e8f0fb_100%)]" : "bg-slate-950"}`}>
       <DashboardSidebar
         user={user}
         onLogout={onLogout}
@@ -2244,7 +2271,7 @@ const handleViewPatient = async (patientId) => {
         />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className={`mb-8 ${isLight ? "rounded-[28px] px-6 py-6 bg-white/70 border border-slate-200 shadow-[0_18px_45px_rgba(15,23,42,0.05)]" : ""}`}>
+          <div className={`mb-8 ${isLight ? "rounded-[28px] px-6 py-6 bg-[#eaf7f4]/86 border border-slate-200 shadow-[0_18px_45px_rgba(15,23,42,0.05)]" : ""}`}>
             <h1 className={`text-2xl font-bold mb-2 ${isLight ? "text-slate-950" : "text-white"}`}>
               {activeSection === "digitalTwin" ? "Digital Twin Analysis 🧠" :
                activeSection === "cognitiveTests" ? "Cognitive Tests and Forecasts 📊" :
@@ -2324,10 +2351,10 @@ const handleViewPatient = async (patientId) => {
           {/* === PATIENT DETAILS MODAL + AI === */}
           {showPatientModal && selectedPatientDetails && (
             <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isLight ? "bg-slate-950/35 backdrop-blur-md" : "bg-black/80 backdrop-blur-sm"}`}>
-              <div className={`rounded-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col shadow-2xl ${isLight ? "bg-[#fffdfa] border border-slate-200 shadow-[0_35px_90px_rgba(15,23,42,0.18)]" : "bg-slate-900 border border-slate-800"}`}>
+              <div className={`rounded-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col shadow-2xl ${isLight ? "bg-[#eaf7f4] border border-slate-200 shadow-[0_35px_90px_rgba(15,23,42,0.18)]" : "bg-slate-900 border border-slate-800"}`}>
                 
                 {/* Header */}
-                <div className={`p-6 flex justify-between items-center ${isLight ? "border-b border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f4f8f6_100%)]" : "border-b border-slate-800 bg-slate-900"}`}>
+                <div className={`p-6 flex justify-between items-center ${isLight ? "border-b border-slate-200 bg-[linear-gradient(180deg,#eaf7f4_0%,#e1f2ee_100%)]" : "border-b border-slate-800 bg-slate-900"}`}>
                    <div className="flex items-center space-x-4">
                       <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-xl font-bold ${isLight ? "bg-[linear-gradient(135deg,#0f766e,#155e75)]" : "bg-gradient-to-br from-blue-600 to-purple-600"}`}>
                         {selectedPatientDetails.avatar}
@@ -2379,7 +2406,7 @@ const handleViewPatient = async (patientId) => {
                          ].map((item) => {
                            const Icon = item.icon;
                            return (
-                             <div key={item.label} className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
+                             <div key={item.label} className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
                                <div className="min-w-0">
                                  <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>{item.label}</p>
                                  <p className={`text-xl font-bold truncate ${isLight ? "text-slate-950" : "text-white"}`}>{item.value}</p>
@@ -2390,28 +2417,28 @@ const handleViewPatient = async (patientId) => {
                          })}
                        </div>
                        <div className="hidden grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
+                          <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
                              <div>
                                 <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Heart Rate</p>
                                 <p className={`text-2xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.heartRate || 72} <span className="text-sm font-normal text-slate-500">bpm</span></p>
                              </div>
                              <Heart className="text-red-400" size={24} />
                           </div>
-                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
+                          <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
                              <div>
                                 <p className="text-slate-400 text-xs uppercase">Temperature</p>
                                 <p className="text-2xl font-bold text-white">{selectedPatientDetails.temperature || 36.8} <span className="text-sm font-normal text-slate-500">°C</span></p>
                              </div>
                              <Thermometer className="text-blue-400" size={24} />
                           </div>
-                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
+                          <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
                              <div>
                                 <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Blood Pressure</p>
                                 <p className={`text-2xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.bloodPressure || "128/82"}</p>
                              </div>
                              <Activity className="text-green-400" size={24} />
                           </div>
-                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
+                          <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl flex justify-between items-center`}>
                              <div>
                                 <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>SpO2</p>
                                 <p className={`text-2xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.spo2 || 98} <span className="text-sm font-normal text-slate-500">%</span></p>
@@ -2422,7 +2449,7 @@ const handleViewPatient = async (patientId) => {
 
                        {/* Additional Vitals Row */}
                        <div className="hidden grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
+                          <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
                              <div className="flex items-center justify-between mb-2">
                                 <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Sleep Quality</p>
                                 <Moon className="text-purple-400" size={18} />
@@ -2430,7 +2457,7 @@ const handleViewPatient = async (patientId) => {
                              <p className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.sleepHours || 6.5} <span className="text-sm font-normal text-slate-500">hrs</span></p>
                              <p className="text-xs text-yellow-400 mt-1">Below optimal</p>
                           </div>
-                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
+                          <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
                              <div className="flex items-center justify-between mb-2">
                                 <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Steps Today</p>
                                 <Footprints className="text-orange-400" size={18} />
@@ -2438,7 +2465,7 @@ const handleViewPatient = async (patientId) => {
                              <p className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.steps || "4,250"}</p>
                              <p className="text-xs text-green-400 mt-1">+12% from yesterday</p>
                           </div>
-                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
+                          <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
                              <div className="flex items-center justify-between mb-2">
                                 <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Glucose</p>
                                 <Droplets className="text-pink-400" size={18} />
@@ -2446,7 +2473,7 @@ const handleViewPatient = async (patientId) => {
                              <p className={`text-xl font-bold ${isLight ? "text-slate-950" : "text-white"}`}>{selectedPatientDetails.glucose || 105} <span className="text-sm font-normal text-slate-500">mg/dL</span></p>
                              <p className="text-xs text-green-400 mt-1">Normal range</p>
                           </div>
-                          <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
+                          <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/50 border border-slate-700"} p-4 rounded-xl`}>
                              <div className="flex items-center justify-between mb-2">
                                 <p className={`${isLight ? "text-slate-600" : "text-slate-400"} text-xs uppercase`}>Weight</p>
                                 <Gauge className="text-blue-400" size={18} />
@@ -2457,7 +2484,7 @@ const handleViewPatient = async (patientId) => {
                        </div>
 
                        {/* AI Stage Result */}
-                     <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
+                     <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
   <h3 className={`${isLight ? "text-slate-950" : "text-white"} font-semibold flex items-center mb-4`}>
     <Brain className="mr-2 text-blue-400" size={20}/> 
     Disease Stage Assessment
@@ -2508,7 +2535,7 @@ const handleViewPatient = async (patientId) => {
 </div>
 
 {/* AI Trajectory Result */}
-<div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
+<div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
   <h3 className={`${isLight ? "text-slate-950" : "text-white"} font-semibold flex items-center mb-4`}>
     <TrendingDown className="mr-2 text-purple-400" size={20}/> 
     Progression Trajectory
@@ -2594,7 +2621,7 @@ const handleViewPatient = async (patientId) => {
 <MriComparisonCharts aiHistory={aiHistory} />
 
 {/* AI Analysis History & Comparison */}
-<div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
+<div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
   <div className="flex items-center justify-between mb-4">
     <h3 className={`${isLight ? "text-slate-950" : "text-white"} font-semibold flex items-center`}>
       <History className="mr-2 text-cyan-400" size={20}/>
@@ -2607,7 +2634,7 @@ const handleViewPatient = async (patientId) => {
       <select
         value={compareWithId || ""}
         onChange={(e) => setCompareWithId(e.target.value || null)}
-        className={`${isLight ? "bg-white border border-slate-300 text-slate-700" : "bg-slate-800 border border-slate-700 text-slate-200"} text-xs rounded px-2 py-1`}
+        className={`${isLight ? "bg-[#edf8f5] border border-slate-300 text-slate-700" : "bg-slate-800 border border-slate-700 text-slate-200"} text-xs rounded px-2 py-1`}
       >
         <option value="">Compare with…</option>
         {aiHistory.slice(1).map((h) => (
@@ -2741,7 +2768,7 @@ const handleViewPatient = async (patientId) => {
                     <div className="space-y-6">
                         
                         {/* IoT Info */}
-                        <div className={`${isLight ? "bg-white border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
+                        <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
                            <h3 className={`${isLight ? "text-slate-950" : "text-white"} font-semibold flex items-center mb-4`}><Smartphone className="mr-2 text-green-400" size={20}/> Device Status</h3>
                            <div className="space-y-3 text-sm">
                               <div className={`flex justify-between pb-2 border-b ${isLight ? "border-slate-200" : "border-slate-700"}`}>
@@ -2808,17 +2835,17 @@ const handleViewPatient = async (patientId) => {
                 ? isLight ? "text-emerald-600" : "text-green-400"
                 : isLight ? "text-slate-600" : "text-slate-400";
             const callShell = isLight
-              ? "bg-[linear-gradient(180deg,#f8fbfa_0%,#eef4f1_100%)] text-slate-950"
+              ? "bg-[linear-gradient(180deg,#e8f6f3_0%,#e5f4f7_52%,#e8f0fb_100%)] text-slate-950"
               : "bg-slate-950";
             const callHeader = isLight
-              ? "bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-[0_12px_32px_rgba(15,23,42,0.08)]"
+              ? "bg-[#eaf7f4]/95 backdrop-blur-sm border-b border-slate-200 shadow-[0_12px_32px_rgba(15,23,42,0.08)]"
               : "bg-slate-900/95 backdrop-blur-sm border-b border-slate-800";
             const callStage = isLight
-              ? "bg-[linear-gradient(135deg,#f8fafc_0%,#ecfdf5_52%,#eff6ff_100%)]"
+              ? "bg-[linear-gradient(135deg,#e8f6f3_0%,#e5f4f7_52%,#e8f0fb_100%)]"
               : "bg-slate-900";
-            const stageOverlay = isLight ? "bg-white/82" : "bg-slate-900/80";
+            const stageOverlay = isLight ? "bg-[#eaf7f4]/82" : "bg-slate-900/80";
             const panelSurface = isLight
-              ? "bg-white/95 backdrop-blur-sm border-l border-slate-200 shadow-[-18px_0_42px_rgba(15,23,42,0.06)]"
+              ? "bg-[#eaf7f4]/95 backdrop-blur-sm border-l border-slate-200 shadow-[-18px_0_42px_rgba(15,23,42,0.06)]"
               : "bg-slate-900/95 backdrop-blur-sm border-l border-slate-800";
             const panelBorder = isLight ? "border-slate-200" : "border-slate-800";
             const callHeading = isLight ? "text-slate-950" : "text-white";
@@ -2828,13 +2855,13 @@ const handleViewPatient = async (patientId) => {
               ? "p-2 text-slate-500 hover:text-slate-950 hover:bg-slate-100 rounded-lg transition-colors"
               : "p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors";
             const liveControl = isLight
-              ? "bg-white/95 backdrop-blur-sm border border-slate-200 shadow-[0_16px_40px_rgba(15,23,42,0.14)]"
+              ? "bg-[#eaf7f4]/95 backdrop-blur-sm border border-slate-200 shadow-[0_16px_40px_rgba(15,23,42,0.14)]"
               : "bg-slate-900/95 backdrop-blur-sm border border-slate-700 shadow-2xl";
             const enabledControl = isLight
               ? "bg-slate-100 hover:bg-slate-200 text-slate-800"
               : "bg-slate-700 hover:bg-slate-600 text-white";
             const notesInput = isLight
-              ? "w-full flex-1 min-h-[120px] bg-white border border-slate-300 rounded-lg p-2.5 text-slate-950 text-sm placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 resize-none"
+              ? "w-full flex-1 min-h-[120px] bg-[#f0faf7] border border-slate-300 rounded-lg p-2.5 text-slate-950 text-sm placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 resize-none"
               : "w-full flex-1 min-h-[120px] bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-emerald-500 resize-none";
             const copySessionId = () => {
               if (!sessionIdRef.current) return;
@@ -2967,7 +2994,7 @@ const handleViewPatient = async (patientId) => {
                         </div>
                       )}
                       <div className={`absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-medium ${
-                        isLight ? "bg-white/90 text-slate-800 shadow-sm" : "bg-slate-900/90 text-white"
+                        isLight ? "bg-[#edf8f5]/90 text-slate-800 shadow-sm" : "bg-slate-900/90 text-white"
                       }`}>
                         You
                       </div>
@@ -3487,13 +3514,13 @@ const handleViewPatient = async (patientId) => {
             }`}>
               <div className={`rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl ${
                 isLight
-                  ? "bg-white border border-slate-200 shadow-[0_35px_90px_rgba(15,23,42,0.18)]"
+                  ? "bg-[#eaf7f4] border border-slate-200 shadow-[0_35px_90px_rgba(15,23,42,0.18)]"
                   : "bg-slate-900 border border-slate-700"
               }`}>
                 {/* Header */}
                 <div className={`p-6 border-b flex items-center justify-between ${
                   isLight
-                    ? "border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#ecfdf5_100%)]"
+                    ? "border-slate-200 bg-[linear-gradient(135deg,#eaf7f4_0%,#dff3ee_100%)]"
                     : "border-slate-800 bg-gradient-to-r from-slate-900 to-green-900/20"
                 }`}>
                   <div className="flex items-center space-x-3">
@@ -3535,7 +3562,7 @@ const handleViewPatient = async (patientId) => {
                       }}
                       className={`w-full border rounded-xl p-3 focus:outline-none ${
                         isLight
-                          ? "bg-white border-slate-300 text-slate-950 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+                          ? "bg-[#f0faf7] border-slate-300 text-slate-950 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
                           : "bg-slate-800 border-slate-700 text-white focus:border-green-500"
                       }`}
                     >
@@ -3556,7 +3583,7 @@ const handleViewPatient = async (patientId) => {
                         onChange={(e) => setScheduleDate(e.target.value)}
                         className={`w-full border rounded-xl p-3 focus:outline-none ${
                           isLight
-                            ? "bg-white border-slate-300 text-slate-950 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+                            ? "bg-[#f0faf7] border-slate-300 text-slate-950 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
                             : "bg-slate-800 border-slate-700 text-white focus:border-green-500"
                         }`}
                       />
@@ -3569,7 +3596,7 @@ const handleViewPatient = async (patientId) => {
                         onChange={(e) => setScheduleTime(e.target.value)}
                         className={`w-full border rounded-xl p-3 focus:outline-none ${
                           isLight
-                            ? "bg-white border-slate-300 text-slate-950 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+                            ? "bg-[#f0faf7] border-slate-300 text-slate-950 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
                             : "bg-slate-800 border-slate-700 text-white focus:border-green-500"
                         }`}
                       />
@@ -3604,7 +3631,7 @@ const handleViewPatient = async (patientId) => {
                       placeholder="Add any notes for this appointment..."
                       className={`w-full h-20 border rounded-xl p-3 resize-none focus:outline-none ${
                         isLight
-                          ? "bg-white border-slate-300 text-slate-950 placeholder-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+                          ? "bg-[#f0faf7] border-slate-300 text-slate-950 placeholder-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
                           : "bg-slate-800 border-slate-700 text-white placeholder-slate-500 focus:border-green-500"
                       }`}
                     />
@@ -3630,7 +3657,7 @@ const handleViewPatient = async (patientId) => {
                     }}
                     className={`px-6 py-2.5 rounded-xl font-medium transition-all ${
                       isLight
-                        ? "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
+                        ? "bg-[#edf8f5] hover:bg-[#dff3ee] text-slate-700 border border-slate-200"
                         : "bg-slate-800 hover:bg-slate-700 text-white"
                     }`}
                   >

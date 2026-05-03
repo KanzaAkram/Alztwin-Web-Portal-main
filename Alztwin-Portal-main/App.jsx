@@ -17,6 +17,51 @@ import { ClinicianOnboardingForm } from "./components/ClinicianOnboardingForm";
 import { ThemeProvider, useTheme } from "./components/ThemeContext";
 import { ThemeToggle } from "./components/ThemeToggle";
 
+function LightModeSurfaceOverrides() {
+  const { isLight } = useTheme();
+  if (!isLight) return null;
+
+  return (
+    <style>{`
+      .theme-light body {
+        background: linear-gradient(180deg, #e8f6f3 0%, #e5f4f7 48%, #e8f0fb 100%);
+      }
+
+      .theme-light .bg-white,
+      .theme-light [class*="bg-white/"],
+      .theme-light [class*="bg-\\[\\#fff"],
+      .theme-light [class*="from-white"],
+      .theme-light [class*="via-white"],
+      .theme-light [class*="to-white"] {
+        background: rgba(232, 246, 243, 0.92) !important;
+      }
+
+      .theme-light input.bg-white,
+      .theme-light textarea.bg-white,
+      .theme-light select.bg-white,
+      .theme-light input[class*="bg-white"],
+      .theme-light textarea[class*="bg-white"],
+      .theme-light select[class*="bg-white"] {
+        background: #f0faf7 !important;
+      }
+
+      .theme-light button.bg-white,
+      .theme-light button[class*="bg-white"],
+      .theme-light a.bg-white,
+      .theme-light a[class*="bg-white"] {
+        background: #edf8f5 !important;
+      }
+
+      .theme-light button.bg-white:hover,
+      .theme-light button[class*="hover:bg-white"]:hover,
+      .theme-light a.bg-white:hover,
+      .theme-light a[class*="hover:bg-white"]:hover {
+        background: #dff3ee !important;
+      }
+    `}</style>
+  );
+}
+
 function AppContent() {
   const { isLight } = useTheme();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -114,10 +159,11 @@ function AppContent() {
   if (loading) {
     return (
       <>
+        <LightModeSurfaceOverrides />
         <div
           className={`min-h-screen flex items-center justify-center ${
             isLight
-              ? "bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_32%),linear-gradient(135deg,_#f8fafc_0%,_#eef6f2_45%,_#e6f1ed_100%)]"
+              ? "bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_32%),linear-gradient(135deg,_#e8f6f3_0%,_#e5f4f7_48%,_#e8f0fb_100%)]"
               : "bg-slate-950"
           }`}
         >
@@ -135,6 +181,7 @@ function AppContent() {
   if (user && showOnboarding) {
     return (
       <>
+        <LightModeSurfaceOverrides />
         <ClinicianOnboardingForm
           user={user}
           onComplete={handleOnboardingComplete}
@@ -164,6 +211,7 @@ function AppContent() {
 
     return (
       <>
+        <LightModeSurfaceOverrides />
         {dashboard}
         <ThemeToggle />
       </>
@@ -173,10 +221,11 @@ function AppContent() {
   // Show landing page if not logged in
   return (
     <>
+      <LightModeSurfaceOverrides />
       <div
         className={`min-h-screen font-sans ${isLight ? "home-light" : ""} ${
           isLight
-            ? "bg-[radial-gradient(circle_at_top,_rgba(20,184,166,0.16),_transparent_34%),radial-gradient(circle_at_80%_18%,_rgba(14,165,233,0.12),_transparent_28%),linear-gradient(180deg,_#fbfefd_0%,_#f3faf7_46%,_#ffffff_100%)] text-slate-950 selection:bg-emerald-800 selection:text-emerald-50"
+            ? "bg-[radial-gradient(circle_at_top,_rgba(20,184,166,0.16),_transparent_34%),radial-gradient(circle_at_80%_18%,_rgba(14,165,233,0.12),_transparent_28%),linear-gradient(180deg,_#e8f6f3_0%,_#e5f4f7_48%,_#e8f0fb_100%)] text-slate-950 selection:bg-emerald-800 selection:text-emerald-50"
             : "bg-midnight-900 text-slate-50 selection:bg-brand-500 selection:text-white"
         }`}
       >
@@ -200,7 +249,7 @@ function AppContent() {
             .home-light .bg-slate-800\\/60,
             .home-light .bg-slate-800\\/50,
             .home-light .bg-slate-800\\/30 {
-              background: rgba(255, 255, 255, 0.94) !important;
+              background: rgba(232, 246, 243, 0.94) !important;
             }
 
             .home-light section.bg-gradient-to-b.from-slate-950,
@@ -209,7 +258,7 @@ function AppContent() {
             .home-light .bg-gradient-to-br.from-slate-900\\/90,
             .home-light .bg-gradient-to-br.from-slate-800\\/80,
             .home-light .bg-gradient-to-b.from-slate-900\\/50 {
-              background: linear-gradient(135deg, #ffffff 0%, #f0fdfa 52%, #eff6ff 100%) !important;
+              background: linear-gradient(135deg, #e8f6f3 0%, #e5f4f7 52%, #e8f0fb 100%) !important;
             }
 
             .home-light .border-slate-900,
@@ -437,7 +486,7 @@ function AppContent() {
             .home-light input,
             .home-light select,
             .home-light textarea {
-              background: #ffffff !important;
+              background: #f0faf7 !important;
               color: #0f172a !important;
               border-color: #cbd5e1 !important;
             }

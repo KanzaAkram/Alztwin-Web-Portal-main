@@ -287,6 +287,18 @@ export default function DigitalTwinSection({
   ];
   const activeDetailMeta =
     detailTabs.find((tab) => tab.id === activeDetailTab) || detailTabs[0];
+  const detailWorkspace = isLight
+    ? "bg-[#d8eee9]/92 border-teal-900/10 shadow-[0_24px_58px_rgba(15,23,42,0.10)]"
+    : "bg-slate-900/45 border-slate-800";
+  const detailPanel = isLight
+    ? "bg-[#eaf7f4]/92 border-teal-900/10 shadow-[0_14px_34px_rgba(15,23,42,0.07)]"
+    : "bg-slate-900/50 border-slate-800";
+  const detailCard = isLight
+    ? "bg-[#d8eee9]/80 border-teal-900/10"
+    : "bg-slate-800/30 border-slate-700";
+  const detailHeading = isLight ? "text-[#102a37]" : "text-white";
+  const detailMuted = isLight ? "text-[#365565]" : "text-slate-400";
+  const detailSubtle = isLight ? "text-[#517080]" : "text-slate-500";
 
   const progressionModel = useMemo(() => {
     if (Array.isArray(progression) && progression.length > 0) {
@@ -550,7 +562,7 @@ export default function DigitalTwinSection({
     };
   }, [sensorTrendData]);
   const sensorPanelClass = isLight
-    ? "bg-white border border-slate-200 shadow-[0_18px_42px_rgba(15,23,42,0.07)]"
+    ? "bg-[#eaf7f4] border border-slate-200 shadow-[0_18px_42px_rgba(15,23,42,0.07)]"
     : "bg-slate-900/60 border border-slate-800";
   const sensorCardClass = isLight
     ? "bg-slate-50 border border-slate-200"
@@ -721,13 +733,13 @@ export default function DigitalTwinSection({
           .dt-light .bg-slate-800\\/50,
           .dt-light .bg-slate-800\\/40,
           .dt-light .bg-slate-800\\/30 {
-            background: rgba(255, 255, 255, 0.94) !important;
+            background: rgba(232, 246, 243, 0.94) !important;
           }
 
           .dt-light .bg-gradient-to-br.from-slate-900,
           .dt-light .bg-gradient-to-br.from-slate-900\\/80,
           .dt-light .bg-gradient-to-r.from-slate-900 {
-            background: linear-gradient(135deg, #ffffff 0%, #f0fdfa 55%, #eff6ff 100%) !important;
+            background: linear-gradient(135deg, #e8f6f3 0%, #e5f4f7 55%, #e8f0fb 100%) !important;
           }
 
           .dt-light .border-slate-800,
@@ -784,7 +796,7 @@ export default function DigitalTwinSection({
           .dt-light input,
           .dt-light select,
           .dt-light textarea {
-            background: #ffffff !important;
+            background: #f0faf7 !important;
             color: #0f172a !important;
             border-color: #cbd5e1 !important;
           }
@@ -995,7 +1007,7 @@ export default function DigitalTwinSection({
 
           {sensorOverview}
 
-          <div className="bg-slate-900/45 border border-slate-800 rounded-2xl p-4 sm:p-5">
+          <div className={`${detailWorkspace} border rounded-2xl p-4 sm:p-5`}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.14em] text-blue-300">
@@ -1498,11 +1510,11 @@ export default function DigitalTwinSection({
           <div className="bg-slate-900/45 border border-slate-800 rounded-2xl p-4 sm:p-5">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between mb-4">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.14em] text-cyan-300">
+                <p className={`text-[11px] uppercase tracking-[0.14em] ${isLight ? "text-teal-800" : "text-cyan-300"}`}>
                   Step 4 · Clinical Detail Workspace
                 </p>
-                <h3 className="text-lg font-semibold text-white mt-1">Focused Data Review</h3>
-                <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                <h3 className={`text-lg font-semibold mt-1 ${detailHeading}`}>Focused Data Review</h3>
+                <p className={`text-xs mt-1 max-w-xl ${detailMuted}`}>
                   {activeDetailMeta.helper ||
                     "Review one data domain at a time to keep decision-making focused and clinically interpretable."}
                 </p>
@@ -1518,8 +1530,12 @@ export default function DigitalTwinSection({
                       onClick={() => setActiveDetailTab(tab.id)}
                       className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all ${
                         active
-                          ? "bg-cyan-500/15 border-cyan-400 text-cyan-200"
-                          : "bg-slate-800/70 border-slate-700 text-slate-300 hover:border-cyan-500/40"
+                          ? isLight
+                            ? "bg-[linear-gradient(135deg,#0f766e,#155e75)] border-transparent text-white shadow-[0_12px_26px_rgba(15,118,110,0.22)]"
+                            : "bg-cyan-500/15 border-cyan-400 text-cyan-200"
+                          : isLight
+                            ? "bg-[#eaf7f4] border-teal-900/10 text-[#315666] hover:bg-[#cfe7e2] hover:text-teal-950 hover:border-teal-700/30"
+                            : "bg-slate-800/70 border-slate-700 text-slate-300 hover:border-cyan-500/40"
                       }`}
                     >
                       <TabIcon size={14} />
@@ -1592,9 +1608,9 @@ export default function DigitalTwinSection({
             )}
 
             {activeDetailTab === "cognitive" && (
-              <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <BarChart3 className="mr-2 text-cyan-400" size={20} />
+              <div className={`${detailPanel} border rounded-xl p-6`}>
+                <h3 className={`text-lg font-semibold mb-4 flex items-center ${detailHeading}`}>
+                  <BarChart3 className={`mr-2 ${isLight ? "text-teal-800" : "text-cyan-400"}`} size={20} />
                   Cognitive Test History
                 </h3>
                 {cognitiveTests.length === 0 ? (
@@ -1606,12 +1622,12 @@ export default function DigitalTwinSection({
                       const explicitMax = getMaxScoreFromEntry(test);
                       const max = explicitMax != null ? explicitMax : numericOr(test.max, getCognitiveMaxScore(test.test));
                       return (
-                        <div key={idx} className="bg-slate-800/30 rounded-lg p-4">
+                        <div key={idx} className={`${detailCard} border rounded-lg p-4`}>
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-white font-medium text-sm">
+                            <span className={`${detailHeading} font-medium text-sm`}>
                               {test.test}
                             </span>
-                            <span className="text-cyan-400 font-bold">
+                            <span className={`${isLight ? "text-teal-800" : "text-cyan-400"} font-bold`}>
                               {numericOr(test.current, "—")}/{max}
                             </span>
                           </div>
@@ -1626,8 +1642,12 @@ export default function DigitalTwinSection({
                                     <div
                                       className={`w-full rounded-t ${
                                         i === scores.length - 1
-                                          ? "bg-cyan-500"
-                                          : "bg-slate-600"
+                                          ? isLight
+                                            ? "bg-teal-700"
+                                            : "bg-cyan-500"
+                                          : isLight
+                                            ? "bg-teal-900/20"
+                                            : "bg-slate-600"
                                       }`}
                                       style={{
                                         height: `${(score / max) * 100}%`,
@@ -1637,10 +1657,10 @@ export default function DigitalTwinSection({
                                 ))}
                               </div>
                               <div className="flex justify-between mt-1">
-                                <span className="text-[10px] text-slate-500">
+                                <span className={`text-[10px] ${detailSubtle}`}>
                                   Earliest
                                 </span>
-                                <span className="text-[10px] text-slate-500">
+                                <span className={`text-[10px] ${detailSubtle}`}>
                                   Current
                                 </span>
                               </div>
