@@ -3269,25 +3269,41 @@ const handleViewPatient = async (patientRef) => {
 
           {/* === CAREGIVER REPORT PREVIEW MODAL === */}
           {showCaregiverReportPreview && caregiverReportPreview && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[75] flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
-                <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 to-emerald-900/20">
+            <div className={`fixed inset-0 backdrop-blur-sm z-[75] flex items-center justify-center p-4 ${
+              isLight ? "bg-slate-950/35" : "bg-black/80"
+            }`}>
+              <div className={`border rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col ${
+                isLight
+                  ? "bg-[#d8eee9] border-teal-900/10 shadow-[0_35px_90px_rgba(15,23,42,0.20)]"
+                  : "bg-slate-900 border-slate-700"
+              }`}>
+                <div className={`p-6 border-b flex items-center justify-between ${
+                  isLight
+                    ? "border-teal-900/10 bg-[linear-gradient(135deg,#d8eee9,#cfe7e2)]"
+                    : "border-slate-800 bg-gradient-to-r from-slate-900 to-emerald-900/20"
+                }`}>
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
-                      <Eye size={20} className="text-emerald-300" />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      isLight ? "bg-teal-700/12 text-teal-800" : "bg-emerald-500/20 text-emerald-300"
+                    }`}>
+                      <Eye size={20} />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-white">
+                      <h3 className={`text-xl font-bold ${isLight ? "text-[#102a37]" : "text-white"}`}>
                         Caregiver Report Preview
                       </h3>
-                      <p className="text-slate-400 text-sm">
+                      <p className={`text-sm ${isLight ? "text-[#365565]" : "text-slate-400"}`}>
                         Patient: {caregiverReportPreview.patient.name}
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => setShowCaregiverReportPreview(false)}
-                    className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-all"
+                    className={`p-2 rounded-lg transition-all ${
+                      isLight
+                        ? "bg-[#eaf7f4] hover:bg-[#cfe7e2] text-[#315666] border border-teal-900/10"
+                        : "bg-slate-800 hover:bg-slate-700 text-white"
+                    }`}
                   >
                     <X size={20} />
                   </button>
@@ -3295,15 +3311,15 @@ const handleViewPatient = async (patientRef) => {
 
                 <div className="p-6 space-y-5 overflow-y-auto">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
-                      <p className="text-xs text-slate-400 uppercase mb-1">
+                    <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/40 border-slate-700"} border rounded-xl p-4`}>
+                      <p className={`text-xs uppercase mb-1 ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
                         Current Stage Result
                       </p>
-                      <p className="text-2xl font-bold text-white mb-2">
+                      <p className={`text-2xl font-bold mb-2 ${isLight ? "text-[#102a37]" : "text-white"}`}>
                         {caregiverReportPreview.currentStageResult.stage}
                       </p>
                       {caregiverReportPreview.currentStageResult.confidence != null && (
-                        <p className="text-sm text-slate-300">
+                        <p className={`text-sm ${isLight ? "text-[#365565]" : "text-slate-300"}`}>
                           Confidence:{" "}
                           {Math.round(
                             caregiverReportPreview.currentStageResult.confidence *
@@ -3313,7 +3329,7 @@ const handleViewPatient = async (patientRef) => {
                         </p>
                       )}
                       {caregiverReportPreview.currentStageResult.inferenceText && (
-                        <p className="text-sm text-slate-400 mt-2 italic">
+                        <p className={`text-sm mt-2 italic ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
                           "
                           {caregiverReportPreview.currentStageResult.inferenceText}
                           "
@@ -3321,33 +3337,33 @@ const handleViewPatient = async (patientRef) => {
                       )}
                     </div>
 
-                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
-                      <p className="text-xs text-slate-400 uppercase mb-1">
+                    <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/40 border-slate-700"} border rounded-xl p-4`}>
+                      <p className={`text-xs uppercase mb-1 ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
                         Trajectory Progression
                       </p>
-                      <p className="text-lg font-semibold text-white mb-1">
+                      <p className={`text-lg font-semibold mb-1 ${isLight ? "text-[#102a37]" : "text-white"}`}>
                         {caregiverReportPreview.trajectory.predictedDecline}
                       </p>
-                      <p className="text-sm text-slate-300 mb-2">
+                      <p className={`text-sm mb-2 ${isLight ? "text-[#365565]" : "text-slate-300"}`}>
                         Timeline: {caregiverReportPreview.trajectory.trajectoryMonths}
                       </p>
                       {caregiverReportPreview.trajectory.insight && (
-                        <p className="text-sm text-slate-400 italic">
+                        <p className={`text-sm italic ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
                           "{caregiverReportPreview.trajectory.insight}"
                         </p>
                       )}
                     </div>
 
-                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
-                      <p className="text-xs text-slate-400 uppercase mb-1">
+                    <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/40 border-slate-700"} border rounded-xl p-4`}>
+                      <p className={`text-xs uppercase mb-1 ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
                         3D Brain Model Inference
                       </p>
-                      <p className="text-sm text-slate-300 mb-2">
+                      <p className={`text-sm mb-2 ${isLight ? "text-[#365565]" : "text-slate-300"}`}>
                         {caregiverReportPreview.brainModel3d?.hasModel
                           ? "3D model available"
                           : "3D model not available"}
                       </p>
-                      <p className="text-sm text-slate-400 italic">
+                      <p className={`text-sm italic ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
                         {caregiverReportPreview.brainModel3d?.inferenceText
                           ? `"${caregiverReportPreview.brainModel3d.inferenceText}"`
                           : "No 3D inference available yet."}
@@ -3355,23 +3371,23 @@ const handleViewPatient = async (patientRef) => {
                     </div>
                   </div>
 
-                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
-                    <h4 className="text-white font-semibold mb-3">
+                  <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/30 border-slate-700"} border rounded-xl p-4`}>
+                    <h4 className={`${isLight ? "text-[#102a37]" : "text-white"} font-semibold mb-3`}>
                       Inference Details for Caregiver Report
                     </h4>
                     <div className="space-y-2 text-sm">
-                      <p className="text-slate-300">
-                        <span className="text-slate-400">Current Stage:</span>{" "}
+                      <p className={isLight ? "text-[#365565]" : "text-slate-300"}>
+                        <span className={isLight ? "text-[#517080]" : "text-slate-400"}>Current Stage:</span>{" "}
                         {caregiverReportPreview.inferenceDetails?.currentStage ||
                           "No current-stage inference available."}
                       </p>
-                      <p className="text-slate-300">
-                        <span className="text-slate-400">Trajectory:</span>{" "}
+                      <p className={isLight ? "text-[#365565]" : "text-slate-300"}>
+                        <span className={isLight ? "text-[#517080]" : "text-slate-400"}>Trajectory:</span>{" "}
                         {caregiverReportPreview.inferenceDetails?.trajectory ||
                           "No trajectory inference available."}
                       </p>
-                      <p className="text-slate-300">
-                        <span className="text-slate-400">3D Brain Model:</span>{" "}
+                      <p className={isLight ? "text-[#365565]" : "text-slate-300"}>
+                        <span className={isLight ? "text-[#517080]" : "text-slate-400"}>3D Brain Model:</span>{" "}
                         {caregiverReportPreview.inferenceDetails?.brainModel3d ||
                           "No 3D brain-model inference available."}
                       </p>
@@ -3380,8 +3396,8 @@ const handleViewPatient = async (patientRef) => {
 
                   {Array.isArray(caregiverReportPreview.trajectory.progression) &&
                     caregiverReportPreview.trajectory.progression.length > 0 && (
-                      <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
-                        <p className="text-xs text-slate-400 uppercase mb-2">
+                      <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/30 border-slate-700"} border rounded-xl p-4`}>
+                        <p className={`text-xs uppercase mb-2 ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
                           Progression Points
                         </p>
                         <div className="flex flex-wrap gap-2">
@@ -3390,7 +3406,11 @@ const handleViewPatient = async (patientRef) => {
                             .map((point, idx) => (
                               <span
                                 key={idx}
-                                className="px-2 py-1 rounded-lg text-xs border border-slate-600 bg-slate-800 text-slate-300"
+                                className={`px-2 py-1 rounded-lg text-xs border ${
+                                  isLight
+                                    ? "border-teal-900/10 bg-[#d8eee9] text-[#315666]"
+                                    : "border-slate-600 bg-slate-800 text-slate-300"
+                                }`}
                               >
                                 {(point.month || `Point ${idx + 1}`) +
                                   ": " +
@@ -3401,10 +3421,10 @@ const handleViewPatient = async (patientRef) => {
                       </div>
                     )}
 
-                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
-                    <h4 className="text-white font-semibold mb-3">Cognitive Scores</h4>
+                  <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/30 border-slate-700"} border rounded-xl p-4`}>
+                    <h4 className={`${isLight ? "text-[#102a37]" : "text-white"} font-semibold mb-3`}>Cognitive Scores</h4>
                     {caregiverReportPreview.cognitiveScores.length === 0 ? (
-                      <p className="text-sm text-slate-400">
+                      <p className={`text-sm ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
                         No cognitive test scores available yet.
                       </p>
                     ) : (
@@ -3412,18 +3432,18 @@ const handleViewPatient = async (patientRef) => {
                         {caregiverReportPreview.cognitiveScores.map((score) => (
                           <div
                             key={score.testType}
-                            className="bg-slate-800/60 border border-slate-700 rounded-lg p-3"
+                            className={`${isLight ? "bg-[#d8eee9] border-teal-900/10" : "bg-slate-800/60 border-slate-700"} border rounded-lg p-3`}
                           >
-                            <p className="text-xs text-slate-400 uppercase mb-1">
+                            <p className={`text-xs uppercase mb-1 ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
                               {score.testType}
                             </p>
-                            <p className="text-lg font-bold text-white">
+                            <p className={`text-lg font-bold ${isLight ? "text-[#102a37]" : "text-white"}`}>
                               {score.latestScore ?? "-"}
-                              <span className="text-xs text-slate-500">
+                              <span className={`text-xs ${isLight ? "text-[#517080]" : "text-slate-500"}`}>
                                 /{score.maxScore}
                               </span>
                             </p>
-                            <p className="text-xs text-slate-400">
+                            <p className={`text-xs ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
                               {score.scorePercent != null
                                 ? `${score.scorePercent}% of max score`
                                 : "No scored result yet"}
@@ -3435,25 +3455,25 @@ const handleViewPatient = async (patientRef) => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
-                      <h4 className="text-white font-semibold mb-2">Clinician Notes</h4>
-                      <p className="text-sm text-slate-300 whitespace-pre-wrap">
+                    <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10 shadow-[0_14px_34px_rgba(15,78,83,0.08)]" : "bg-slate-800/30 border-slate-700"} border rounded-xl p-4`}>
+                      <h4 className={`${isLight ? "text-[#102a37]" : "text-white"} font-semibold mb-2`}>Clinician Notes</h4>
+                      <p className={`text-sm whitespace-pre-wrap ${isLight ? "text-[#315666]" : "text-slate-300"}`}>
                         {caregiverReportPreview.clinicianNotes.clinicalNotes ||
                           "No clinician notes added."}
                       </p>
                     </div>
-                    <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
-                      <h4 className="text-white font-semibold mb-2">
+                    <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10 shadow-[0_14px_34px_rgba(15,78,83,0.08)]" : "bg-slate-800/30 border-slate-700"} border rounded-xl p-4`}>
+                      <h4 className={`${isLight ? "text-[#102a37]" : "text-white"} font-semibold mb-2`}>
                         Recommendation Plan
                       </h4>
-                      <p className="text-sm text-slate-300 whitespace-pre-wrap">
+                      <p className={`text-sm whitespace-pre-wrap ${isLight ? "text-[#315666]" : "text-slate-300"}`}>
                         {caregiverReportPreview.clinicianNotes.recommendationPlan ||
                           "No recommendation plan added."}
                       </p>
                     </div>
                   </div>
 
-                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 text-xs text-slate-400 space-y-1">
+                  <div className={`${isLight ? "bg-[#d8eee9] border-teal-900/10 text-[#517080]" : "bg-slate-800/30 border-slate-700 text-slate-400"} border rounded-xl p-4 text-xs space-y-1`}>
                     <p>Report Name: {caregiverReportPreview.caregiverReportName}</p>
                     <p>Patient ID: {caregiverReportPreview.patient.id}</p>
                     <p>
@@ -3468,9 +3488,13 @@ const handleViewPatient = async (patientRef) => {
                   </div>
 
                   {caregiverReportPreview.caregiverIds.length === 0 && (
-                    <div className="flex items-start space-x-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
-                      <AlertCircle size={16} className="text-yellow-400 mt-0.5" />
-                      <p className="text-xs text-yellow-200">
+                    <div className={`flex items-start space-x-2 border rounded-xl p-3 ${
+                      isLight
+                        ? "bg-amber-50 border-amber-300"
+                        : "bg-yellow-500/10 border-yellow-500/30"
+                    }`}>
+                      <AlertCircle size={16} className={`${isLight ? "text-amber-700" : "text-yellow-400"} mt-0.5`} />
+                      <p className={`text-xs ${isLight ? "text-amber-900" : "text-yellow-200"}`}>
                         No caregiver ID is linked to this patient yet. The report
                         will still be saved in caregiverReports and can be fetched
                         by patientId in the mobile app.
@@ -3479,17 +3503,29 @@ const handleViewPatient = async (patientRef) => {
                   )}
                 </div>
 
-                <div className="p-6 border-t border-slate-800 flex items-center justify-end space-x-3 bg-slate-900/50">
+                <div className={`p-6 border-t flex items-center justify-end space-x-3 ${
+                  isLight
+                    ? "border-teal-900/10 bg-[#cfe7e2]/80"
+                    : "border-slate-800 bg-slate-900/50"
+                }`}>
                   <button
                     onClick={() => setShowCaregiverReportPreview(false)}
-                    className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-all"
+                    className={`px-6 py-2.5 rounded-xl font-medium transition-all ${
+                      isLight
+                        ? "bg-[#eaf7f4] hover:bg-[#d8eee9] text-[#315666] border border-teal-900/10 shadow-sm"
+                        : "bg-slate-800 hover:bg-slate-700 text-white"
+                    }`}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSendCaregiverReport}
                     disabled={sendingCaregiverReport}
-                    className="flex items-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white rounded-xl font-medium transition-all disabled:opacity-50"
+                    className={`flex items-center space-x-2 px-6 py-2.5 text-white rounded-xl font-medium transition-all disabled:opacity-50 ${
+                      isLight
+                        ? "bg-gradient-to-r from-[#047857] to-[#0f5f78] hover:from-[#065f46] hover:to-[#164e63] shadow-[0_14px_28px_rgba(4,120,87,0.22)]"
+                        : "bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500"
+                    }`}
                   >
                     {sendingCaregiverReport ? (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
