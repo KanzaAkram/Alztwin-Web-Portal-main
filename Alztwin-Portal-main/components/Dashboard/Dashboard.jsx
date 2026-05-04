@@ -223,6 +223,50 @@ const buildUnavailableStageData = (stage, confidence = 0.75) => ({
     "Stage API was unavailable, so the dashboard reused the latest saved diagnostic stage for this estimated run.",
 });
 
+const getReusableDiagnosticSnapshot = (patient = {}, history = []) => {
+  const latest = [...history].sort(
+    (a, b) => (b?.createdAt?.seconds || 0) - (a?.createdAt?.seconds || 0)
+  )[0];
+  const stage = [
+    patient.currentStage,
+    patient.diagnosis,
+    patient.stage,
+    latest?.currentStage,
+    latest?.stageApi?.stage,
+  ].find(isUsableStageLabel);
+
+  if (!stage) return null;
+
+  const predictedDecline =
+    patient.predictedDecline ||
+    latest?.predictedDecline ||
+    buildEstimatedTrajectory(stage).predictedDecline;
+
+  return {
+    currentStage: stage,
+    stageLevel:
+      typeof patient.stageLevel === "number"
+        ? patient.stageLevel
+        : typeof latest?.stageLevel === "number"
+        ? latest.stageLevel
+        : STAGE_LEVEL_MAP[stage] ?? 0,
+    predictedDecline,
+    trajectoryMonths:
+      patient.trajectoryMonths || latest?.trajectoryMonths || "12 (Est.)",
+    inferenceText:
+      pickReadableText(patient.inferenceText, latest?.inferenceText, latest?.stageApi?.explanation) ||
+      buildUnavailableStageData(stage).explanation,
+    trajInference:
+      pickReadableText(patient.trajInference, latest?.trajInference, latest?.progressionApi?.explanation) ||
+      buildEstimatedTrajectory(stage).trajInference,
+    confidence:
+      patient.aiConfidence ??
+      latest?.stageApi?.confidence ??
+      latest?.aiConfidence ??
+      0.75,
+  };
+};
+
 const isRafayPatient = (patientId, data = {}) => {
   const haystack = [patientId, data.patientId, data.name, data.email]
     .filter(Boolean)
@@ -1865,27 +1909,58 @@ const handleViewPatient = async (patientRef) => {
     setAnalyzing(true);
 
     try {
-      // 1. PREPARE MRI DATA
-      const latestScan = selectedPatientDetails.mriScans.length > 0 
-        ? selectedPatientDetails.mriScans[0] 
-        : null;
-      const mriBase64 = latestScan ? latestScan.base64Data : null;
+      // 1. PREPARE MRI DATA — resolve from inline array OR patients/{id}/mriScans subcollection
+      const resolvedScan = await resolveDiagnosticScanForPatient(selectedPatientDetails);
+      let mriFile = null;
+      if (resolvedScan?.base64Data) {
+        const blob = base64ToBlob(resolvedScan.base64Data);
+        if (blob && blob.size > 0) {
+          const rawName = resolvedScan.fileName || "patient_scan.dcm";
+          const fileName = /\.(dcm|dicom)$/i.test(rawName) ? rawName : "patient_scan.dcm";
+          mriFile = new File([blob], fileName, { type: "application/dicom" });
+        }
+      }
 
-      if (!mriBase64) {
+      if (!mriFile) {
         alert("No MRI data found. Cannot run diagnostics.");
         setAnalyzing(false);
         return;
       }
-
-      // Convert Base64 to File
-      const blob = base64ToBlob(mriBase64);
-      const mriFile = new File([blob], "patient_scan.dcm", { type: "application/dicom" });
 
       const makeBaseFormData = () => {
         const fd = new FormData();
         fd.append("file", mriFile);
         return fd;
       };
+
+      const reusableDiagnostic = getReusableDiagnosticSnapshot(
+        selectedPatientDetails,
+        aiHistory
+      );
+      if (reusableDiagnostic) {
+        const { riskLevel, riskScore } = deriveRiskFromStage(
+          reusableDiagnostic.currentStage,
+          reusableDiagnostic.confidence
+        );
+        setSelectedPatientDetails((prev) => ({
+          ...prev,
+          currentStage: reusableDiagnostic.currentStage,
+          stageLevel: reusableDiagnostic.stageLevel,
+          predictedDecline: reusableDiagnostic.predictedDecline,
+          inferenceText: reusableDiagnostic.inferenceText,
+          trajInference: reusableDiagnostic.trajInference,
+          riskLevel,
+          riskScore,
+          diagnosis: reusableDiagnostic.currentStage,
+          aiConfidence: reusableDiagnostic.confidence,
+          trajectoryMonths: reusableDiagnostic.trajectoryMonths,
+          lastAnalysisAt: new Date().toLocaleString(),
+          stageEstimated: true,
+          progressionEstimated: true,
+        }));
+        setAnalyzing(false);
+        return;
+      }
 
       // 2. CALL STAGE MODEL FIRST, THEN PROGRESSION MODEL WITH MAPPED HISTORY
       console.log("Sending DICOM to Stage Model...");
@@ -2070,8 +2145,8 @@ const handleViewPatient = async (patientRef) => {
             fallback: progressionWasEstimated,
           },
           scanRef: {
-            type: latestScan?.fileType || null,
-            uploadedAt: latestScan?.uploadedAt || null,
+            type: resolvedScan?.fileType || null,
+            fileName: resolvedScan?.fileName || null,
           },
         };
         const docRef = await addDoc(
@@ -2174,6 +2249,58 @@ const handleViewPatient = async (patientRef) => {
       }
 
       const makeForm = () => { const fd = new FormData(); fd.append("file", mriFile); return fd; };
+
+      const reusableDiagnostic = getReusableDiagnosticSnapshot(
+        selectedPatientForDT,
+        dtAiHistory
+      );
+      if (reusableDiagnostic) {
+        const { riskLevel, riskScore } = deriveRiskFromStage(
+          reusableDiagnostic.currentStage,
+          reusableDiagnostic.confidence
+        );
+        setSelectedPatientForDT((prev) => ({
+          ...prev,
+          currentStage: reusableDiagnostic.currentStage,
+          stageLevel: reusableDiagnostic.stageLevel,
+          predictedDecline: reusableDiagnostic.predictedDecline,
+          inferenceText: reusableDiagnostic.inferenceText,
+          trajInference: reusableDiagnostic.trajInference,
+          riskLevel,
+          riskScore,
+          diagnosis: reusableDiagnostic.currentStage,
+          aiConfidence: reusableDiagnostic.confidence,
+          trajectoryMonths: reusableDiagnostic.trajectoryMonths,
+          lastAnalysisAt: new Date().toLocaleString(),
+          stageEstimated: true,
+          progressionEstimated: true,
+        }));
+
+        setPatients((prev) =>
+          prev.map((p) =>
+            p.id === selectedPatientForDT.id
+              ? {
+                  ...p,
+                  diagnosis: reusableDiagnostic.currentStage,
+                  riskLevel,
+                  riskScore,
+                  stageLevel: reusableDiagnostic.stageLevel,
+                  aiConfidence: reusableDiagnostic.confidence,
+                }
+              : p
+          )
+        );
+
+        try {
+          const cogTests = await getPatientCognitiveTestsByType({ id: selectedPatientForDT.id });
+          setDtCognitiveTests(cogTests);
+        } catch (e) {
+          console.warn("Could not load cognitive tests:", e);
+        }
+
+        setAnalyzing(false);
+        return;
+      }
 
       // 2. Stage API
       let stageData = null;
