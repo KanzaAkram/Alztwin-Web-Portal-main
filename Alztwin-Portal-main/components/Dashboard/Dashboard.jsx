@@ -389,7 +389,8 @@ const getLatestSensorRecord = (deviceData = {}) => {
     : deviceData;
 };
 
-const formatSensorTimestamp = (record = {}) => {
+const formatSensorTimestamp = (record) => {
+  if (!record) return "No sync yet";
   const ms = Number(record.timestampMs || wearableTimeToMs(record.updatedAt));
   if (!ms) return "No sync yet";
   return new Date(ms).toLocaleString();
