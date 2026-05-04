@@ -143,43 +143,21 @@ import TeleconsultationSection from "./sections/TeleconsultationSection";
 import PatientsSection from "./sections/PatientsSection";
 import CognitiveTestsSection from "./sections/CognitiveTestsSection";
 
-const QUOTA_ERROR_PATTERN =
-  /quota|rate[- ]?limit|resource exhausted|generate_content_free_tier|429|billing/i;
-
-const pickReadableText = (...values) => {
-  for (const value of values) {
-    if (typeof value !== "string") continue;
-    const text = value.trim();
-    if (!text || text === "[object Object]" || QUOTA_ERROR_PATTERN.test(text)) {
-      continue;
-    }
-    return text;
-  }
-  return null;
-};
-
 const getStageInferenceText = (payload = {}) =>
-  pickReadableText(
-    payload.explanation,
-    payload.inference,
-    payload.ai_inference,
-    payload.message,
-    payload.details
-  );
+  payload.explanation ||
+  payload.inference ||
+  payload.ai_inference ||
+  payload.message ||
+  payload.details ||
+  null;
 
 const getTrajectoryInferenceText = (payload = {}) =>
-  pickReadableText(
-    payload.explanation,
-    payload.inference,
-    payload.ai_inference,
-    payload.message,
-    payload.details
-  );
-
-const getApiErrorText = (error) => {
-  const data = error?.response?.data;
-  return pickReadableText(data?.error, data?.message, error?.message);
-};
+  payload.explanation ||
+  payload.inference ||
+  payload.ai_inference ||
+  payload.message ||
+  payload.details ||
+  null;
 
 const isRafayPatient = (patientId, data = {}) => {
   const haystack = [patientId, data.patientId, data.name, data.email]
@@ -303,8 +281,7 @@ const getLatestSensorRecord = (deviceData = {}) => {
     : deviceData;
 };
 
-const formatSensorTimestamp = (record) => {
-  if (!record) return "No sync yet";
+const formatSensorTimestamp = (record = {}) => {
   const ms = Number(record.timestampMs || wearableTimeToMs(record.updatedAt));
   if (!ms) return "No sync yet";
   return new Date(ms).toLocaleString();
@@ -644,8 +621,6 @@ const Dashboard = ({ user, onLogout }) => {
               : [],
             predictedDecline: data.predictedDecline || null,
             trajectoryMonths: data.trajectoryMonths || null,
-            stageEstimated: Boolean(data.stageEstimated),
-            progressionEstimated: Boolean(data.progressionEstimated),
             aiConfidence: data.aiConfidence ?? null,
             lastAnalysisAt: data.lastAnalysisAt
               ? formatDate(data.lastAnalysisAt)
@@ -653,8 +628,8 @@ const Dashboard = ({ user, onLogout }) => {
 
             // Last AI run results — persisted so they survive page reload
             currentStage: data.currentStage || data.diagnosis || null,
-            inferenceText: pickReadableText(data.inferenceText) || null,
-            trajInference: pickReadableText(data.trajInference) || null,
+            inferenceText: data.inferenceText || null,
+            trajInference: data.trajInference || null,
 
             // 3. Pass the full array. We will process base64Data in handleViewPatient
             mriScans: data.mriScans || [],
@@ -1756,14 +1731,19 @@ const handleViewPatient = async (patientRef) => {
         }
 
         return {
+            ...scan,
             id: index,
             // Use helper to prevent "Object invalid child" error
             date: formatDate(scan.uploadedAt), 
             type: scan.fileType || "MRI Scan",
             url: imgSource, 
             
-            // Store the RAW data for the API
-            base64Data: scan.base64Data 
+            // Store the RAW data/reference fields for the API resolver
+            base64Data: scan.base64Data,
+            mriId: scan.mriId || null,
+            fileName: scan.fileName || null,
+            fileType: scan.fileType || null,
+            uploadedAt: scan.uploadedAt || null,
         };
       });
 
@@ -1788,10 +1768,8 @@ const handleViewPatient = async (patientRef) => {
             stageLevel: latestAnalysis.stageLevel,
             predictedDecline: latestAnalysis.predictedDecline,
             trajectoryMonths: latestAnalysis.trajectoryMonths,
-            inferenceText: pickReadableText(latestAnalysis.inferenceText),
-            trajInference: pickReadableText(latestAnalysis.trajInference),
-            stageEstimated: Boolean(latestAnalysis.stageEstimated),
-            progressionEstimated: Boolean(latestAnalysis.progressionEstimated),
+            inferenceText: latestAnalysis.inferenceText,
+            trajInference: latestAnalysis.trajInference,
           }
         : {};
 
@@ -1824,23 +1802,27 @@ const handleViewPatient = async (patientRef) => {
     setAnalyzing(true);
 
     try {
-      // 1. PREPARE MRI DATA — resolve from inline array OR patients/{id}/mriScans subcollection
+      // 1. PREPARE MRI DATA
+      // Reuse the same resolver as the Digital Twin diagnostics flow so this
+      // button can handle direct uploads and caregiver mriId/subcollection data.
       const resolvedScan = await resolveDiagnosticScanForPatient(selectedPatientDetails);
-      let mriFile = null;
-      if (resolvedScan?.base64Data) {
-        const blob = base64ToBlob(resolvedScan.base64Data);
-        if (blob && blob.size > 0) {
-          const rawName = resolvedScan.fileName || "patient_scan.dcm";
-          const fileName = /\.(dcm|dicom)$/i.test(rawName) ? rawName : "patient_scan.dcm";
-          mriFile = new File([blob], fileName, { type: "application/dicom" });
-        }
-      }
 
-      if (!mriFile) {
-        alert("No MRI data found. Cannot run diagnostics.");
+      if (!resolvedScan?.base64Data) {
+        alert(
+          "No MRI scan payload could be resolved for diagnostics. Please re-upload scans if this patient only has a cached 3D model."
+        );
         setAnalyzing(false);
         return;
       }
+
+      // Convert Base64 to File
+      const blob = base64ToBlob(resolvedScan.base64Data);
+      if (!blob || blob.size === 0) {
+        throw new Error("Resolved MRI payload is empty after base64 decoding.");
+      }
+      const rawName = resolvedScan.fileName || "patient_scan.dcm";
+      const fileName = /\.(dcm|dicom)$/i.test(rawName) ? rawName : "patient_scan.dcm";
+      const mriFile = new File([blob], fileName, { type: "application/dicom" });
 
       const makeBaseFormData = () => {
         const fd = new FormData();
@@ -1854,16 +1836,15 @@ const handleViewPatient = async (patientRef) => {
       const stageRes = await axios.post(API_STAGE_URL, makeBaseFormData(), {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      const stageData = stageRes.data || {};
 
-      console.log("Stage API Result:", stageData);
+      console.log("Stage API Result:", stageRes.data);
 
       // 3. PROCESS RESULTS
       
       // A. Extract Current Stage from Stage API
       // Assuming Stage API returns: { "stage": "MCI", "confidence": 0.95 }
-      const currentStage = stageData.stage || stageData.current_stage || "Unknown";
-      const inferenceText = getStageInferenceText(stageData);
+      const currentStage = stageRes.data.stage || stageRes.data.current_stage || "Unknown";
+      const inferenceText = getStageInferenceText(stageRes.data);
 
       // Build mapped past stage sequence for trajectory model.
       // Use prior visits (if any) + current predicted stage.
@@ -1880,7 +1861,10 @@ const handleViewPatient = async (patientRef) => {
       const mappedCurrentStage = mapStageToTrajectory(currentStage);
       const pastStagesSequence = [...historicalStages, mappedCurrentStage];
 
+      const progressionFormData = makeBaseFormData();
       const pastStagesString = pastStagesSequence.join(", ");
+      progressionFormData.append("past_stages", pastStagesString);
+      progressionFormData.append("current_stage", mappedCurrentStage);
 
       console.log("Sending DICOM + mapped stage history to Trajectory Model...", {
         rawCurrentStage: currentStage,
@@ -1889,25 +1873,22 @@ const handleViewPatient = async (patientRef) => {
         pastStagesString,
       });
 
-      const progressionFormData = makeBaseFormData();
-      progressionFormData.append("past_stages", pastStagesString);
-      progressionFormData.append("current_stage", mappedCurrentStage);
       const progRes = await axios.post(API_PROGRESSION_URL, progressionFormData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      const progressionApiPayload = progRes.data || {};
-      const trajInference = getTrajectoryInferenceText(progressionApiPayload);
+      const trajInference = getTrajectoryInferenceText(progRes.data);
+      // B. Extract Trajectory from Progression API
       // Python returns: { "next_stage_prediction": ["AD"] }
-      const nextStagesList = progressionApiPayload.next_stage_prediction || [];
-      const predictedDecline = nextStagesList.length > 0
-          ? nextStagesList.join(" -> ")
+      const nextStagesList = progRes.data.next_stage_prediction || [];
+      const predictedDecline = nextStagesList.length > 0 
+          ? nextStagesList.join(" -> ") 
           : "Stable";
 
       // C. Calculate Stage Level + derive Risk from stage + confidence
       const stageLevelIndex =
         STAGE_LEVEL_MAP[currentStage] !== undefined ? STAGE_LEVEL_MAP[currentStage] : 0;
-      const confidence = stageData.confidence ?? 1;
+      const confidence = stageRes.data.confidence ?? 1;
       const { riskLevel, riskScore } = deriveRiskFromStage(currentStage, confidence);
 
       // 4. UPDATE UI (modal + registry row)
@@ -1965,11 +1946,11 @@ const handleViewPatient = async (patientRef) => {
             pastStagesString,
           },
           stageApi: {
-            stage: stageData.stage || null,
-            confidence: stageData.confidence ?? null,
-            details: stageData.details || null,
+            stage: stageRes.data.stage || null,
+            confidence: stageRes.data.confidence ?? null,
+            details: stageRes.data.details || null,
             explanation: inferenceText || null,
-            raw: stageData || null,
+            raw: stageRes.data || null,
           },
           progressionApi: {
             past_stages_sent: pastStagesSequence,
@@ -1977,11 +1958,12 @@ const handleViewPatient = async (patientRef) => {
             mapped_current_stage: mappedCurrentStage,
             next_stage_prediction: nextStagesList,
             explanation: trajInference || null,
-            raw: progressionApiPayload,
+            raw: progRes.data || null,
           },
           scanRef: {
             type: resolvedScan?.fileType || null,
             fileName: resolvedScan?.fileName || null,
+            uploadedAt: resolvedScan?.uploadedAt || null,
           },
         };
         const docRef = await addDoc(
@@ -2013,9 +1995,9 @@ const handleViewPatient = async (patientRef) => {
       }
 
     } catch (error) {
-      console.error("API FAILED:", error?.response?.data || error?.message);
-      const msg = getApiErrorText(error);
-      alert(`AI Analysis Failed: ${msg || "Unknown error"}`);
+      console.error("AI Analysis Error:", error);
+      const msg = error.response?.data?.error || error.message;
+      alert(`AI Analysis Failed: ${msg}`);
     }
     setAnalyzing(false);
 
@@ -2085,10 +2067,8 @@ const handleViewPatient = async (patientRef) => {
 
       // 2. Stage API
       const stageRes = await axios.post(API_STAGE_URL, makeForm(), { headers: { "Content-Type": "multipart/form-data" } });
-      const stageData = stageRes.data || {};
-
-      const currentStage = stageData.stage || stageData.current_stage || "Unknown";
-      const inferenceText = getStageInferenceText(stageData);
+      const currentStage = stageRes.data.stage || stageRes.data.current_stage || "Unknown";
+      const inferenceText = getStageInferenceText(stageRes.data);
 
       // 3. Build past stages from DT history
       const historicalStages = [...(dtAiHistory || [])]
@@ -2104,13 +2084,12 @@ const handleViewPatient = async (patientRef) => {
       progFd.append("past_stages", pastStagesString);
       progFd.append("current_stage", mappedCurrentStage);
       const progRes = await axios.post(API_PROGRESSION_URL, progFd, { headers: { "Content-Type": "multipart/form-data" } });
-      const progressionApiPayload = progRes.data || {};
-      const trajInference = getTrajectoryInferenceText(progressionApiPayload);
-      const nextStagesList = progressionApiPayload.next_stage_prediction || [];
-      const predictedDecline = nextStagesList.length ? nextStagesList.join(" -> ") : "Stable";
 
+      const trajInference = getTrajectoryInferenceText(progRes.data);
+      const nextStagesList = progRes.data.next_stage_prediction || [];
+      const predictedDecline = nextStagesList.length ? nextStagesList.join(" -> ") : "Stable";
       const stageLevelIndex = STAGE_LEVEL_MAP[currentStage] !== undefined ? STAGE_LEVEL_MAP[currentStage] : 0;
-      const confidence = stageData.confidence ?? 1;
+      const confidence = stageRes.data.confidence ?? 1;
       const { riskLevel, riskScore } = deriveRiskFromStage(currentStage, confidence);
 
       // 4. Update Digital Twin patient state
@@ -2149,17 +2128,8 @@ const handleViewPatient = async (patientRef) => {
           trajectoryMonths: "12 (Est.)",
           inferenceText: inferenceText || null,
           trajInference: trajInference || null,
-          stageApi: {
-            stage: stageData.stage || null,
-            confidence: stageData.confidence ?? null,
-            explanation: inferenceText || null,
-            raw: stageData || null,
-          },
-          progressionApi: {
-            next_stage_prediction: nextStagesList,
-            explanation: trajInference || null,
-            raw: progressionApiPayload,
-          },
+          stageApi: { stage: stageRes.data.stage || null, confidence: stageRes.data.confidence ?? null, explanation: inferenceText || null },
+          progressionApi: { next_stage_prediction: nextStagesList, explanation: trajInference || null },
         };
         const docRef = await addDoc(collection(db, "patients", selectedPatientForDT.id, "aiAnalyses"), record);
         setDtAiHistory((prev) => [{ id: docRef.id, ...record, createdAt: { seconds: Math.floor(Date.now() / 1000) } }, ...prev]);
@@ -2188,12 +2158,12 @@ const handleViewPatient = async (patientRef) => {
     }
 
     } catch (err) {
-      console.error("API FAILED:", err?.response?.data || err?.message);
+      console.error("DT AI Analysis Error:", err);
       const status = err?.response?.status;
       const endpoint = err?.config?.url;
-      const msg = getApiErrorText(err);
+      const msg = err?.response?.data?.error || err?.message || "Unknown error";
       alert(
-        `AI Analysis Failed${status ? ` (${status})` : ""}${endpoint ? ` at ${endpoint}` : ""}: ${msg || "Unknown error"}`
+        `AI Analysis Failed${status ? ` (${status})` : ""}${endpoint ? ` at ${endpoint}` : ""}: ${msg}`
       );
     }
     setAnalyzing(false);
@@ -2629,7 +2599,7 @@ const handleViewPatient = async (patientRef) => {
           Trajectory Insight
         </h4>
       </div>
-      <p className="text-sm text-slate-300 italic leading-relaxed">
+      <p className={`text-sm italic leading-relaxed ${isLight ? "text-slate-700" : "text-slate-300"}`}>
         "{selectedPatientDetails.trajInference}"
       </p>
     </div>
@@ -2644,13 +2614,13 @@ const handleViewPatient = async (patientRef) => {
         {selectedPatientDetails.trajectoryDebug.pastStagesSent.map((stage, index) => (
           <span
             key={`${stage}-${index}`}
-            className="px-3 py-1 rounded-full text-xs bg-cyan-500/10 border border-cyan-500/20 text-cyan-200"
+            className={`px-3 py-1 rounded-full text-xs border ${isLight ? "bg-cyan-50 border-cyan-200 text-cyan-800" : "bg-cyan-500/10 border-cyan-500/20 text-cyan-200"}`}
           >
             {stage}
           </span>
         ))}
       </div>
-      <p className="text-xs text-slate-500 mt-3 break-words">
+      <p className={`text-xs mt-3 break-words ${isLight ? "text-slate-600" : "text-slate-500"}`}>
         Request string: {selectedPatientDetails.trajectoryDebug.pastStagesString}
       </p>
     </div>
@@ -2660,7 +2630,7 @@ const handleViewPatient = async (patientRef) => {
                        </div>
 
 {/* MRI Scan Comparison Charts */}
-<MriComparisonCharts aiHistory={aiHistory} />
+<MriComparisonCharts aiHistory={aiHistory} isLight={isLight} />
 
 {/* AI Analysis History & Comparison */}
 <div className={`${isLight ? "bg-[#edf8f5] border border-slate-200" : "bg-slate-800/30 border border-slate-700"} rounded-xl p-6`}>
@@ -2704,6 +2674,8 @@ const handleViewPatient = async (patientRef) => {
                 ? "bg-blue-500/10 border-blue-500/30"
                 : compareWithId === h.id
                 ? "bg-purple-500/10 border-purple-500/30"
+                : isLight
+                ? "bg-white/70 border-slate-200"
                 : "bg-slate-800/50 border-slate-700"
             }`}
           >
@@ -2729,7 +2701,7 @@ const handleViewPatient = async (patientRef) => {
                 onClick={() =>
                   setCompareWithId(compareWithId === h.id ? null : h.id)
                 }
-                className="text-xs px-2 py-1 rounded border border-purple-500/40 text-purple-300 hover:bg-purple-500/10"
+                className={`text-xs px-2 py-1 rounded border transition-colors ${isLight ? "border-purple-300 text-purple-700 hover:bg-purple-50" : "border-purple-500/40 text-purple-300 hover:bg-purple-500/10"}`}
               >
                 {compareWithId === h.id ? "Clear" : "Compare"}
               </button>
@@ -2744,10 +2716,10 @@ const handleViewPatient = async (patientRef) => {
         const curr = aiHistory[0];
         if (!prev) return null;
         const Row = ({ label, a, b }) => (
-          <div className="grid grid-cols-3 gap-2 py-2 border-b border-slate-700/50 text-sm">
-            <span className="text-slate-400">{label}</span>
-            <span className="text-slate-300">{a ?? "—"}</span>
-            <span className="text-white font-medium">{b ?? "—"}</span>
+          <div className={`grid grid-cols-3 gap-2 py-2 border-b text-sm ${isLight ? "border-slate-200" : "border-slate-700/50"}`}>
+            <span className={isLight ? "text-slate-500" : "text-slate-400"}>{label}</span>
+            <span className={isLight ? "text-slate-700" : "text-slate-300"}>{a ?? "—"}</span>
+            <span className={`${isLight ? "text-slate-950" : "text-white"} font-medium`}>{b ?? "—"}</span>
           </div>
         );
         const stageChanged = prev.currentStage !== curr.currentStage;
@@ -3311,41 +3283,25 @@ const handleViewPatient = async (patientRef) => {
 
           {/* === CAREGIVER REPORT PREVIEW MODAL === */}
           {showCaregiverReportPreview && caregiverReportPreview && (
-            <div className={`fixed inset-0 backdrop-blur-sm z-[75] flex items-center justify-center p-4 ${
-              isLight ? "bg-slate-950/35" : "bg-black/80"
-            }`}>
-              <div className={`border rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col ${
-                isLight
-                  ? "bg-[#d8eee9] border-teal-900/10 shadow-[0_35px_90px_rgba(15,23,42,0.20)]"
-                  : "bg-slate-900 border-slate-700"
-              }`}>
-                <div className={`p-6 border-b flex items-center justify-between ${
-                  isLight
-                    ? "border-teal-900/10 bg-[linear-gradient(135deg,#d8eee9,#cfe7e2)]"
-                    : "border-slate-800 bg-gradient-to-r from-slate-900 to-emerald-900/20"
-                }`}>
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[75] flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+                <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 to-emerald-900/20">
                   <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      isLight ? "bg-teal-700/12 text-teal-800" : "bg-emerald-500/20 text-emerald-300"
-                    }`}>
-                      <Eye size={20} />
+                    <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                      <Eye size={20} className="text-emerald-300" />
                     </div>
                     <div>
-                      <h3 className={`text-xl font-bold ${isLight ? "text-[#102a37]" : "text-white"}`}>
+                      <h3 className="text-xl font-bold text-white">
                         Caregiver Report Preview
                       </h3>
-                      <p className={`text-sm ${isLight ? "text-[#365565]" : "text-slate-400"}`}>
+                      <p className="text-slate-400 text-sm">
                         Patient: {caregiverReportPreview.patient.name}
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => setShowCaregiverReportPreview(false)}
-                    className={`p-2 rounded-lg transition-all ${
-                      isLight
-                        ? "bg-[#eaf7f4] hover:bg-[#cfe7e2] text-[#315666] border border-teal-900/10"
-                        : "bg-slate-800 hover:bg-slate-700 text-white"
-                    }`}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-all"
                   >
                     <X size={20} />
                   </button>
@@ -3353,15 +3309,15 @@ const handleViewPatient = async (patientRef) => {
 
                 <div className="p-6 space-y-5 overflow-y-auto">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/40 border-slate-700"} border rounded-xl p-4`}>
-                      <p className={`text-xs uppercase mb-1 ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
+                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 uppercase mb-1">
                         Current Stage Result
                       </p>
-                      <p className={`text-2xl font-bold mb-2 ${isLight ? "text-[#102a37]" : "text-white"}`}>
+                      <p className="text-2xl font-bold text-white mb-2">
                         {caregiverReportPreview.currentStageResult.stage}
                       </p>
                       {caregiverReportPreview.currentStageResult.confidence != null && (
-                        <p className={`text-sm ${isLight ? "text-[#365565]" : "text-slate-300"}`}>
+                        <p className="text-sm text-slate-300">
                           Confidence:{" "}
                           {Math.round(
                             caregiverReportPreview.currentStageResult.confidence *
@@ -3371,7 +3327,7 @@ const handleViewPatient = async (patientRef) => {
                         </p>
                       )}
                       {caregiverReportPreview.currentStageResult.inferenceText && (
-                        <p className={`text-sm mt-2 italic ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
+                        <p className="text-sm text-slate-400 mt-2 italic">
                           "
                           {caregiverReportPreview.currentStageResult.inferenceText}
                           "
@@ -3379,33 +3335,33 @@ const handleViewPatient = async (patientRef) => {
                       )}
                     </div>
 
-                    <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/40 border-slate-700"} border rounded-xl p-4`}>
-                      <p className={`text-xs uppercase mb-1 ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
+                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 uppercase mb-1">
                         Trajectory Progression
                       </p>
-                      <p className={`text-lg font-semibold mb-1 ${isLight ? "text-[#102a37]" : "text-white"}`}>
+                      <p className="text-lg font-semibold text-white mb-1">
                         {caregiverReportPreview.trajectory.predictedDecline}
                       </p>
-                      <p className={`text-sm mb-2 ${isLight ? "text-[#365565]" : "text-slate-300"}`}>
+                      <p className="text-sm text-slate-300 mb-2">
                         Timeline: {caregiverReportPreview.trajectory.trajectoryMonths}
                       </p>
                       {caregiverReportPreview.trajectory.insight && (
-                        <p className={`text-sm italic ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
+                        <p className="text-sm text-slate-400 italic">
                           "{caregiverReportPreview.trajectory.insight}"
                         </p>
                       )}
                     </div>
 
-                    <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/40 border-slate-700"} border rounded-xl p-4`}>
-                      <p className={`text-xs uppercase mb-1 ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
+                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
+                      <p className="text-xs text-slate-400 uppercase mb-1">
                         3D Brain Model Inference
                       </p>
-                      <p className={`text-sm mb-2 ${isLight ? "text-[#365565]" : "text-slate-300"}`}>
+                      <p className="text-sm text-slate-300 mb-2">
                         {caregiverReportPreview.brainModel3d?.hasModel
                           ? "3D model available"
                           : "3D model not available"}
                       </p>
-                      <p className={`text-sm italic ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
+                      <p className="text-sm text-slate-400 italic">
                         {caregiverReportPreview.brainModel3d?.inferenceText
                           ? `"${caregiverReportPreview.brainModel3d.inferenceText}"`
                           : "No 3D inference available yet."}
@@ -3413,23 +3369,23 @@ const handleViewPatient = async (patientRef) => {
                     </div>
                   </div>
 
-                  <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/30 border-slate-700"} border rounded-xl p-4`}>
-                    <h4 className={`${isLight ? "text-[#102a37]" : "text-white"} font-semibold mb-3`}>
+                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+                    <h4 className="text-white font-semibold mb-3">
                       Inference Details for Caregiver Report
                     </h4>
                     <div className="space-y-2 text-sm">
-                      <p className={isLight ? "text-[#365565]" : "text-slate-300"}>
-                        <span className={isLight ? "text-[#517080]" : "text-slate-400"}>Current Stage:</span>{" "}
+                      <p className="text-slate-300">
+                        <span className="text-slate-400">Current Stage:</span>{" "}
                         {caregiverReportPreview.inferenceDetails?.currentStage ||
                           "No current-stage inference available."}
                       </p>
-                      <p className={isLight ? "text-[#365565]" : "text-slate-300"}>
-                        <span className={isLight ? "text-[#517080]" : "text-slate-400"}>Trajectory:</span>{" "}
+                      <p className="text-slate-300">
+                        <span className="text-slate-400">Trajectory:</span>{" "}
                         {caregiverReportPreview.inferenceDetails?.trajectory ||
                           "No trajectory inference available."}
                       </p>
-                      <p className={isLight ? "text-[#365565]" : "text-slate-300"}>
-                        <span className={isLight ? "text-[#517080]" : "text-slate-400"}>3D Brain Model:</span>{" "}
+                      <p className="text-slate-300">
+                        <span className="text-slate-400">3D Brain Model:</span>{" "}
                         {caregiverReportPreview.inferenceDetails?.brainModel3d ||
                           "No 3D brain-model inference available."}
                       </p>
@@ -3438,8 +3394,8 @@ const handleViewPatient = async (patientRef) => {
 
                   {Array.isArray(caregiverReportPreview.trajectory.progression) &&
                     caregiverReportPreview.trajectory.progression.length > 0 && (
-                      <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/30 border-slate-700"} border rounded-xl p-4`}>
-                        <p className={`text-xs uppercase mb-2 ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
+                      <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+                        <p className="text-xs text-slate-400 uppercase mb-2">
                           Progression Points
                         </p>
                         <div className="flex flex-wrap gap-2">
@@ -3448,11 +3404,7 @@ const handleViewPatient = async (patientRef) => {
                             .map((point, idx) => (
                               <span
                                 key={idx}
-                                className={`px-2 py-1 rounded-lg text-xs border ${
-                                  isLight
-                                    ? "border-teal-900/10 bg-[#d8eee9] text-[#315666]"
-                                    : "border-slate-600 bg-slate-800 text-slate-300"
-                                }`}
+                                className="px-2 py-1 rounded-lg text-xs border border-slate-600 bg-slate-800 text-slate-300"
                               >
                                 {(point.month || `Point ${idx + 1}`) +
                                   ": " +
@@ -3463,10 +3415,10 @@ const handleViewPatient = async (patientRef) => {
                       </div>
                     )}
 
-                  <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10" : "bg-slate-800/30 border-slate-700"} border rounded-xl p-4`}>
-                    <h4 className={`${isLight ? "text-[#102a37]" : "text-white"} font-semibold mb-3`}>Cognitive Scores</h4>
+                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+                    <h4 className="text-white font-semibold mb-3">Cognitive Scores</h4>
                     {caregiverReportPreview.cognitiveScores.length === 0 ? (
-                      <p className={`text-sm ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
+                      <p className="text-sm text-slate-400">
                         No cognitive test scores available yet.
                       </p>
                     ) : (
@@ -3474,18 +3426,18 @@ const handleViewPatient = async (patientRef) => {
                         {caregiverReportPreview.cognitiveScores.map((score) => (
                           <div
                             key={score.testType}
-                            className={`${isLight ? "bg-[#d8eee9] border-teal-900/10" : "bg-slate-800/60 border-slate-700"} border rounded-lg p-3`}
+                            className="bg-slate-800/60 border border-slate-700 rounded-lg p-3"
                           >
-                            <p className={`text-xs uppercase mb-1 ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
+                            <p className="text-xs text-slate-400 uppercase mb-1">
                               {score.testType}
                             </p>
-                            <p className={`text-lg font-bold ${isLight ? "text-[#102a37]" : "text-white"}`}>
+                            <p className="text-lg font-bold text-white">
                               {score.latestScore ?? "-"}
-                              <span className={`text-xs ${isLight ? "text-[#517080]" : "text-slate-500"}`}>
+                              <span className="text-xs text-slate-500">
                                 /{score.maxScore}
                               </span>
                             </p>
-                            <p className={`text-xs ${isLight ? "text-[#517080]" : "text-slate-400"}`}>
+                            <p className="text-xs text-slate-400">
                               {score.scorePercent != null
                                 ? `${score.scorePercent}% of max score`
                                 : "No scored result yet"}
@@ -3497,25 +3449,25 @@ const handleViewPatient = async (patientRef) => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10 shadow-[0_14px_34px_rgba(15,78,83,0.08)]" : "bg-slate-800/30 border-slate-700"} border rounded-xl p-4`}>
-                      <h4 className={`${isLight ? "text-[#102a37]" : "text-white"} font-semibold mb-2`}>Clinician Notes</h4>
-                      <p className={`text-sm whitespace-pre-wrap ${isLight ? "text-[#315666]" : "text-slate-300"}`}>
+                    <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+                      <h4 className="text-white font-semibold mb-2">Clinician Notes</h4>
+                      <p className="text-sm text-slate-300 whitespace-pre-wrap">
                         {caregiverReportPreview.clinicianNotes.clinicalNotes ||
                           "No clinician notes added."}
                       </p>
                     </div>
-                    <div className={`${isLight ? "bg-[#eaf7f4] border-teal-900/10 shadow-[0_14px_34px_rgba(15,78,83,0.08)]" : "bg-slate-800/30 border-slate-700"} border rounded-xl p-4`}>
-                      <h4 className={`${isLight ? "text-[#102a37]" : "text-white"} font-semibold mb-2`}>
+                    <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+                      <h4 className="text-white font-semibold mb-2">
                         Recommendation Plan
                       </h4>
-                      <p className={`text-sm whitespace-pre-wrap ${isLight ? "text-[#315666]" : "text-slate-300"}`}>
+                      <p className="text-sm text-slate-300 whitespace-pre-wrap">
                         {caregiverReportPreview.clinicianNotes.recommendationPlan ||
                           "No recommendation plan added."}
                       </p>
                     </div>
                   </div>
 
-                  <div className={`${isLight ? "bg-[#d8eee9] border-teal-900/10 text-[#517080]" : "bg-slate-800/30 border-slate-700 text-slate-400"} border rounded-xl p-4 text-xs space-y-1`}>
+                  <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 text-xs text-slate-400 space-y-1">
                     <p>Report Name: {caregiverReportPreview.caregiverReportName}</p>
                     <p>Patient ID: {caregiverReportPreview.patient.id}</p>
                     <p>
@@ -3530,13 +3482,9 @@ const handleViewPatient = async (patientRef) => {
                   </div>
 
                   {caregiverReportPreview.caregiverIds.length === 0 && (
-                    <div className={`flex items-start space-x-2 border rounded-xl p-3 ${
-                      isLight
-                        ? "bg-amber-50 border-amber-300"
-                        : "bg-yellow-500/10 border-yellow-500/30"
-                    }`}>
-                      <AlertCircle size={16} className={`${isLight ? "text-amber-700" : "text-yellow-400"} mt-0.5`} />
-                      <p className={`text-xs ${isLight ? "text-amber-900" : "text-yellow-200"}`}>
+                    <div className="flex items-start space-x-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                      <AlertCircle size={16} className="text-yellow-400 mt-0.5" />
+                      <p className="text-xs text-yellow-200">
                         No caregiver ID is linked to this patient yet. The report
                         will still be saved in caregiverReports and can be fetched
                         by patientId in the mobile app.
@@ -3545,29 +3493,17 @@ const handleViewPatient = async (patientRef) => {
                   )}
                 </div>
 
-                <div className={`p-6 border-t flex items-center justify-end space-x-3 ${
-                  isLight
-                    ? "border-teal-900/10 bg-[#cfe7e2]/80"
-                    : "border-slate-800 bg-slate-900/50"
-                }`}>
+                <div className="p-6 border-t border-slate-800 flex items-center justify-end space-x-3 bg-slate-900/50">
                   <button
                     onClick={() => setShowCaregiverReportPreview(false)}
-                    className={`px-6 py-2.5 rounded-xl font-medium transition-all ${
-                      isLight
-                        ? "bg-[#eaf7f4] hover:bg-[#d8eee9] text-[#315666] border border-teal-900/10 shadow-sm"
-                        : "bg-slate-800 hover:bg-slate-700 text-white"
-                    }`}
+                    className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-all"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSendCaregiverReport}
                     disabled={sendingCaregiverReport}
-                    className={`flex items-center space-x-2 px-6 py-2.5 text-white rounded-xl font-medium transition-all disabled:opacity-50 ${
-                      isLight
-                        ? "bg-gradient-to-r from-[#047857] to-[#0f5f78] hover:from-[#065f46] hover:to-[#164e63] shadow-[0_14px_28px_rgba(4,120,87,0.22)]"
-                        : "bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500"
-                    }`}
+                    className="flex items-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white rounded-xl font-medium transition-all disabled:opacity-50"
                   >
                     {sendingCaregiverReport ? (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
