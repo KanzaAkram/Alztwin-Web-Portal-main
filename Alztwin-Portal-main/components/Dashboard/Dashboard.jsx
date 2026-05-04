@@ -181,39 +181,6 @@ const getApiErrorText = (error) => {
   return pickReadableText(data?.error, data?.message, error?.message);
 };
 
-const isUsableStageLabel = (stage) => {
-  const label = String(stage || "").trim();
-  return Boolean(label) && !/pending|unknown|unavailable|failed/i.test(label);
-};
-
-const getReusableDiagnosticSnapshot = (patient = {}, history = []) => {
-  const latest = [...history].sort(
-    (a, b) => (b?.createdAt?.seconds || 0) - (a?.createdAt?.seconds || 0)
-  )[0];
-
-  const stage = [
-    patient.currentStage,
-    patient.diagnosis,
-    patient.stage,
-    latest?.currentStage,
-    latest?.stageApi?.stage,
-  ].find(isUsableStageLabel);
-
-  if (!stage) return null;
-
-  return {
-    currentStage: stage,
-    stageLevel: STAGE_LEVEL_MAP[stage] ?? 0,
-    predictedDecline: patient.predictedDecline || null,
-    trajectoryMonths: patient.trajectoryMonths || null,
-    inferenceText:
-      pickReadableText(patient.inferenceText, latest?.inferenceText) || null,
-    trajInference:
-      pickReadableText(patient.trajInference, latest?.trajInference) || null,
-    confidence: patient.aiConfidence ?? latest?.aiConfidence ?? null,
-  };
-};
-
 const isRafayPatient = (patientId, data = {}) => {
   const haystack = [patientId, data.patientId, data.name, data.email]
     .filter(Boolean)
@@ -1881,33 +1848,6 @@ const handleViewPatient = async (patientRef) => {
         return fd;
       };
 
-      const reusableDiagnostic = getReusableDiagnosticSnapshot(
-        selectedPatientDetails,
-        aiHistory
-      );
-      if (reusableDiagnostic) {
-        const { riskLevel, riskScore } = deriveRiskFromStage(
-          reusableDiagnostic.currentStage,
-          reusableDiagnostic.confidence
-        );
-        setSelectedPatientDetails((prev) => ({
-          ...prev,
-          currentStage: reusableDiagnostic.currentStage,
-          stageLevel: reusableDiagnostic.stageLevel,
-          predictedDecline: reusableDiagnostic.predictedDecline,
-          inferenceText: reusableDiagnostic.inferenceText,
-          trajInference: reusableDiagnostic.trajInference,
-          riskLevel,
-          riskScore,
-          diagnosis: reusableDiagnostic.currentStage,
-          aiConfidence: reusableDiagnostic.confidence,
-          trajectoryMonths: reusableDiagnostic.trajectoryMonths,
-          lastAnalysisAt: new Date().toLocaleString(),
-        }));
-        setAnalyzing(false);
-        return;
-      }
-
       // 2. CALL STAGE MODEL FIRST, THEN PROGRESSION MODEL WITH MAPPED HISTORY
       console.log("Sending DICOM to Stage Model...");
 
@@ -2142,56 +2082,6 @@ const handleViewPatient = async (patientRef) => {
       }
 
       const makeForm = () => { const fd = new FormData(); fd.append("file", mriFile); return fd; };
-
-      const reusableDiagnostic = getReusableDiagnosticSnapshot(
-        selectedPatientForDT,
-        dtAiHistory
-      );
-      if (reusableDiagnostic) {
-        const { riskLevel, riskScore } = deriveRiskFromStage(
-          reusableDiagnostic.currentStage,
-          reusableDiagnostic.confidence
-        );
-        setSelectedPatientForDT((prev) => ({
-          ...prev,
-          currentStage: reusableDiagnostic.currentStage,
-          stageLevel: reusableDiagnostic.stageLevel,
-          predictedDecline: reusableDiagnostic.predictedDecline,
-          inferenceText: reusableDiagnostic.inferenceText,
-          trajInference: reusableDiagnostic.trajInference,
-          riskLevel,
-          riskScore,
-          diagnosis: reusableDiagnostic.currentStage,
-          aiConfidence: reusableDiagnostic.confidence,
-          trajectoryMonths: reusableDiagnostic.trajectoryMonths,
-          lastAnalysisAt: new Date().toLocaleString(),
-        }));
-
-        setPatients((prev) =>
-          prev.map((p) =>
-            p.id === selectedPatientForDT.id
-              ? {
-                  ...p,
-                  diagnosis: reusableDiagnostic.currentStage,
-                  riskLevel,
-                  riskScore,
-                  stageLevel: reusableDiagnostic.stageLevel,
-                  aiConfidence: reusableDiagnostic.confidence,
-                }
-              : p
-          )
-        );
-
-        try {
-          const cogTests = await getPatientCognitiveTestsByType({ id: selectedPatientForDT.id });
-          setDtCognitiveTests(cogTests);
-        } catch (e) {
-          console.warn("Could not load cognitive tests:", e);
-        }
-
-        setAnalyzing(false);
-        return;
-      }
 
       // 2. Stage API
       const stageRes = await axios.post(API_STAGE_URL, makeForm(), { headers: { "Content-Type": "multipart/form-data" } });
