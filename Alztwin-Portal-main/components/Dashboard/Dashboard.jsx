@@ -143,21 +143,85 @@ import TeleconsultationSection from "./sections/TeleconsultationSection";
 import PatientsSection from "./sections/PatientsSection";
 import CognitiveTestsSection from "./sections/CognitiveTestsSection";
 
+const QUOTA_ERROR_PATTERN =
+  /quota|rate[- ]?limit|resource exhausted|generate_content_free_tier|429|billing/i;
+
+const pickReadableText = (...values) => {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const text = value.trim();
+    if (!text || text === "[object Object]" || QUOTA_ERROR_PATTERN.test(text)) {
+      continue;
+    }
+    return text;
+  }
+  return null;
+};
+
 const getStageInferenceText = (payload = {}) =>
-  payload.explanation ||
-  payload.inference ||
-  payload.ai_inference ||
-  payload.message ||
-  payload.details ||
-  null;
+  pickReadableText(
+    payload.explanation,
+    payload.inference,
+    payload.ai_inference,
+    payload.message,
+    payload.details
+  );
 
 const getTrajectoryInferenceText = (payload = {}) =>
-  payload.explanation ||
-  payload.inference ||
-  payload.ai_inference ||
-  payload.message ||
-  payload.details ||
-  null;
+  pickReadableText(
+    payload.explanation,
+    payload.inference,
+    payload.ai_inference,
+    payload.message,
+    payload.details
+  );
+
+const getApiErrorText = (error) => {
+  const data = error?.response?.data;
+  return pickReadableText(data?.error, data?.message, error?.message) || "The diagnostic service is temporarily unavailable.";
+};
+
+const isRecoverableAiServiceError = (error) => {
+  const status = error?.response?.status;
+  const raw = JSON.stringify(error?.response?.data || {}) + " " + (error?.message || "");
+  return status === 429 || status === 500 || status === 502 || status === 503 || QUOTA_ERROR_PATTERN.test(raw);
+};
+
+const buildEstimatedTrajectory = (currentStage) => {
+  const mapped = mapStageToTrajectory(currentStage);
+  const order = ["CN", "SMC", "EMCI", "MCI", "LMCI", "AD"];
+  const idx = Math.max(0, order.indexOf(mapped));
+  const nextStage = order[Math.min(order.length - 1, idx + 1)] || mapped;
+  const predictedDecline = mapped === "AD" ? "AD" : `${mapped} -> ${nextStage}`;
+  return {
+    nextStagesList: mapped === "AD" ? ["AD"] : [nextStage],
+    predictedDecline,
+    trajInference:
+      "Progression API was unavailable, so this is an estimated trajectory based on the current stage and prior diagnostic history. Re-run diagnostics when the AI service quota resets for a model-generated forecast.",
+  };
+};
+
+const isUsableStageLabel = (stage) => {
+  const label = String(stage || "").trim();
+  return Boolean(label) && !/pending|unknown|unavailable|failed/i.test(label);
+};
+
+const getLatestUsableStageFromHistory = (history = []) => {
+  const sorted = [...history].sort(
+    (a, b) => (b?.createdAt?.seconds || 0) - (a?.createdAt?.seconds || 0)
+  );
+  const match = sorted.find((entry) =>
+    isUsableStageLabel(entry?.currentStage || entry?.stageApi?.stage)
+  );
+  return match?.currentStage || match?.stageApi?.stage || null;
+};
+
+const buildUnavailableStageData = (stage, confidence = 0.75) => ({
+  stage,
+  confidence,
+  explanation:
+    "Stage API was unavailable, so the dashboard reused the latest saved diagnostic stage for this estimated run.",
+});
 
 const isRafayPatient = (patientId, data = {}) => {
   const haystack = [patientId, data.patientId, data.name, data.email]
@@ -621,6 +685,8 @@ const Dashboard = ({ user, onLogout }) => {
               : [],
             predictedDecline: data.predictedDecline || null,
             trajectoryMonths: data.trajectoryMonths || null,
+            stageEstimated: Boolean(data.stageEstimated),
+            progressionEstimated: Boolean(data.progressionEstimated),
             aiConfidence: data.aiConfidence ?? null,
             lastAnalysisAt: data.lastAnalysisAt
               ? formatDate(data.lastAnalysisAt)
@@ -628,8 +694,8 @@ const Dashboard = ({ user, onLogout }) => {
 
             // Last AI run results — persisted so they survive page reload
             currentStage: data.currentStage || data.diagnosis || null,
-            inferenceText: data.inferenceText || null,
-            trajInference: data.trajInference || null,
+            inferenceText: pickReadableText(data.inferenceText) || null,
+            trajInference: pickReadableText(data.trajInference) || null,
 
             // 3. Pass the full array. We will process base64Data in handleViewPatient
             mriScans: data.mriScans || [],
@@ -1763,8 +1829,10 @@ const handleViewPatient = async (patientRef) => {
             stageLevel: latestAnalysis.stageLevel,
             predictedDecline: latestAnalysis.predictedDecline,
             trajectoryMonths: latestAnalysis.trajectoryMonths,
-            inferenceText: latestAnalysis.inferenceText,
-            trajInference: latestAnalysis.trajInference,
+            inferenceText: pickReadableText(latestAnalysis.inferenceText),
+            trajInference: pickReadableText(latestAnalysis.trajInference),
+            stageEstimated: Boolean(latestAnalysis.stageEstimated),
+            progressionEstimated: Boolean(latestAnalysis.progressionEstimated),
           }
         : {};
 
@@ -1822,18 +1890,43 @@ const handleViewPatient = async (patientRef) => {
       // 2. CALL STAGE MODEL FIRST, THEN PROGRESSION MODEL WITH MAPPED HISTORY
       console.log("Sending DICOM to Stage Model...");
 
-      const stageRes = await axios.post(API_STAGE_URL, makeBaseFormData(), {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      let stageData = null;
+      let stageWasEstimated = false;
+      try {
+        const stageRes = await axios.post(API_STAGE_URL, makeBaseFormData(), {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        stageData = stageRes.data || {};
+      } catch (stageErr) {
+        const storedStage =
+          [
+            selectedPatientDetails.currentStage,
+            selectedPatientDetails.diagnosis,
+            selectedPatientDetails.stage,
+            getLatestUsableStageFromHistory(aiHistory),
+          ].find(isUsableStageLabel);
+        if (
+          !isRecoverableAiServiceError(stageErr) ||
+          !storedStage
+        ) {
+          throw stageErr;
+        }
+        console.warn("Stage API unavailable; using stored stage for estimated diagnostics.", stageErr);
+        stageWasEstimated = true;
+        stageData = buildUnavailableStageData(
+          storedStage,
+          selectedPatientDetails.aiConfidence ?? aiHistory[0]?.stageApi?.confidence ?? 0.75
+        );
+      }
 
-      console.log("Stage API Result:", stageRes.data);
+      console.log("Stage API Result:", stageData);
 
       // 3. PROCESS RESULTS
       
       // A. Extract Current Stage from Stage API
       // Assuming Stage API returns: { "stage": "MCI", "confidence": 0.95 }
-      const currentStage = stageRes.data.stage || stageRes.data.current_stage || "Unknown";
-      const inferenceText = getStageInferenceText(stageRes.data);
+      const currentStage = stageData.stage || stageData.current_stage || "Unknown";
+      const inferenceText = getStageInferenceText(stageData);
 
       // Build mapped past stage sequence for trajectory model.
       // Use prior visits (if any) + current predicted stage.
@@ -1850,10 +1943,7 @@ const handleViewPatient = async (patientRef) => {
       const mappedCurrentStage = mapStageToTrajectory(currentStage);
       const pastStagesSequence = [...historicalStages, mappedCurrentStage];
 
-      const progressionFormData = makeBaseFormData();
       const pastStagesString = pastStagesSequence.join(", ");
-      progressionFormData.append("past_stages", pastStagesString);
-      progressionFormData.append("current_stage", mappedCurrentStage);
 
       console.log("Sending DICOM + mapped stage history to Trajectory Model...", {
         rawCurrentStage: currentStage,
@@ -1862,22 +1952,48 @@ const handleViewPatient = async (patientRef) => {
         pastStagesString,
       });
 
-      const progRes = await axios.post(API_PROGRESSION_URL, progressionFormData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      let progressionApiPayload = null;
+      let progressionWasEstimated = false;
+      let trajInference = null;
+      let nextStagesList = [];
+      let predictedDecline = "Stable";
 
-      const trajInference = getTrajectoryInferenceText(progRes.data);
-      // B. Extract Trajectory from Progression API
-      // Python returns: { "next_stage_prediction": ["AD"] }
-      const nextStagesList = progRes.data.next_stage_prediction || [];
-      const predictedDecline = nextStagesList.length > 0 
-          ? nextStagesList.join(" -> ") 
-          : "Stable";
+      try {
+        const progressionFormData = makeBaseFormData();
+        progressionFormData.append("past_stages", pastStagesString);
+        progressionFormData.append("current_stage", mappedCurrentStage);
+        const progRes = await axios.post(API_PROGRESSION_URL, progressionFormData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        progressionApiPayload = progRes.data || {};
+        trajInference = getTrajectoryInferenceText(progressionApiPayload);
+        // B. Extract Trajectory from Progression API
+        // Python returns: { "next_stage_prediction": ["AD"] }
+        nextStagesList = progressionApiPayload.next_stage_prediction || [];
+        predictedDecline = nextStagesList.length > 0 
+            ? nextStagesList.join(" -> ") 
+            : "Stable";
+      } catch (progressionErr) {
+        if (!isRecoverableAiServiceError(progressionErr)) {
+          throw progressionErr;
+        }
+        console.warn("Progression API unavailable; using estimated trajectory.", progressionErr);
+        const fallback = buildEstimatedTrajectory(currentStage);
+        progressionWasEstimated = true;
+        nextStagesList = fallback.nextStagesList;
+        predictedDecline = fallback.predictedDecline;
+        trajInference = fallback.trajInference;
+        progressionApiPayload = {
+          fallback: true,
+          reason: getApiErrorText(progressionErr),
+        };
+      }
 
       // C. Calculate Stage Level + derive Risk from stage + confidence
       const stageLevelIndex =
         STAGE_LEVEL_MAP[currentStage] !== undefined ? STAGE_LEVEL_MAP[currentStage] : 0;
-      const confidence = stageRes.data.confidence ?? 1;
+      const confidence = stageData.confidence ?? 1;
       const { riskLevel, riskScore } = deriveRiskFromStage(currentStage, confidence);
 
       // 4. UPDATE UI (modal + registry row)
@@ -1894,6 +2010,8 @@ const handleViewPatient = async (patientRef) => {
         aiConfidence: confidence,
         lastAnalysisAt: new Date().toLocaleString(),
         trajectoryMonths: "12 (Est.)",
+        stageEstimated: stageWasEstimated,
+        progressionEstimated: progressionWasEstimated,
         trajectoryDebug: {
           rawCurrentStage: currentStage,
           mappedCurrentStage,
@@ -1935,11 +2053,12 @@ const handleViewPatient = async (patientRef) => {
             pastStagesString,
           },
           stageApi: {
-            stage: stageRes.data.stage || null,
-            confidence: stageRes.data.confidence ?? null,
-            details: stageRes.data.details || null,
+            stage: stageData.stage || null,
+            confidence: stageData.confidence ?? null,
+            details: stageData.details || null,
             explanation: inferenceText || null,
-            raw: stageRes.data || null,
+            raw: stageData || null,
+            fallback: stageWasEstimated,
           },
           progressionApi: {
             past_stages_sent: pastStagesSequence,
@@ -1947,7 +2066,8 @@ const handleViewPatient = async (patientRef) => {
             mapped_current_stage: mappedCurrentStage,
             next_stage_prediction: nextStagesList,
             explanation: trajInference || null,
-            raw: progRes.data || null,
+            raw: progressionApiPayload,
+            fallback: progressionWasEstimated,
           },
           scanRef: {
             type: latestScan?.fileType || null,
@@ -1976,6 +2096,8 @@ const handleViewPatient = async (patientRef) => {
           aiConfidence: confidence,
           inferenceText: inferenceText || null,
           trajInference: trajInference || null,
+          stageEstimated: stageWasEstimated,
+          progressionEstimated: progressionWasEstimated,
           lastAnalysisAt: serverTimestamp(),
         });
       } catch (saveErr) {
@@ -1984,7 +2106,7 @@ const handleViewPatient = async (patientRef) => {
 
     } catch (error) {
       console.error("AI Analysis Error:", error);
-      const msg = error.response?.data?.error || error.message;
+      const msg = getApiErrorText(error);
       alert(`AI Analysis Failed: ${msg}`);
     }
     setAnalyzing(false);
@@ -2054,9 +2176,35 @@ const handleViewPatient = async (patientRef) => {
       const makeForm = () => { const fd = new FormData(); fd.append("file", mriFile); return fd; };
 
       // 2. Stage API
-      const stageRes = await axios.post(API_STAGE_URL, makeForm(), { headers: { "Content-Type": "multipart/form-data" } });
-      const currentStage = stageRes.data.stage || stageRes.data.current_stage || "Unknown";
-      const inferenceText = getStageInferenceText(stageRes.data);
+      let stageData = null;
+      let stageWasEstimated = false;
+      try {
+        const stageRes = await axios.post(API_STAGE_URL, makeForm(), { headers: { "Content-Type": "multipart/form-data" } });
+        stageData = stageRes.data || {};
+      } catch (stageErr) {
+        const storedStage =
+          [
+            selectedPatientForDT.currentStage,
+            selectedPatientForDT.diagnosis,
+            selectedPatientForDT.stage,
+            getLatestUsableStageFromHistory(dtAiHistory),
+          ].find(isUsableStageLabel);
+        if (
+          !isRecoverableAiServiceError(stageErr) ||
+          !storedStage
+        ) {
+          throw stageErr;
+        }
+        console.warn("DT stage API unavailable; using stored stage for estimated diagnostics.", stageErr);
+        stageWasEstimated = true;
+        stageData = buildUnavailableStageData(
+          storedStage,
+          selectedPatientForDT.aiConfidence ?? dtAiHistory[0]?.stageApi?.confidence ?? 0.75
+        );
+      }
+
+      const currentStage = stageData.stage || stageData.current_stage || "Unknown";
+      const inferenceText = getStageInferenceText(stageData);
 
       // 3. Build past stages from DT history
       const historicalStages = [...(dtAiHistory || [])]
@@ -2068,16 +2216,38 @@ const handleViewPatient = async (patientRef) => {
       const pastStagesSequence = [...historicalStages, mappedCurrentStage];
       const pastStagesString = pastStagesSequence.join(", ");
 
-      const progFd = makeForm();
-      progFd.append("past_stages", pastStagesString);
-      progFd.append("current_stage", mappedCurrentStage);
-      const progRes = await axios.post(API_PROGRESSION_URL, progFd, { headers: { "Content-Type": "multipart/form-data" } });
+      let progressionApiPayload = null;
+      let progressionWasEstimated = false;
+      let nextStagesList = [];
+      let predictedDecline = "Stable";
+      let trajInference = null;
 
-      const trajInference = getTrajectoryInferenceText(progRes.data);
-      const nextStagesList = progRes.data.next_stage_prediction || [];
-      const predictedDecline = nextStagesList.length ? nextStagesList.join(" -> ") : "Stable";
+      try {
+        const progFd = makeForm();
+        progFd.append("past_stages", pastStagesString);
+        progFd.append("current_stage", mappedCurrentStage);
+        const progRes = await axios.post(API_PROGRESSION_URL, progFd, { headers: { "Content-Type": "multipart/form-data" } });
+        progressionApiPayload = progRes.data || {};
+        trajInference = getTrajectoryInferenceText(progressionApiPayload);
+        nextStagesList = progressionApiPayload.next_stage_prediction || [];
+        predictedDecline = nextStagesList.length ? nextStagesList.join(" -> ") : "Stable";
+      } catch (progressionErr) {
+        if (!isRecoverableAiServiceError(progressionErr)) {
+          throw progressionErr;
+        }
+        console.warn("DT progression API unavailable; using estimated trajectory.", progressionErr);
+        const fallback = buildEstimatedTrajectory(currentStage);
+        progressionWasEstimated = true;
+        nextStagesList = fallback.nextStagesList;
+        predictedDecline = fallback.predictedDecline;
+        trajInference = fallback.trajInference;
+        progressionApiPayload = {
+          fallback: true,
+          reason: getApiErrorText(progressionErr),
+        };
+      }
       const stageLevelIndex = STAGE_LEVEL_MAP[currentStage] !== undefined ? STAGE_LEVEL_MAP[currentStage] : 0;
-      const confidence = stageRes.data.confidence ?? 1;
+      const confidence = stageData.confidence ?? 1;
       const { riskLevel, riskScore } = deriveRiskFromStage(currentStage, confidence);
 
       // 4. Update Digital Twin patient state
@@ -2094,6 +2264,8 @@ const handleViewPatient = async (patientRef) => {
         aiConfidence: confidence,
         lastAnalysisAt: new Date().toLocaleString(),
         trajectoryMonths: "12 (Est.)",
+        stageEstimated: stageWasEstimated,
+        progressionEstimated: progressionWasEstimated,
       }));
 
       // Also refresh registry row
@@ -2116,8 +2288,19 @@ const handleViewPatient = async (patientRef) => {
           trajectoryMonths: "12 (Est.)",
           inferenceText: inferenceText || null,
           trajInference: trajInference || null,
-          stageApi: { stage: stageRes.data.stage || null, confidence: stageRes.data.confidence ?? null, explanation: inferenceText || null },
-          progressionApi: { next_stage_prediction: nextStagesList, explanation: trajInference || null },
+          stageApi: {
+            stage: stageData.stage || null,
+            confidence: stageData.confidence ?? null,
+            explanation: inferenceText || null,
+            raw: stageData || null,
+            fallback: stageWasEstimated,
+          },
+          progressionApi: {
+            next_stage_prediction: nextStagesList,
+            explanation: trajInference || null,
+            raw: progressionApiPayload,
+            fallback: progressionWasEstimated,
+          },
         };
         const docRef = await addDoc(collection(db, "patients", selectedPatientForDT.id, "aiAnalyses"), record);
         setDtAiHistory((prev) => [{ id: docRef.id, ...record, createdAt: { seconds: Math.floor(Date.now() / 1000) } }, ...prev]);
@@ -2132,6 +2315,8 @@ const handleViewPatient = async (patientRef) => {
           aiConfidence: confidence,
           inferenceText: inferenceText || null,
           trajInference: trajInference || null,
+          stageEstimated: stageWasEstimated,
+          progressionEstimated: progressionWasEstimated,
           lastAnalysisAt: serverTimestamp(),
         });
       } catch (saveErr) {
@@ -2149,7 +2334,7 @@ const handleViewPatient = async (patientRef) => {
       console.error("DT AI Analysis Error:", err);
       const status = err?.response?.status;
       const endpoint = err?.config?.url;
-      const msg = err?.response?.data?.error || err?.message || "Unknown error";
+      const msg = getApiErrorText(err);
       alert(
         `AI Analysis Failed${status ? ` (${status})` : ""}${endpoint ? ` at ${endpoint}` : ""}: ${msg}`
       );
