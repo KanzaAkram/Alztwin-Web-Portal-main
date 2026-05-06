@@ -1,9 +1,9 @@
 import React from "react";
-import { Search, Bell, Settings } from "lucide-react";
+import { Search, Bell, Settings, Moon, Sun } from "lucide-react";
 import { useTheme } from "../ThemeContext";
 
 export default function DashboardTopBar({ searchQuery, onSearchChange, pendingRequestsCount = 0 }) {
-  const { isLight } = useTheme();
+  const { isLight, toggleTheme } = useTheme();
 
   return (
     <nav className={`border-b backdrop-blur-sm sticky top-0 z-50 ${
@@ -28,6 +28,19 @@ export default function DashboardTopBar({ searchQuery, onSearchChange, pendingRe
             </div>
           </div>
           <div className="flex items-center space-x-1">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={`p-2 rounded-lg transition-colors ${
+                isLight
+                  ? "text-slate-500 hover:text-slate-950 hover:bg-[#dff3ee]"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800"
+              }`}
+              aria-label={isLight ? "Switch to dark mode" : "Switch to light mode"}
+              title={isLight ? "Switch to dark mode" : "Switch to light mode"}
+            >
+              {isLight ? <Moon size={20} /> : <Sun size={20} className="text-yellow-300" />}
+            </button>
             <button className={`relative p-2 rounded-lg transition-colors ${
               isLight ? "text-slate-500 hover:text-slate-950 hover:bg-[#dff3ee]" : "text-slate-400 hover:text-white"
             }`}>

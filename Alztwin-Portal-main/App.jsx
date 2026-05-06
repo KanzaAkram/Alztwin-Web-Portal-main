@@ -213,7 +213,7 @@ function AppContent() {
       <>
         <LightModeSurfaceOverrides />
         {dashboard}
-        <ThemeToggle />
+        {userRole !== "clinician" && <ThemeToggle />}
       </>
     );
   }
