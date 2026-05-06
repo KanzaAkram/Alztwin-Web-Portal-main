@@ -3638,7 +3638,68 @@ const handleViewPatient = async (patientRef) => {
 
           {/* === CAREGIVER REPORT PREVIEW MODAL === */}
           {showCaregiverReportPreview && caregiverReportPreview && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[75] flex items-center justify-center p-4">
+            <div className={`fixed inset-0 backdrop-blur-sm z-[75] flex items-center justify-center p-4 ${
+              isLight
+                ? "caregiver-report-preview-light bg-slate-950/35"
+                : "bg-black/80"
+            }`}>
+              {isLight && (
+                <style>{`
+                  .caregiver-report-preview-light .bg-slate-900 {
+                    background: #eaf7f4 !important;
+                  }
+                  .caregiver-report-preview-light .bg-slate-900\\/50,
+                  .caregiver-report-preview-light .bg-slate-800\\/30,
+                  .caregiver-report-preview-light .bg-slate-800\\/40,
+                  .caregiver-report-preview-light .bg-slate-800\\/60 {
+                    background: rgba(248, 252, 251, 0.9) !important;
+                  }
+                  .caregiver-report-preview-light .bg-slate-800 {
+                    background: #edf8f5 !important;
+                  }
+                  .caregiver-report-preview-light .bg-gradient-to-r.from-slate-900 {
+                    background: linear-gradient(135deg, #f8fcfb 0%, #e1f3ef 54%, #dceefa 100%) !important;
+                  }
+                  .caregiver-report-preview-light .border-slate-800,
+                  .caregiver-report-preview-light .border-slate-700,
+                  .caregiver-report-preview-light .border-slate-600 {
+                    border-color: rgba(15, 23, 42, 0.1) !important;
+                  }
+                  .caregiver-report-preview-light > div {
+                    box-shadow: 0 35px 90px rgba(15, 23, 42, 0.18) !important;
+                  }
+                  .caregiver-report-preview-light .text-white,
+                  .caregiver-report-preview-light .text-slate-300 {
+                    color: #102a37 !important;
+                  }
+                  .caregiver-report-preview-light .text-slate-400 {
+                    color: #526b78 !important;
+                  }
+                  .caregiver-report-preview-light .text-slate-500 {
+                    color: #647987 !important;
+                  }
+                  .caregiver-report-preview-light .text-yellow-200 {
+                    color: #854d0e !important;
+                  }
+                  .caregiver-report-preview-light .text-yellow-400 {
+                    color: #b45309 !important;
+                  }
+                  .caregiver-report-preview-light .bg-yellow-500\\/10 {
+                    background: #fff7ed !important;
+                  }
+                  .caregiver-report-preview-light .border-yellow-500\\/30 {
+                    border-color: #fed7aa !important;
+                  }
+                  .caregiver-report-preview-light .hover\\:bg-slate-700:hover {
+                    background: #dff3ee !important;
+                  }
+                  .caregiver-report-preview-light button.bg-slate-800,
+                  .caregiver-report-preview-light button.bg-slate-800:hover {
+                    color: #334155 !important;
+                    border: 1px solid rgba(15, 23, 42, 0.12);
+                  }
+                `}</style>
+              )}
               <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
                 <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 to-emerald-900/20">
                   <div className="flex items-center space-x-3">
