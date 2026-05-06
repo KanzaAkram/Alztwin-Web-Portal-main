@@ -89,7 +89,7 @@ import {
   Tag,
 } from "lucide-react";
 // --- FIREBASE IMPORTS ---
-import { db } from "../../firebase";
+import { db, realtimeDb } from "../../firebase";
 import {
   collection,
   getDoc,
@@ -103,7 +103,17 @@ import {
   updateDoc,
   arrayUnion,
   where,
+  limit,
+  onSnapshot,
 } from "firebase/firestore";
+import {
+  get as getRealtimeValue,
+  limitToLast,
+  onValue,
+  orderByChild,
+  query as realtimeQuery,
+  ref as realtimeRef,
+} from "firebase/database";
 import {
   getClinicianPendingRequests,
   getClinicianAllRequests,
@@ -173,10 +183,104 @@ const isRafayPatient = (patientId, data = {}) => {
 
 const wearableTimeToMs = (value) => {
   if (!value) return 0;
-  if (typeof value === "number") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (value.seconds) return value.seconds * 1000;
-  const parsed = Date.parse(value);
+  const normalized = String(value)
+    .replace(
+      /^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})$/,
+      "$1T$2:$3:$4"
+    )
+    .replace(" ", "T");
+  const parsed = Date.parse(normalized);
   return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const firstDefined = (record = {}, keys = []) => {
+  for (const key of keys) {
+    if (
+      record[key] !== undefined &&
+      record[key] !== null &&
+      record[key] !== "" &&
+      !Number.isNaN(record[key])
+    ) {
+      return record[key];
+    }
+  }
+  return undefined;
+};
+
+const asBoolean = (value) => {
+  if (typeof value === "string") {
+    return ["true", "1", "yes", "y"].includes(value.toLowerCase());
+  }
+  return value === true || value === 1;
+};
+
+const asNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const sensorTimestampMs = (record = {}) => {
+  const timestamp = firstDefined(record, [
+    "timestampMs",
+    "timestamp_ms",
+    "timestamp",
+    "time",
+    "createdAt",
+    "updatedAt",
+    "lastUpdate",
+    "id",
+  ]);
+  return wearableTimeToMs(timestamp);
+};
+
+const getPatientIdentityTokens = (patientDocId, patientData = {}) =>
+  [
+    patientDocId,
+    patientData.id,
+    patientData.patientId,
+    patientData.patient_id,
+    patientData.userId,
+    patientData.uid,
+    patientData.deviceId,
+    patientData.email,
+    patientData.name,
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).toLowerCase());
+
+const sensorRecordMatchesPatient = (record = {}, patientDocId, patientData = {}) => {
+  const patientTokens = getPatientIdentityTokens(patientDocId, patientData);
+  const recordTokens = [
+    record.patientDocId,
+    record.patientId,
+    record.patient_id,
+    record.Patient_ID,
+    record.ID,
+    record.id,
+    record.userId,
+    record.uid,
+    record.deviceId,
+    record.patientName,
+    record.name,
+    record.email,
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).toLowerCase());
+
+  if (recordTokens.length === 0) {
+    return isRafayPatient(patientDocId, patientData);
+  }
+
+  return recordTokens.some((recordToken) =>
+    patientTokens.some(
+      (patientToken) =>
+        recordToken === patientToken ||
+        recordToken.includes(patientToken) ||
+        patientToken.includes(recordToken)
+    )
+  );
 };
 
 const formatSensorDateKey = (date) => date.toISOString().slice(0, 10);
@@ -203,25 +307,30 @@ const getSensorDateKeys = (days = SENSOR_HISTORY_DAYS) => {
 };
 
 const normalizeSensorReading = (record = {}) => {
-  const timestampMs = Number(
-    record.timestampMs ||
-      wearableTimeToMs(record.timestamp) ||
-      wearableTimeToMs(record.createdAt)
-  );
-  const outOfBound = record.outOfBound === 1 || record.outOfBound === true ? 1 : 0;
-  return SENSOR_DISPLAY_FIELDS.reduce(
-    (acc, field) => {
-      acc[field] = record[field] ?? (field === "bpm" ? 0 : false);
-      return acc;
-    },
-    {
-      timestampMs,
-      dateKey:
-        record.dateKey ||
-        (timestampMs ? formatSensorDateKey(new Date(timestampMs)) : null),
-      outOfBound,
-    }
-  );
+  const timestampMs = sensorTimestampMs(record);
+  const outOfBound = asBoolean(
+    firstDefined(record, ["outOfBound", "out_of_bound", "outOfBounds", "OUT_OF_BOUND"])
+  )
+    ? 1
+    : 0;
+
+  return {
+    ...record,
+    timestampMs,
+    dateKey:
+      record.dateKey ||
+      record.date ||
+      (timestampMs ? formatSensorDateKey(new Date(timestampMs)) : null),
+    bpm: asNumber(firstDefined(record, ["bpm", "BPM", "heartRate", "heart_rate", "heart_rate_bpm"]), 0),
+    fall: asBoolean(firstDefined(record, ["fall", "Fall", "hasFall", "fallDetected"])),
+    latitude: asNumber(firstDefined(record, ["latitude", "lat", "Latitude", "LAT"]), 0),
+    longitude: asNumber(firstDefined(record, ["longitude", "lng", "lon", "Longitude", "LON"]), 0),
+    outOfZone: asBoolean(firstDefined(record, ["outOfZone", "out_of_zone", "OutOfZone"])),
+    outOfBound,
+    pitch: asNumber(firstDefined(record, ["pitch", "Pitch"]), 0),
+    roll: asNumber(firstDefined(record, ["roll", "Roll"]), 0),
+    sleeping: asBoolean(firstDefined(record, ["sleeping", "Sleeping", "isSleeping", "sleep"])),
+  };
 };
 
 const isRafayLogRecord = (record = {}) => {
@@ -271,18 +380,24 @@ const getLatestSensorRecord = (deviceData = {}) => {
   const keys = Object.keys(deviceData);
   if (keys.length === 0) return null;
   const sorted = [...keys].sort((a, b) => {
-    const na = parseInt(a.replace(/^\D+/g, ""), 10) || 0;
-    const nb = parseInt(b.replace(/^\D+/g, ""), 10) || 0;
+    const na =
+      sensorTimestampMs(deviceData[a]) ||
+      parseInt(a.replace(/^\D+/g, ""), 10) ||
+      0;
+    const nb =
+      sensorTimestampMs(deviceData[b]) ||
+      parseInt(b.replace(/^\D+/g, ""), 10) ||
+      0;
     return na - nb;
   });
   const latest = deviceData[sorted[sorted.length - 1]];
   return latest && typeof latest === "object" && !Array.isArray(latest)
-    ? latest
+    ? normalizeSensorReading(latest)
     : deviceData;
 };
 
 const formatSensorTimestamp = (record = {}) => {
-  const ms = Number(record.timestampMs || wearableTimeToMs(record.updatedAt));
+  const ms = sensorTimestampMs(record);
   if (!ms) return "No sync yet";
   return new Date(ms).toLocaleString();
 };
@@ -347,6 +462,154 @@ const loadRafayPatientLogs = async (patientDocId, patientData = {}) => {
   return logSnap.docs
     .map((logDoc) => ({ id: logDoc.id, ...logDoc.data() }))
     .filter(isRafayLogRecord);
+};
+
+const extractRealtimeRecords = (snapshot) => {
+  if (!snapshot.exists()) return [];
+  const value = snapshot.val();
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value !== "object") return [];
+
+  const looksLikeSingleReading = SENSOR_DISPLAY_FIELDS.some(
+    (field) => value[field] !== undefined
+  ) || value.BPM !== undefined || value.heartRate !== undefined;
+
+  if (looksLikeSingleReading) {
+    return [{ id: snapshot.key, ...value }];
+  }
+
+  return Object.entries(value)
+    .filter(([, child]) => child && typeof child === "object")
+    .map(([id, child]) => ({ id, ...child }));
+};
+
+const newestSensorRecord = (records = []) =>
+  records
+    .map(normalizeSensorReading)
+    .sort((a, b) => (sensorTimestampMs(b) || 0) - (sensorTimestampMs(a) || 0))[0] ||
+  null;
+
+const getSensorDetailsFromRecord = (record) => {
+  const latestSensor = record ? normalizeSensorReading(record) : null;
+  return {
+    bpm: sensorValue(latestSensor?.bpm, 0),
+    fall: Boolean(latestSensor?.fall),
+    latitude: sensorValue(latestSensor?.latitude, 0),
+    longitude: sensorValue(latestSensor?.longitude, 0),
+    outOfZone: Boolean(latestSensor?.outOfZone),
+    pitch: sensorValue(latestSensor?.pitch, 0),
+    roll: sensorValue(latestSensor?.roll, 0),
+    sleeping: Boolean(latestSensor?.sleeping),
+    heartRate: sensorValue(latestSensor?.bpm, 0),
+    lastUpdate: formatSensorTimestamp(latestSensor),
+    sensorCurrent: latestSensor,
+  };
+};
+
+const loadLatestPatientSensor = async (patientDocId, patientData = {}) => {
+  const candidates = [];
+
+  const addCandidate = (record) => {
+    if (record) candidates.push(record);
+  };
+
+  addCandidate(getLatestSensorRecord(patientData.deviceData));
+  addCandidate(patientData.sensorCurrent);
+
+  try {
+    const currentSnap = await getDoc(doc(db, "patients", patientDocId, "current", "latest"));
+    if (currentSnap.exists()) addCandidate({ id: currentSnap.id, ...currentSnap.data() });
+  } catch (err) {
+    console.warn("Could not load patient current/latest sensor reading:", err);
+  }
+
+  try {
+    const dailySnapshots = await Promise.all(
+      getSensorDateKeys().map((dateKey) =>
+        getDocs(
+          query(
+            collection(db, "patients", patientDocId, "sensorData", dateKey, "readings"),
+            orderBy("timestampMs", "desc"),
+            limit(1)
+          )
+        ).then((snap) =>
+          snap.docs.map((readingDoc) => ({
+            id: readingDoc.id,
+            dateKey,
+            timestampMs: Number(readingDoc.id),
+            ...readingDoc.data(),
+          }))
+        )
+      )
+    );
+    dailySnapshots.flat().forEach(addCandidate);
+  } catch (err) {
+    console.warn("Could not load patient sensorData readings:", err);
+  }
+
+  try {
+    const patientLogRecords = await loadRafayPatientLogs(patientDocId, patientData);
+    patientLogRecords.forEach(addCandidate);
+  } catch (err) {
+    console.warn("Could not load Firestore patient_logs readings:", err);
+  }
+
+  try {
+    const logSnap = await getDocs(
+      query(collection(db, "patient_logs"), orderBy("timestamp", "desc"), limit(50))
+    );
+    logSnap.docs
+      .map((logDoc) => ({ id: logDoc.id, ...logDoc.data() }))
+      .filter((record) => sensorRecordMatchesPatient(record, patientDocId, patientData))
+      .forEach(addCandidate);
+  } catch (err) {
+    console.warn("Could not load recent Firestore patient_logs stream:", err);
+  }
+
+  try {
+    const realtimeLogsSnap = await getRealtimeValue(
+      realtimeQuery(realtimeRef(realtimeDb, "patient_logs"), orderByChild("timestamp"), limitToLast(50))
+    );
+    extractRealtimeRecords(realtimeLogsSnap)
+      .filter((record) => sensorRecordMatchesPatient(record, patientDocId, patientData))
+      .forEach(addCandidate);
+  } catch (err) {
+    console.warn("Could not load Realtime Database patient_logs stream:", err);
+  }
+
+  const realtimePatientKeys = [
+    patientDocId,
+    patientData.patientId,
+    patientData.patient_id,
+    patientData.userId,
+    patientData.uid,
+  ].filter(Boolean);
+  await Promise.all(
+    [...new Set(realtimePatientKeys)].map(async (patientKey) => {
+      try {
+        const patientLogSnap = await getRealtimeValue(
+          realtimeRef(realtimeDb, `patient_logs/${patientKey}`)
+        );
+        extractRealtimeRecords(patientLogSnap).forEach((record) =>
+          addCandidate({ ...record, patientDocId })
+        );
+      } catch (err) {
+        console.warn("Could not load patient-specific Realtime Database logs:", err);
+      }
+    })
+  );
+
+  try {
+    const realtimeCurrentSnap = await getRealtimeValue(
+      realtimeRef(realtimeDb, `patients/${patientDocId}/current/latest`)
+    );
+    extractRealtimeRecords(realtimeCurrentSnap).forEach(addCandidate);
+  } catch (err) {
+    console.warn("Could not load Realtime Database current/latest reading:", err);
+  }
+
+  return newestSensorRecord(candidates);
 };
 
 const ensureRafaySensorSeed = async (patientDocId, patientData = {}) => {
@@ -1583,6 +1846,124 @@ setSelectedPatientForDT(prev => ({
     };
   }, []);
 
+  useEffect(() => {
+    if (!showPatientModal || !selectedPatientDetails?.id) return undefined;
+
+    const patientDocId = selectedPatientDetails.id;
+    const patientData = selectedPatientDetails;
+    const updateFromRecords = (records = []) => {
+      const latest = newestSensorRecord(
+        records.filter((record) =>
+          sensorRecordMatchesPatient(record, patientDocId, patientData)
+        )
+      );
+      if (!latest) return;
+
+      const sensorDetails = getSensorDetailsFromRecord(latest);
+      setSelectedPatientDetails((prev) =>
+        prev?.id === patientDocId ? { ...prev, ...sensorDetails } : prev
+      );
+      setPatients((prevPatients) =>
+        prevPatients.map((patient) =>
+          patient.id === patientDocId
+            ? {
+                ...patient,
+                ...sensorDetails,
+                sensorCurrent: latest,
+                deviceData: normalizeSensorDataMap([
+                  ...Object.values(patient.deviceData || {}),
+                  latest,
+                ]),
+              }
+            : patient
+        )
+      );
+    };
+
+    const unsubscribers = [];
+
+    unsubscribers.push(
+      onSnapshot(
+        doc(db, "patients", patientDocId, "current", "latest"),
+        (snapshot) => {
+          if (snapshot.exists()) {
+            updateFromRecords([{ id: snapshot.id, ...snapshot.data(), patientDocId }]);
+          }
+        },
+        (err) => console.warn("Could not subscribe to patient current/latest:", err)
+      )
+    );
+
+    unsubscribers.push(
+      onSnapshot(
+        query(collection(db, "patient_logs"), orderBy("timestamp", "desc"), limit(50)),
+        (snapshot) => {
+          updateFromRecords(
+            snapshot.docs.map((logDoc) => ({ id: logDoc.id, ...logDoc.data() }))
+          );
+        },
+        (err) => console.warn("Could not subscribe to Firestore patient_logs:", err)
+      )
+    );
+
+    unsubscribers.push(
+      onValue(
+        realtimeQuery(
+          realtimeRef(realtimeDb, "patient_logs"),
+          orderByChild("timestamp"),
+          limitToLast(50)
+        ),
+        (snapshot) => updateFromRecords(extractRealtimeRecords(snapshot)),
+        (err) => console.warn("Could not subscribe to Realtime Database patient_logs:", err)
+      )
+    );
+
+    const realtimePatientKeys = [
+      patientDocId,
+      patientData.patientId,
+      patientData.patient_id,
+      patientData.userId,
+      patientData.uid,
+    ].filter(Boolean);
+    [...new Set(realtimePatientKeys)].forEach((patientKey) => {
+      unsubscribers.push(
+        onValue(
+          realtimeRef(realtimeDb, `patient_logs/${patientKey}`),
+          (snapshot) =>
+            updateFromRecords(
+              extractRealtimeRecords(snapshot).map((record) => ({
+                ...record,
+                patientDocId,
+              }))
+            ),
+          (err) =>
+            console.warn("Could not subscribe to patient-specific Realtime logs:", err)
+        )
+      );
+    });
+
+    unsubscribers.push(
+      onValue(
+        realtimeRef(realtimeDb, `patients/${patientDocId}/current/latest`),
+        (snapshot) =>
+          updateFromRecords(
+            extractRealtimeRecords(snapshot).map((record) => ({
+              ...record,
+              patientDocId,
+            }))
+          ),
+        (err) =>
+          console.warn("Could not subscribe to Realtime Database current/latest:", err)
+      )
+    );
+
+    return () => {
+      unsubscribers.forEach((unsubscribe) => {
+        if (typeof unsubscribe === "function") unsubscribe();
+      });
+    };
+  }, [showPatientModal, selectedPatientDetails?.id]);
+
   // --- 2. REQUEST HANDLING ---
   const handleAcceptRequest = async (request) => {
     setActionLoading(request.id);
@@ -1662,34 +2043,8 @@ const handleViewPatient = async (patientRef) => {
       setAiHistory(history);
       setCompareWithId(null);
       const latestAnalysis = history[0] || null;
-      let latestSensor = getLatestSensorRecord(patientData.deviceData);
-      try {
-        const patientLogRecords = await loadRafayPatientLogs(patientDocId, patientData);
-        if (patientLogRecords.length > 0) {
-          latestSensor = patientLogRecords[0];
-        } else {
-          const currentSnap = await getDoc(
-            doc(db, "patients", patientDocId, "current", "latest")
-          );
-          if (currentSnap.exists()) {
-          latestSensor = { id: currentSnap.id, ...currentSnap.data() };
-          }
-        }
-      } catch (err) {
-        console.warn("Could not load latest sensor reading:", err);
-      }
-      const sensorDetails = {
-        bpm: sensorValue(latestSensor?.bpm, 0),
-        fall: Boolean(latestSensor?.fall),
-        latitude: sensorValue(latestSensor?.latitude, 0),
-        longitude: sensorValue(latestSensor?.longitude, 0),
-        outOfZone: Boolean(latestSensor?.outOfZone),
-        pitch: sensorValue(latestSensor?.pitch, 0),
-        roll: sensorValue(latestSensor?.roll, 0),
-        sleeping: Boolean(latestSensor?.sleeping),
-        heartRate: sensorValue(latestSensor?.bpm, 0),
-        lastUpdate: formatSensorTimestamp(latestSensor),
-      };
+      const latestSensor = await loadLatestPatientSensor(patientDocId, patientData);
+      const sensorDetails = getSensorDetailsFromRecord(latestSensor);
 
       // A. Extract Latest Vitals (with dummy fallback values)
       // Dummy values for demo purposes when no real device data exists
