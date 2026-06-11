@@ -19,7 +19,9 @@ import {
 } from "lucide-react";
 import {
   API_RAG_URL,
+  buildRagRequestPayload,
   mapStageToRag,
+  normalizeRagSleepQuality,
 } from "./config";
 import { useTheme } from "../ThemeContext";
 import { db } from "../../firebase";
@@ -82,19 +84,19 @@ const extractVitalsFromPatient = (patient) => {
     if (m) sleepHours = parseFloat(m[1]);
   }
 
-  // Sleep quality label
-  let sleepQuality = "average";
+  // Sleep quality label (RAG API: good | fair | poor | unknown)
+  let sleepQuality = "fair";
   if (sleepHours < 5) sleepQuality = "poor";
   else if (sleepHours < 7) sleepQuality = "fair";
   else sleepQuality = "good";
   if (typeof latest.sleepQuality === "string") {
-    sleepQuality = latest.sleepQuality;
+    sleepQuality = normalizeRagSleepQuality(latest.sleepQuality);
   } else if (typeof latest.sleeping === "boolean") {
     sleepQuality = latest.sleeping ? "good" : "fair";
   }
 
   return {
-    sleep_quality: sleepQuality,
+    sleep_quality: normalizeRagSleepQuality(sleepQuality),
     sleep_hours: sleepHours,
     systolic_bp: systolic,
     diastolic_bp: diastolic,
@@ -225,21 +227,15 @@ export default function RagRecommendationPanel({ patient }) {
     setLoading(true);
     setError(null);
     try {
-      const payload = {
-        age: Number(age),
-        patient_id: patient?.id || "unknown",
-        vitals: {
-          sleep_quality: vitals.sleep_quality,
-          sleep_hours: Number(vitals.sleep_hours),
-          systolic_bp: Number(vitals.systolic_bp),
-          diastolic_bp: Number(vitals.diastolic_bp),
-          heart_rate_bpm: Number(vitals.heart_rate_bpm),
-        },
+      const payload = buildRagRequestPayload({
+        age,
+        patientId: patient?.id,
+        vitals,
         stage,
-        top_k: Number(topK),
+        topK,
         comorbidities: toList(comorbidities),
-        current_medications: toList(medications),
-      };
+        medications: toList(medications),
+      });
 
       const res = await axios.post(API_RAG_URL, payload, {
         headers: { "Content-Type": "application/json" },
@@ -287,7 +283,10 @@ export default function RagRecommendationPanel({ patient }) {
       }
     } catch (e) {
       console.error("Treatment support API error:", e);
-      setError(e.response?.data?.error || e.message || "Request failed");
+      const apiErr = e.response?.data;
+      setError(
+        apiErr?.detail || apiErr?.error || e.message || "Request failed"
+      );
     }
     setLoading(false);
   };
@@ -479,7 +478,7 @@ export default function RagRecommendationPanel({ patient }) {
               onChange={(e) => setStage(e.target.value)}
               className="input-dark"
             >
-              <option value="normal">Normal</option>
+              <option value="very_mild">Very mild (Normal/CN)</option>
               <option value="mild">Mild</option>
               <option value="moderate">Moderate</option>
               <option value="severe">Severe</option>
@@ -503,8 +502,8 @@ export default function RagRecommendationPanel({ patient }) {
             >
               <option value="poor">Poor</option>
               <option value="fair">Fair</option>
-              <option value="average">Average</option>
               <option value="good">Good</option>
+              <option value="unknown">Unknown</option>
             </select>
           </Field>
           <Field label="Sleep Hours">

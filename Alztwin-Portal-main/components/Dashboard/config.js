@@ -15,19 +15,63 @@ export const RAG_FUNCTION_CODE =
   "gqkqEhgGIuKrDBnE8MolPCcN2Uq-_WoGbeD-w2gz2qLNAzFuAGSKug==";
 export const API_RAG_URL = `/api/rag/recommend?code=${RAG_FUNCTION_CODE}`;
 
-export const RAG_STAGE_FROM_LEVEL = ["normal", "mild", "moderate", "severe"];
+// RAG API accepts: very_mild | mild | moderate | severe
+export const RAG_STAGE_FROM_LEVEL = ["very_mild", "mild", "moderate", "severe"];
+export const RAG_SLEEP_QUALITY = ["good", "fair", "poor", "unknown"];
+
 export const mapStageToRag = (currentStage, stageLevel) => {
   if (typeof stageLevel === "number" && RAG_STAGE_FROM_LEVEL[stageLevel]) {
     return RAG_STAGE_FROM_LEVEL[stageLevel];
   }
   const s = (currentStage || "").toLowerCase();
+  if (RAG_STAGE_FROM_LEVEL.includes(s)) return s;
+  if (s === "normal") return "very_mild";
   if (!s) return "mild";
   if (s.includes("severe") || s.includes("moderatedemented")) return "severe";
   if (s.includes("moderate")) return "moderate";
+  if (s.includes("verymild") || s.includes("very_mild")) return "very_mild";
   if (s.includes("mild") || s.includes("mci")) return "mild";
-  if (s.includes("normal") || s.includes("nondemented") || s === "cn") return "normal";
+  if (s.includes("nondemented") || s === "cn" || s.includes("normal")) {
+    return "very_mild";
+  }
   return "mild";
 };
+
+export const normalizeRagSleepQuality = (value) => {
+  const v = String(value || "").toLowerCase();
+  if (RAG_SLEEP_QUALITY.includes(v)) return v;
+  if (v === "average") return "fair";
+  return "fair";
+};
+
+const toFiniteNumber = (value, fallback) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+export const buildRagRequestPayload = ({
+  age,
+  patientId,
+  vitals,
+  stage,
+  topK,
+  comorbidities,
+  medications,
+}) => ({
+  age: Math.round(toFiniteNumber(age, 70)),
+  patient_id: patientId || "unknown",
+  vitals: {
+    sleep_quality: normalizeRagSleepQuality(vitals?.sleep_quality),
+    sleep_hours: toFiniteNumber(vitals?.sleep_hours, 7),
+    systolic_bp: Math.round(toFiniteNumber(vitals?.systolic_bp, 120)),
+    diastolic_bp: Math.round(toFiniteNumber(vitals?.diastolic_bp, 80)),
+    heart_rate_bpm: Math.round(toFiniteNumber(vitals?.heart_rate_bpm, 75)),
+  },
+  stage: mapStageToRag(stage),
+  top_k: Math.max(1, Math.min(10, Math.round(toFiniteNumber(topK, 3)))),
+  comorbidities: Array.isArray(comorbidities) ? comorbidities : [],
+  current_medications: Array.isArray(medications) ? medications : [],
+});
 
 export const getRiskColor = (level) => {
   switch (level?.toLowerCase()) {
