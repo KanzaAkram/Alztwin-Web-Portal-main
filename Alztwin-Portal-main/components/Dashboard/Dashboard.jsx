@@ -133,6 +133,7 @@ import {
   API_PROGRESSION_URL,
   API_3D_MODEL_URL,
   buildBrainMeshUrl,
+  BRAIN3D_DEFAULT_MESH_URL,
   STAGE_LEVEL_MAP,
   deriveRiskFromStage,
   mapStageToTrajectory,
@@ -908,7 +909,7 @@ const Dashboard = ({ user, onLogout }) => {
             meshUrl:
               data.meshUrl ||
               buildBrainMeshUrl(data.subjectId || data.adniSubjectId) ||
-              null,
+              BRAIN3D_DEFAULT_MESH_URL,
           };
         })
       );

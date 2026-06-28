@@ -30,6 +30,13 @@ export const buildBrainMeshUrl = (subjectId) => {
   return `${BRAIN3D_BLOB_BASE}/${id}/brain_patient_${id}.ply?${BRAIN3D_READ_SAS}`;
 };
 
+// Demo fallback: when a patient has no specific mesh yet (e.g. Rafay, who has no
+// ADNI subject id), show a representative generated brain so the viewer always
+// renders something instead of the "Awaiting Generation" prompt. Override per
+// patient by setting `meshUrl` or `subjectId` on the Firestore patient doc.
+export const BRAIN3D_DEFAULT_SUBJECT = "123_S_0088";
+export const BRAIN3D_DEFAULT_MESH_URL = buildBrainMeshUrl(BRAIN3D_DEFAULT_SUBJECT);
+
 export const RAG_FUNCTION_CODE =
   "gqkqEhgGIuKrDBnE8MolPCcN2Uq-_WoGbeD-w2gz2qLNAzFuAGSKug==";
 export const API_RAG_URL = `/api/rag/recommend?code=${RAG_FUNCTION_CODE}`;
