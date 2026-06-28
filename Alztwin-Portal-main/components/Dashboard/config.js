@@ -48,6 +48,35 @@ export const buildBrainVizUrl = (subjectId) => {
 };
 export const BRAIN3D_DEFAULT_VIZ_URL = buildBrainVizUrl(BRAIN3D_DEFAULT_SUBJECT);
 
+// The pipeline also writes report_<id>.json (real per-patient atrophy stats).
+// We derive the "Volumetric AI Assessment" text from it so the inference is
+// patient-specific and updates with the model (the old /generate_ply Gemini
+// header no longer exists in the precompute flow).
+export const buildBrainReportUrl = (subjectId) => {
+  if (!subjectId) return null;
+  const id = String(subjectId).trim();
+  if (!id) return null;
+  return `${BRAIN3D_BLOB_BASE}/${id}/report_${id}.json?${BRAIN3D_READ_SAS}`;
+};
+export const BRAIN3D_DEFAULT_REPORT_URL = buildBrainReportUrl(BRAIN3D_DEFAULT_SUBJECT);
+
+// Turn a report.json into a readable assessment sentence.
+export const buildVolumetricAssessment = (report) => {
+  if (!report || !Array.isArray(report.rois) || report.rois.length === 0) return null;
+  const top = report.rois
+    .slice(0, 3)
+    .map((r) => `${r.region} (${r.severity})`)
+    .join(", ");
+  const idx = report.ad_pattern_index;
+  const label = report.ad_pattern_label || "";
+  return (
+    `Volumetric analysis — AD pattern index ${idx}${label ? ` (${label})` : ""}. ` +
+    `Most affected regions: ${top}. ` +
+    `Severe-atrophy voxels: ${report.severe_voxel_pct}% of brain; ` +
+    `mean atrophy ${report.mean_brain_atrophy}.`
+  );
+};
+
 export const RAG_FUNCTION_CODE =
   "gqkqEhgGIuKrDBnE8MolPCcN2Uq-_WoGbeD-w2gz2qLNAzFuAGSKug==";
 export const API_RAG_URL = `/api/rag/recommend?code=${RAG_FUNCTION_CODE}`;

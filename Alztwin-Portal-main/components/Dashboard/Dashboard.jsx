@@ -136,6 +136,9 @@ import {
   BRAIN3D_DEFAULT_MESH_URL,
   buildBrainVizUrl,
   BRAIN3D_DEFAULT_VIZ_URL,
+  buildBrainReportUrl,
+  BRAIN3D_DEFAULT_REPORT_URL,
+  buildVolumetricAssessment,
   STAGE_LEVEL_MAP,
   deriveRiskFromStage,
   mapStageToTrajectory,
@@ -1509,17 +1512,35 @@ setSelectedPatientForDT(prev => ({
   // If none resolve, the viewer shows the upload prompt — it never auto-hangs.
   useEffect(() => {
     if (!selectedPatientForDT?.id) return;
-    if (selectedPatientForDT.meshUrl) return; // already resolved
+    const patientId = selectedPatientForDT.id;
+    const subj = selectedPatientForDT.subjectId || selectedPatientForDT.adniSubjectId;
 
-    const cached = sessionStorage.getItem(`mesh_${selectedPatientForDT.id}`);
+    // (a) Volumetric AI Assessment derived from the precomputed report.json so it
+    //     reflects THIS patient's actual model output and updates with the mesh.
+    //     (The old /generate_ply Gemini-header inference no longer exists.)
+    const reportUrl = buildBrainReportUrl(subj) || BRAIN3D_DEFAULT_REPORT_URL;
+    if (reportUrl) {
+      fetch(reportUrl)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((rep) => {
+          const txt = buildVolumetricAssessment(rep);
+          if (txt) {
+            setSelectedPatientForDT((prev) =>
+              prev && prev.id === patientId ? { ...prev, meshInference: txt } : prev
+            );
+          }
+        })
+        .catch(() => {});
+    }
+
+    // (b) Resolve the static mesh URL (precomputed; no on-demand generation).
+    if (selectedPatientForDT.meshUrl) return; // already resolved
+    const cached = sessionStorage.getItem(`mesh_${patientId}`);
     if (cached) {
       setSelectedPatientForDT((prev) => ({ ...prev, meshUrl: cached }));
       return;
     }
-
-    const derived = buildBrainMeshUrl(
-      selectedPatientForDT.subjectId || selectedPatientForDT.adniSubjectId
-    );
+    const derived = buildBrainMeshUrl(subj);
     if (derived) {
       setSelectedPatientForDT((prev) => ({ ...prev, meshUrl: derived }));
     }
@@ -2546,6 +2567,18 @@ const handleViewPatient = async (patientRef) => {
       const status = err?.response?.status;
       const endpoint = err?.config?.url;
       const msg = err?.response?.data?.error || err?.message || "Unknown error";
+      // Surface the failure in the panel so a previously-saved inference can't
+      // masquerade as a fresh result. The stage/trajectory model APIs sleep when
+      // idle, so a cold first request can time out — retrying usually succeeds.
+      setSelectedPatientForDT((prev) =>
+        prev
+          ? {
+              ...prev,
+              inferenceText: `AI analysis did not complete${status ? ` (HTTP ${status})` : ""}: ${msg}. The model may have been waking up — click "Run AI Diagnostics" again.`,
+              trajInference: null,
+            }
+          : prev
+      );
       alert(
         `AI Analysis Failed${status ? ` (${status})` : ""}${endpoint ? ` at ${endpoint}` : ""}: ${msg}`
       );
