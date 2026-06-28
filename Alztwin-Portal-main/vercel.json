@@ -7,15 +7,15 @@
   "rewrites": [
     {
       "source": "/api/stage",
-      "destination": "https://currentstagepredictionalztwin-d0dug2cmffeqfpa2.uaenorth-01.azurewebsites.net/predict"
+      "destination": "https://alztwin-prediction-api.azurewebsites.net/predict"
     },
     {
       "source": "/api/progression",
-      "destination": "https://trajectoryprogressionprediction-fpc8f8b9gqd3ggcm.uaenorth-01.azurewebsites.net/predict"
+      "destination": "https://alztwin-trajectory-yusra-sea.azurewebsites.net/predict"
     },
     {
       "source": "/api/cognitive",
-      "destination": "https://alztwin-progression-api.azurewebsites.net/predict"
+      "destination": "https://alztwin-voice-api.azurewebsites.net/predict"
     },
     {
       "source": "/api/brain/:path*",

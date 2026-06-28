@@ -13,21 +13,19 @@ export default defineConfig(({ mode }) => {
       host: "0.0.0.0",
       proxy: {
         "/api/stage": {
-          target:
-            "https://currentstagepredictionalztwin-d0dug2cmffeqfpa2.uaenorth-01.azurewebsites.net",
+          target: "https://alztwin-prediction-api.azurewebsites.net",
           changeOrigin: true,
           secure: true,
           rewrite: (p) => p.replace(/^\/api\/stage/, "/predict"),
         },
         "/api/progression": {
-          target:
-            "https://trajectoryprogressionprediction-fpc8f8b9gqd3ggcm.uaenorth-01.azurewebsites.net",
+          target: "https://alztwin-trajectory-yusra-sea.azurewebsites.net",
           changeOrigin: true,
           secure: true,
           rewrite: (p) => p.replace(/^\/api\/progression/, "/predict"),
         },
         "/api/cognitive": {
-          target: "https://alztwin-progression-api.azurewebsites.net",
+          target: "https://alztwin-voice-api.azurewebsites.net",
           changeOrigin: true,
           secure: true,
           rewrite: (p) => p.replace(/^\/api\/cognitive/, "/predict"),
