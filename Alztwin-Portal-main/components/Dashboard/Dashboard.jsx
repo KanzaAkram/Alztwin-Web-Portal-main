@@ -134,6 +134,8 @@ import {
   API_3D_MODEL_URL,
   buildBrainMeshUrl,
   BRAIN3D_DEFAULT_MESH_URL,
+  buildBrainVizUrl,
+  BRAIN3D_DEFAULT_VIZ_URL,
   STAGE_LEVEL_MAP,
   deriveRiskFromStage,
   mapStageToTrajectory,
@@ -910,6 +912,12 @@ const Dashboard = ({ user, onLogout }) => {
               data.meshUrl ||
               buildBrainMeshUrl(data.subjectId || data.adniSubjectId) ||
               BRAIN3D_DEFAULT_MESH_URL,
+            // Interactive Plotly split-view (matches the notebook). Preferred over
+            // the three.js PLY when available; falls back to the default viz.
+            vizUrl:
+              data.vizUrl ||
+              buildBrainVizUrl(data.subjectId || data.adniSubjectId) ||
+              BRAIN3D_DEFAULT_VIZ_URL,
           };
         })
       );

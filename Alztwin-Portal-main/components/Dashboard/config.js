@@ -37,6 +37,17 @@ export const buildBrainMeshUrl = (subjectId) => {
 export const BRAIN3D_DEFAULT_SUBJECT = "123_S_0088";
 export const BRAIN3D_DEFAULT_MESH_URL = buildBrainMeshUrl(BRAIN3D_DEFAULT_SUBJECT);
 
+// Interactive Plotly split-view (normal vs patient + ROIs + colorbar), saved by
+// the pipeline as viz_<id>.html. Embedded in an iframe so the portal matches the
+// notebook exactly. buildBrainMeshUrl's PLY (three.js) remains the fallback.
+export const buildBrainVizUrl = (subjectId) => {
+  if (!subjectId) return null;
+  const id = String(subjectId).trim();
+  if (!id) return null;
+  return `${BRAIN3D_BLOB_BASE}/${id}/viz_${id}.html?${BRAIN3D_READ_SAS}`;
+};
+export const BRAIN3D_DEFAULT_VIZ_URL = buildBrainVizUrl(BRAIN3D_DEFAULT_SUBJECT);
+
 export const RAG_FUNCTION_CODE =
   "gqkqEhgGIuKrDBnE8MolPCcN2Uq-_WoGbeD-w2gz2qLNAzFuAGSKug==";
 export const API_RAG_URL = `/api/rag/recommend?code=${RAG_FUNCTION_CODE}`;

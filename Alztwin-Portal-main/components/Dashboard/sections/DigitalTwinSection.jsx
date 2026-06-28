@@ -1064,6 +1064,22 @@ export default function DigitalTwinSection({
                     </p>
                   )}
                 </div>
+              ) : selectedPatientForDT?.vizUrl ? (
+                <div className="w-full h-full relative">
+                  {/* Interactive Plotly split-view (normal vs patient + ROIs +
+                      colorbar) — matches the notebook exactly. */}
+                  <iframe
+                    src={selectedPatientForDT.vizUrl}
+                    title="3D Brain Reconstruction"
+                    className="w-full h-full border-0"
+                    loading="lazy"
+                  />
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-slate-900/80 backdrop-blur-sm px-4 py-2 rounded-full border border-slate-700 pointer-events-none">
+                    <span className="text-xs text-slate-400 flex items-center gap-2">
+                      <Move size={12} /> Rotate • Zoom • Pan
+                    </span>
+                  </div>
+                </div>
               ) : selectedPatientForDT?.meshUrl ? (
                 <div className="w-full h-full relative">
                   <ThreeBrainView plyUrl={selectedPatientForDT.meshUrl} />
