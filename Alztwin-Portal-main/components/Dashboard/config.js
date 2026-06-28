@@ -11,6 +11,25 @@ export const API_PROGRESSION_URL = "/api/progression";
 export const API_COGNITIVE_URL = "/api/cognitive";
 export const API_3D_MODEL_URL = "/api/brain";
 
+// ── 3D brain meshes (Azure ML batch endpoint) ──────────────────────────────
+// The 3D brain PLYs are PRECOMPUTED by the Azure ML batch endpoint (brain3d-batch,
+// southeastasia) and stored in blob storage. The portal loads the static PLY URL
+// directly — no on-demand generation, so the old /generate_ply timeout is gone.
+// Container is CORS-enabled and these are read-only SAS creds (expire 2026-12-31).
+export const BRAIN3D_BLOB_BASE =
+  "https://brain3dwstorageacf462b9f.blob.core.windows.net/brain3d-out";
+export const BRAIN3D_READ_SAS =
+  "se=2026-12-31T23%3A59%3A00Z&sp=rl&spr=https&sv=2026-02-06&sr=c&sig=AE0tW7cRHrCk%2B%2BTNNdyW8uVTSSi/9la0gtwQBfmhZQs%3D";
+
+// Build the patient brain mesh URL from an ADNI subject id (e.g. "123_S_0088").
+// Returns null when no subject id is known, so callers can fall back gracefully.
+export const buildBrainMeshUrl = (subjectId) => {
+  if (!subjectId) return null;
+  const id = String(subjectId).trim();
+  if (!id) return null;
+  return `${BRAIN3D_BLOB_BASE}/${id}/brain_patient_${id}.ply?${BRAIN3D_READ_SAS}`;
+};
+
 export const RAG_FUNCTION_CODE =
   "gqkqEhgGIuKrDBnE8MolPCcN2Uq-_WoGbeD-w2gz2qLNAzFuAGSKug==";
 export const API_RAG_URL = `/api/rag/recommend?code=${RAG_FUNCTION_CODE}`;

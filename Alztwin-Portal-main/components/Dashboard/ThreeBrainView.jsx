@@ -89,11 +89,10 @@ const ThreeBrainView = ({ plyUrl }) => {
       lines.push({ line, regionPos, offset });
     };
 
-    // 4. Load PLY & Generate Heatmap
+    // 4. Load PLY (renders the real per-vertex atrophy colors from the pipeline)
     const loader = new PLYLoader();
     loader.load(plyUrl, (geo) => {
       geo.computeVertexNormals();
-      const pos = geo.attributes.position;
 
       // Centering
       geo.computeBoundingBox();
@@ -108,68 +107,20 @@ const ThreeBrainView = ({ plyUrl }) => {
       const maxDim = Math.max(size.x, size.y, size.z);
       const scale = 350 / maxDim; // Fit inside the 600px container
 
-      // Create Base Mesh
+      // Render the REAL atrophy heatmap that the Azure pipeline bakes into the PLY
+      // as per-vertex colors. PLYLoader exposes them as geo.attributes.color when
+      // present, so we render them directly instead of a synthetic spatial heatmap.
+      const hasBakedColors = !!geo.attributes.color;
       const material = new THREE.MeshStandardMaterial({
-        color: 0x64748b, // Slate-500
-        roughness: 0.4,
-        metalness: 0.1,
+        vertexColors: hasBakedColors,
+        color: hasBakedColors ? 0xffffff : 0x64748b, // slate fallback if no colors
+        roughness: 0.45,
+        metalness: 0.05,
         side: THREE.DoubleSide,
       });
-      const originalMesh = new THREE.Mesh(geo.clone(), material);
-      originalMesh.scale.setScalar(scale);
-      scene.add(originalMesh);
-
-      // Create Heatmap Overlay
-      const heatColors = new Float32Array(pos.count * 3);
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i);
-        const y = pos.getY(i);
-        const z = pos.getZ(i);
-
-        let r = 0,
-          g = 0,
-          b = 0;
-
-        // --- Heatmap Logic (Customize zones here) ---
-        if (z > 40) {
-          r = 1;
-          g = 0.2;
-          b = 0.2;
-        } // Frontal (Red)
-        else if (z < -40) {
-          r = 0.2;
-          g = 0.4;
-          b = 1;
-        } // Occipital (Blue)
-        else if (y < -30) {
-          r = 1;
-          g = 1;
-          b = 0;
-        } // Temporal (Yellow)
-        else {
-          r = 0.1;
-          g = 0.8;
-          b = 0.1;
-        } // Parietal/Other (Green)
-
-        heatColors[i * 3] = r;
-        heatColors[i * 3 + 1] = g;
-        heatColors[i * 3 + 2] = b;
-      }
-
-      const heatGeo = geo.clone();
-      heatGeo.setAttribute("color", new THREE.BufferAttribute(heatColors, 3));
-      const heatMaterial = new THREE.MeshStandardMaterial({
-        vertexColors: true,
-        roughness: 0.3,
-        metalness: 0.1,
-        transparent: true,
-        opacity: 0.5, // See-through overlay
-        side: THREE.DoubleSide,
-      });
-      const heatMesh = new THREE.Mesh(heatGeo, heatMaterial);
-      heatMesh.scale.setScalar(scale);
-      scene.add(heatMesh);
+      const brainMesh = new THREE.Mesh(geo, material);
+      brainMesh.scale.setScalar(scale);
+      scene.add(brainMesh);
 
       // Add Labels
       createLabelWithLine(
